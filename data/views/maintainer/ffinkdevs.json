@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["duplicacy"],"builds":[],"devel":false,"lists":[],"maintainers":["ffinkdevs","devusb"],"name":"duplicacy","nixStatus":"newest","nixVersion":"3.2.5","nixVulnerable":false,"openIssues":0,"openPRs":0,"platforms":{"darwin":true,"linux":true},"project":"duplicacy","refVersion":"3.2.5","searchTerm":"duplicacy","unfree":true,"update":null,"updateFailure":false}]}

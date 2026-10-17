@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["moon-phases"],"builds":[],"devel":false,"lists":[],"maintainers":["mirrorwitch"],"name":"moon-phases","nixStatus":"unique","nixVersion":"0.3.3","nixVulnerable":false,"openIssues":0,"openPRs":0,"platforms":{"darwin":true,"linux":true},"project":"moon-phases","refVersion":"0.3.3","searchTerm":"moon-phases","unfree":true,"update":null,"updateFailure":false}]}
