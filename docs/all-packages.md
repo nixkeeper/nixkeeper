@@ -99,8 +99,10 @@ write**: it can start and cancel runs, nothing else.
 ### Whose runs
 
 By default it starts the community instance's: its hourly updates and
-sync, and the digests (in the `nixkeeper` organisation: digest-builds,
--update-bot, -versions, -vulnerabilities and -prs). Elsewhere, two variables say which:
+sync, the digests (in the `nixkeeper` organisation: digest-builds,
+-update-bot, -versions, -vulnerabilities and -prs), and
+[status](https://github.com/nixkeeper/status)' hourly check of all of them.
+Elsewhere, two variables say which:
 
 - `NIXKEEPER_START_REPO`: your nixkeeper repository (`you/nixkeeper`),
   whose hourly updates and sync it starts; empty for none.

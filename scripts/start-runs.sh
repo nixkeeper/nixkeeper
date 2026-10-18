@@ -24,6 +24,10 @@
 #                   and nixkeeper-prs' (its open PRs, and their diffs)
 #   every 3 hours   nixkeeper-updates'
 #   04 and 16 UTC   nixkeeper-versions', if its last run is over 10 hours old
+#   every hour      status' check (nixkeeper/status: whether all of the above
+#                   are on time, on a page and as issues), last, so it sees
+#                   this hour's starts; its own schedule keeps it going if
+#                   this machine stops, which is one of the things it checks
 #
 # The workflows keep their own schedules as a fallback: a run started twice
 # (by both) either waits for the other and finds nothing new, or stops at
@@ -128,5 +132,8 @@ if [ -n "$repo" ]; then
   else
     start "$repo" data-hourly.yml
   fi
+fi
+if [ -n "$digests" ]; then
+  start "$digests/status" check.yml
 fi
 exit "$failed"

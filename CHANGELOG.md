@@ -11,6 +11,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- start-runs also starts [nixkeeper/status](https://github.com/nixkeeper/status)'
+  hourly check, which says on a page whether every workflow, digest and
+  token is on time and opens an issue for what needs attention (its token
+  needs the status repository too).
 - What blocks staging-next: a dependency failing there that stops packages
   building on master says how many in its details ("its failure stops N
   other packages' builds on staging-next"), a package it stops says which
