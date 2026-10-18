@@ -462,3 +462,63 @@ class StagingPRs(unittest.TestCase):
         row = self.row(stagingPR={"number": 1})
         prs_digest.add_staging_prs([row], None)
         self.assertNotIn("stagingPR", row)
+
+
+class Mergeable(unittest.TestCase):
+    """The PRs maintainers can merge with the merge bot (views/merge.json)."""
+
+    ROWS = [
+        {"name": "wine"},
+        {"name": "python313Packages.rq", "attrs": ["python313Packages.rq"]},
+    ]
+
+    def pr(self, n, **kw):
+        found = {
+            "n": n,
+            "title": f"wine: {n}",
+            "author": "r-ryantm",
+            "created": f"2026-10-0{n}T00:00:00Z",
+            "base": "master",
+            "draft": False,
+            "mergeable": "UNKNOWN",
+            "packages": ["wine"],
+            "mergeBot": {"ready": True, "maintainers": ["a", "b"], "label": True},
+        }
+        found.update(kw)
+        return found
+
+    def test_ready_ones_oldest_first(self):
+        prs = [
+            self.pr(3),
+            self.pr(1, approvedBy=["c"], author="a"),
+            self.pr(2, packages=["python3Packages.rq"]),
+        ]
+        found = prs_digest.mergeable(prs, self.ROWS)
+        self.assertEqual([p["number"] for p in found], [1, 2, 3])
+        self.assertEqual(
+            found[0],
+            {
+                "number": 1,
+                "title": "wine: 1",
+                "author": "a",
+                "created": "2026-10-01T00:00:00Z",
+                "base": "master",
+                "packages": ["wine"],
+                "who": ["a", "b"],
+                "approvedBy": ["c"],
+            },
+        )
+        # Python's alias, as the row's versioned set.
+        self.assertEqual(found[1]["packages"], ["python313Packages.rq"])
+
+    def test_left_out(self):
+        prs = [
+            self.pr(1, mergeBot={"ready": False, "maintainers": ["a"]}),  # CI
+            self.pr(2, mergeBot={"ready": True, "maintainers": []}),  # committers
+            self.pr(3, mergeable="CONFLICTING"),
+            self.pr(4, review="CHANGES_REQUESTED"),
+            self.pr(5, draft=True),
+            self.pr(6, packages=["firefox"]),  # no row of it
+            self.pr(7, mergeBot=None),
+        ]
+        self.assertEqual(prs_digest.mergeable(prs, self.ROWS), [])

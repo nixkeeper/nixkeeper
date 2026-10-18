@@ -1175,6 +1175,96 @@ button.checked:focus-visible {
 .scope-hint {
   color: var(--ink-faint);
 }
+/* "You can merge these", in a maintainer's or team's view (mergeHtml). */
+.merge-block {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.merge-block h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.merge-block h3 .scope-hint {
+  font-weight: 400;
+  font-size: 13px;
+}
+.merge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.merge-list .files-link {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.merge-n {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+}
+.merge-facts {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+.merge-how {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.merge-how code {
+  font-family: var(--nk-font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.merge-copy,
+.merge-more {
+  position: relative;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  min-height: 24px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.merge-more {
+  margin-top: 8px;
+}
+.merge-copy:hover,
+.merge-more:hover {
+  border-color: var(--accent);
+}
+.merge-copy:focus-visible,
+.merge-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.merge-copy[data-copied]::after {
+  content: attr(data-copied);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--surface);
+  pointer-events: none;
+}
 .team-pick {
   margin-left: auto;
   color: var(--ink-faint);

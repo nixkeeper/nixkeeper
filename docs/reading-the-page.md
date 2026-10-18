@@ -202,6 +202,19 @@ that). Its teams (nixpkgs' `meta.teams`), when it has any, are listed too:
 clicking one shows only that team's packages, as `?team=` does in the
 address (`?team=gaming`, in any case).
 
+**You can merge these:** on a maintainer's page, above the list, the open
+PRs they can merge themselves with nixpkgs' merge bot: CI passed, nixpkgs'
+CI labels it merge-bot eligible, and they maintain every package it touches
+(their own PRs first, then the longest waiting). Each says who opened it,
+how long it has waited, the branch when it isn't master, and who approved
+it. Review it, then comment `@NixOS/nixpkgs-merge-bot merge` on the PR (the
+block's **Copy** button): the bot merges it. On a team's page, the same for
+the packages nixpkgs lists under the team (`meta.teams`, whose members are
+their maintainers), each with who can merge it; not those a list of the
+team's name adds, which their own maintainers merge. Left out: drafts, PRs with
+a conflict or changes requested, and those only committers can merge. From
+nixkeeper-prs' digest, as of the last sync.
+
 Leaving packages out, each a chip to undo it:
 
 - `?team=-Geospatial` leaves a team's packages out, on any list

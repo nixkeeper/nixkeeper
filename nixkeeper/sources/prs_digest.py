@@ -150,6 +150,48 @@ def facts(prs, groups, issues):
     return {"prs": by_number, "fixes": fixes, "issues": checked, "open": open_prs}
 
 
+def mergeable(prs, rows):
+    """The PRs a maintainer can merge now with the merge bot (nixpkgs'
+    @NixOS/nixpkgs-merge-bot): eligible, as nixpkgs' CI labels them (or the
+    digest finds them), CI green, no conflict, no changes requested, not a
+    draft, and touching packages of rows; with who can ("who": the
+    maintainers of every package it touches, the digest's merge_bot), for
+    the maintainer and team views' "You can merge these" (views/merge.json).
+    Oldest first: the longest waiting."""
+    known = {package_key(r["name"]): r["name"] for r in rows}
+    for row in rows:
+        for attr in row.get("attrs") or []:
+            known.setdefault(package_key(attr), row["name"])
+    found = []
+    for pr in prs:
+        mb = pr.get("mergeBot") or {}
+        if not (mb.get("ready") and mb.get("maintainers")):
+            continue
+        if pr.get("draft") or pr.get("mergeable") == "CONFLICTING":
+            continue
+        if pr.get("review") == "CHANGES_REQUESTED":
+            continue
+        packages = sorted(
+            {known[k] for k in map(package_key, pr.get("packages") or []) if k in known}
+        )
+        if not packages:
+            continue
+        item = {
+            "number": pr["n"],
+            "title": pr["title"],
+            "author": pr.get("author") or "",
+            "created": pr.get("created") or "",
+            "base": pr.get("base") or "",
+            "packages": packages,
+            "who": mb["maintainers"],
+        }
+        if pr.get("approvedBy"):
+            item["approvedBy"] = pr["approvedBy"]
+        found.append(item)
+    found.sort(key=lambda p: (p["created"], p["number"]))
+    return found
+
+
 def add_facts(rows, digest):
     """Give each row the digest's findings for its own package (facts'): its
     update PR's ("openPR"'s "facts", with "fixesBuild" when it touches the
@@ -273,6 +315,7 @@ def load(now, revision):
             found["facts"] = facts(
                 data.get("prs") or [], data.get("groups") or [], raw_issues
             )
+            found["raw"] = data.get("prs") or []
         else:
             why.append("open PRs and issues too old")
         if merged_meta.get("revision") != revision:

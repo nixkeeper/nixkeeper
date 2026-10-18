@@ -213,6 +213,14 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   name in lowercase, each run of other characters than letters and digits
   a `-`: `Security review` is `security-review`), `set/<name>.json` (a
   set's rows);
+- `views/merge.json`: the open PRs a maintainer can merge now with nixpkgs'
+  merge bot, from nixkeeper-prs' digest (eligible by nixpkgs CI's label, CI
+  green, no conflict, no changes requested, not a draft, touching tracked
+  packages), oldest first: `{ "checkedAt", "prs": [ { "number", "title",
+  "author", "created", "base", "packages": [row names], "who": [the
+  maintainers of every package it touches, GitHub handles], "approvedBy"? },
+  ... ] }`. With every package only. The maintainer and team views'
+  "You can merge these" (`prs_digest.mergeable`);
 - `history.json`: `{ "points": [ { "day", "tracked", "outdated", "failed",
   "buildFailures", "updateFailures", "vulnerable", "broken" }, ... ],
   "fixed": [ ... ] }`. `points`: the counts of the rows not in a set at each

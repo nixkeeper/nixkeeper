@@ -11,6 +11,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- "You can merge these" on a maintainer's page: the open PRs they can merge
+  themselves with nixpkgs' merge bot (CI green, merge-bot eligible, they
+  maintain every package it touches), their own first, then the longest
+  waiting, with the comment to post and a button to copy it. On a team's
+  page, those on the packages nixpkgs lists under the team (`meta.teams`,
+  not a list of the same name), with who can merge each. On
+  2026-10-18, 479 PRs, for 499 maintainers; 87 waiting over three months.
+  From nixkeeper-prs' digest (`views/merge.json`).
 - start-runs also starts [nixkeeper/status](https://github.com/nixkeeper/status)'
   hourly check, which says on a page whether every workflow, digest and
   token is on time and opens an issue for what needs attention (its token

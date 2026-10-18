@@ -1329,6 +1329,90 @@ function loadMaintainers() {
     });
 }
 
+// views/merge.json: the PRs maintainers can merge now with the merge bot
+// (nixkeeper/sources/prs_digest.py: mergeable), for "You can merge these" in
+// a maintainer's or team's view. Loaded once, when one is first shown.
+let mergeList = null;
+let mergeLoading = null;
+let mergeAll = false; // every one shown, not the first MERGE_SHOWN
+const MERGE_SHOWN = 5;
+const MERGE_COMMAND = '@NixOS/nixpkgs-merge-bot merge';
+function loadMerge() {
+  if (mergeLoading) return;
+  mergeLoading = fetch(dataUrl('views/merge.json'), { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : { prs: [] }))
+    .then((data) => {
+      mergeList = data.prs || [];
+      update({ keepPage: true });
+    })
+    .catch(() => {
+      mergeLoading = null; // tried again with the next view
+    });
+}
+
+// "You can merge these": in @handle's view, the PRs they can merge (their
+// own first); in a team's, those touching the packages nixpkgs lists under
+// the team (meta.teams: its members are their maintainers, so the merge bot
+// counts them), not those a list of the same name adds (teamsByList: their
+// own maintainers merge those), with who can. Nothing when there are none,
+// or before views/merge.json is in.
+function mergeHtml(path, handle) {
+  const mine = path.startsWith('views/maintainer/') && handle && handle !== 'none';
+  const team = path.startsWith('views/team/');
+  if (!mine && !team) return '';
+  if (!mergeList) {
+    loadMerge();
+    return '';
+  }
+  const who = handle.toLowerCase();
+  const theirs = team && teamName();
+  const names = team
+    ? new Set(packages.filter((p) => !p.teamsByList?.includes(theirs)).map((p) => p.name))
+    : null;
+  const own = (p) => mine && p.author.toLowerCase() === who;
+  const prs = mergeList
+    .filter((p) =>
+      mine ? p.who.some((w) => w.toLowerCase() === who) : p.packages.some((n) => names.has(n)),
+    )
+    .sort((a, b) => own(b) - own(a));
+  if (!prs.length) return '';
+  const shown = mergeAll ? prs : prs.slice(0, MERGE_SHOWN);
+  const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
+  const waited = (iso) => {
+    const d = days(iso);
+    return d < 1 ? 'opened today' : `waiting ${d} day${d === 1 ? '' : 's'}`;
+  };
+  const people = (list) => list.map((h) => `@${h}`).join(', ');
+  const line = (p) => {
+    const facts = [
+      own(p) ? html`<b>your own PR</b>` : `by @${p.author}`,
+      html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">${waited(p.created)}</span>`,
+      p.base !== 'master' && html`into <span class="mono">${p.base}</span>`,
+      p.approvedBy?.length && `approved by ${people(p.approvedBy)}`,
+      team && `${people(p.who)} can merge it`,
+    ].filter(Boolean);
+    return html`<li><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
+  };
+  const what = mine
+    ? html`You can merge ${prs.length === 1 ? 'this PR' : html`these ${fmt(prs.length)} PRs`}`
+    : html`${fmt(prs.length)} PR${prs.length === 1 ? '' : 's'} on the team's packages, ready to merge`;
+  const why = mine
+    ? 'CI passed, and you maintain every package it touches: the merge bot merges it for you'
+    : 'CI passed, and the people named under each maintain every package it touches: the merge bot merges it for any of them';
+  const more =
+    prs.length > MERGE_SHOWN
+      ? html`<button type="button" class="merge-more">${mergeAll ? 'Show fewer' : `Show all ${fmt(prs.length)}`}</button>`
+      : '';
+  return html`<section class="merge-block" aria-labelledby="mergeHead">
+    <h3 id="mergeHead">${what} <span class="scope-hint">${why}</span></h3>
+    <ul class="merge-list">${shown.map(line)}</ul>
+    ${more}
+    <p class="merge-how">Review it, then comment on the PR: <code>${MERGE_COMMAND}</code>
+      <button type="button" class="merge-copy" data-copy="${MERGE_COMMAND}" title="Copy the comment">Copy</button>
+      <a class="files-link" href="https://github.com/NixOS/nixpkgs/blob/master/ci/README.md" target="_blank" rel="noopener">how the merge bot works ↗</a></p>
+  </section>`;
+}
+
 function loadNames() {
   if (namesLoading) return;
   namesLoading = fetch(dataUrl('names.json'), { cache: 'no-store' })
@@ -2299,6 +2383,7 @@ function listHeaderHtml() {
       ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(setFilter)}${profileOf(setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
       ${teamPicker('Any team')}${teamOutChips()}
     </div>
+    ${mergeHtml(path, handle)}
     ${
       // One package: its row says it all, the tiles would only count to 1.
       path.startsWith('pkg:') ? '' : html`<div class="tiles">${tiles}</div>${refineHtml()}`
@@ -3923,6 +4008,16 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   const mode = e.target.closest('button.hl-mode');
   if (mode) {
     highlightShown[mode.dataset.hl] = mode.dataset.mode;
+    renderScope();
+    return;
+  }
+  const copy = e.target.closest('button.merge-copy');
+  if (copy) {
+    copyTitle(copy);
+    return;
+  }
+  if (e.target.closest('button.merge-more')) {
+    mergeAll = !mergeAll;
     renderScope();
     return;
   }

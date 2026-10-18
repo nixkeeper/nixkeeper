@@ -347,7 +347,18 @@ def main():
         )
         if everything
         else None,
-        kept={nixpkgs_source.EVALUATIONS: nixpkgs_source.kept_answers()},
+        kept={
+            nixpkgs_source.EVALUATIONS: nixpkgs_source.kept_answers(),
+            # The PRs maintainers can merge with the merge bot: the
+            # maintainer and team views' "You can merge these" (every
+            # package's PRs: with every package only).
+            "views/merge.json": {
+                "checkedAt": now,
+                "prs": prs_digest.mergeable(digest["raw"], index_rows),
+            }
+            if everything and digest.get("raw") is not None
+            else None,
+        },
     )
     nixpkgs_source.stop_keeping()
     # With every package, what changed for the lists' own packages only.
