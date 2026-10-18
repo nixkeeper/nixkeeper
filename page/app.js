@@ -677,9 +677,19 @@ const BOT_ICON = raw(
 // merged already (its badge says it). Like the cell's button, it opens the
 // update panel, which says when.
 function queuedTag(pkg) {
+  const q = queuedState(pkg);
+  return q
+    ? html`<button type="button" class="queued-tag${q.match ? ' match' : ''}" data-kind="update" aria-expanded="false" aria-label="Queued: ${q.title}" title="${q.title}">${BOT_ICON}</button>`
+    : '';
+}
+
+// Whether nixpkgs-update is set to try the package (queuedTag's robot):
+// { match: to the newest version, its last attempt fine, so its PR should
+// follow; title }, or null.
+function queuedState(pkg) {
   const st = computeStatus(pkg);
   const to = queuedTo(pkg);
-  if (pkg.openPR || pkg.stagingPR || waitingForChannel(pkg)) return '';
+  if (pkg.openPR || pkg.stagingPR || waitingForChannel(pkg)) return null;
   const target = st === 'warn' ? targetVersion(pkg) : null;
   let match = false;
   let title;
@@ -703,9 +713,22 @@ function queuedTag(pkg) {
     title =
       "nixpkgs-update will run its updateScript, which decides the version: whether it's the newest, its PR will tell. When: the update panel";
   } else {
-    return '';
+    return null;
   }
-  return html`<button type="button" class="queued-tag${match ? ' match' : ''}" data-kind="update" aria-expanded="false" aria-label="Queued: ${title}" title="${title}">${BOT_ICON}</button>`;
+  return { match, title };
+}
+
+// "auto update in 4 days": when nixpkgs-update is set to update the package
+// to the newest version (the green robot) and the queue says when, the
+// update cell's text instead of "—" (nothing reported). Days from its
+// expected day (queued.by), as the update panel's "Next attempt" counts.
+function botDueText(pkg) {
+  const by = pkg.queued?.by;
+  if (!by || !queuedState(pkg)?.match) return null;
+  const days = daysUntil(by);
+  return days < 1
+    ? 'auto update within a day'
+    : `auto update in ${days === 1 ? 'a day' : `${days} days`}`;
 }
 
 // The version column: the versions on the left, badges on the right (so
@@ -2851,6 +2874,16 @@ function updateStatus(pkg) {
   if (pkg.unread?.includes('update') && !pkg.update) return button('neutral', 'not read', true);
   if (pkg.update === null && pkg.unversioned)
     return html`<span class="failure-na" title="${UNVERSIONED_TITLE}: nothing for nixpkgs-update to update">—</span>`;
+  // Nothing reported, and the bot is set to update it: when, in green.
+  const due = botDueText(pkg);
+  if (due)
+    return failureButton(
+      'update',
+      'ok',
+      html`<span class="bot-due">${due}</span>`,
+      `${queuedState(pkg).title.replace(/\. When: the update panel$/, '')}, expected by ${pkg.queued.by}`,
+      notRefreshed(pkg, 'update'),
+    );
   if (pkg.update === null) return button('neutral', 'not attempted', true);
   return button('ok', 'none reported', true);
 }

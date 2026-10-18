@@ -112,7 +112,7 @@ class Output(unittest.TestCase):
         self.assertEqual(entry["openPRs"], 2)
         self.assertEqual(entry["nixVersion"], "1.18.5")
 
-    def test_summary_keeps_the_queues_versions_not_its_day(self):
+    def test_summary_keeps_the_queues_versions_and_day(self):
         github = "https://github.com/yairm210/Unciv/releases"
         repology = "https://repology.org/project/unciv/versions"
         queued = {
@@ -131,9 +131,10 @@ class Output(unittest.TestCase):
             self.out,
         )
         unciv, wesnoth, zzz = json.loads(self.read("summary.json"))["packages"]
-        self.assertEqual(unciv["queued"], {"to": ["4.22.7"]})  # once each
+        # Each version once, and when (the list's "auto update in 4 days").
+        self.assertEqual(unciv["queued"], {"to": ["4.22.7"], "by": "2026-10-11"})
         # Its updateScript's turn: no version, the script decides.
-        self.assertEqual(wesnoth["queued"], {"script": True})
+        self.assertEqual(wesnoth["queued"], {"script": True, "by": "2026-10-15"})
         self.assertNotIn("queued", zzz)  # neither: nothing to show
         # The row has it all, for the panel.
         rows = json.loads(self.read("rows/0.json"))["packages"]

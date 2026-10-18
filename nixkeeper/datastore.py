@@ -206,8 +206,9 @@ def summary_entry(row):
             k: v for k, v in row["upstream"].items() if k in UPSTREAM_SHOWN
         }
     # The bot's queue, for the list's robot: the versions it would update to,
-    # and whether it runs the package's updateScript; when (which changes
-    # daily) only in the row.
+    # whether it runs the package's updateScript, and the day it's expected
+    # to try ("by": the list's "auto update in 4 days"; the row has the
+    # candidates' sources too).
     queued = row.get("queued") or {}
     entry.pop("queued", None)
     to = list(dict.fromkeys(c[0] for c in queued.get("candidates", [])))
@@ -215,6 +216,7 @@ def summary_entry(row):
         entry["queued"] = {
             **({"to": to} if to else {}),
             **({"script": True} if queued.get("script") else {}),
+            **({"by": queued["by"]} if queued.get("by") else {}),
         }
     return entry
 

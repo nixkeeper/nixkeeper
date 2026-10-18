@@ -56,8 +56,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   nixkeeper's data: one package's state, what needs attention for a
   maintainer or a team, build failures, PRs, issues, update attempts, CVEs.
 
+
 ### Changed
 
+- When nixpkgs-update is set to update a package to the newest version (the
+  green robot) and nothing's reported, its update cell says when instead of
+  "—": **auto update in 4 days**, in green, so it's clear the bot has it
+  in hand. The list's entries carry the queue's day (`queued.by`) for it.
 - The overview's "Blocking the most" switches between master and
   staging-next ("Master | Next") as the other lists switch between newest
   and oldest, instead of a line under it: the line, its names wrapping,

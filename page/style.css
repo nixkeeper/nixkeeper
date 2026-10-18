@@ -1886,6 +1886,11 @@ a.badge:hover {
   padding-right: 5px;
   color: var(--ink-faint);
 }
+/* The update cell's "auto update in 4 days" (botDueText): the robot's green. */
+.bot-due {
+  color: var(--ok-devel);
+  font-weight: 500;
+}
 .queued-tag.match {
   color: var(--ok-devel);
   font-weight: 500;

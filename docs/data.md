@@ -111,8 +111,9 @@ The page shows them under "checked … ago".
 
 One entry per row, sorted by name: the row (below) without what only its
 details show (`dataFile`, `homepage`, `repoCount`, `repologyCheckedAt`,
-`source`), its `queued` with only the versions and whether the bot runs its
-updateScript (`{ "to": ["4.22.7"], "script": true }`, when there's either),
+`source`), its `queued` with only the versions, whether the bot runs its
+updateScript and the day it's expected (`{ "to": ["4.22.7"], "script":
+true, "by": "2026-10-22" }`, when there's a version or a script),
 its builds with only `status` and `system`, its `update` with only
 `outcome` and `failedBecause` (still `null` when the bot never tried, missing when it isn't in
 nixpkgs), and its `upstream` with only `version`, `newer`, `community` and
