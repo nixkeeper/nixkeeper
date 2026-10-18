@@ -27,6 +27,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- Once a staging-next cycle is merged into master, what Hydra's last
+  evaluation of it said (what breaks there, what blocks it, how an update
+  builds there) is no longer shown as a forecast: it's master's now. Until
+  Hydra evaluates the next cycle, there's none. After #571813's merge on
+  2026-10-16, 86 packages still said they'd break "when staging-next is
+  merged", and 302 that they were stopped there.
+
 - An outdated package's newest version isn't one distribution's packaging
   of it, a part added to a release more distributions have: curl 8.23.0,
   not Baulk's 8.23.0.1; rakudo 2026.09, not AUR's 2026.09_01; yacreader

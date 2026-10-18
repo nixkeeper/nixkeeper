@@ -143,6 +143,34 @@ def load_staging_next(now):
     return jobs, info
 
 
+def current_staging_next(found, last_merged):
+    """found (load_staging_next's), unless its evaluation was made before
+    the last staging-next cycle was merged into master (last_merged: the
+    PR digest's {"merged", ...}): that cycle is master's now, and what the
+    evaluation said of it (what it breaks, what blocks it) has happened or
+    not there. None then, until Hydra evaluates the next cycle (2026-10-16:
+    evaluation 1830329 at 17:14, #571813 merged at 19:04)."""
+    if not found or not (last_merged or {}).get("merged"):
+        return found
+    _, info = found
+    made = info.get("evaluatedAt")
+    if made and made < last_merged["merged"]:
+        about.note(
+            f"branch:{STAGING_NEXT}",
+            False,
+            f"evaluation {info.get('eval')} is of the cycle merged into master "
+            f"on {last_merged['merged'][:10]}",
+        )
+        print(
+            f"{STAGING_NEXT}: evaluation {info.get('eval')} ({made}) is before "
+            f"the merge of #{last_merged.get('n')} ({last_merged['merged']}): "
+            "not used",
+            file=sys.stderr,
+        )
+        return None
+    return found
+
+
 def apply_staging_next(rows, found):
     """Give each row's update on staging-next (its stagingPR "on"
     staging-next) how it builds there, from found (load_staging_next's):

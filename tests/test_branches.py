@@ -369,3 +369,29 @@ class StagingNextBlocked(unittest.TestCase):
         self.assertFalse(
             any("stagingNextBlocks" in r or "stagingNextBlockedBy" in r for r in rows)
         )
+
+
+class CurrentStagingNext(unittest.TestCase):
+    """A staging-next evaluation made before its cycle's merge into master
+    isn't used: that cycle is master's now."""
+
+    FOUND = ({}, {"eval": 1830329, "evaluatedAt": "2026-10-16T17:14:44Z"})
+
+    def setUp(self):
+        about.taken()
+        patcher = mock.patch("sys.stderr", io.StringIO())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_before_the_merge_not_used(self):
+        # 2026-10-16: #571813 merged at 19:04, two hours after it.
+        merged = {"n": 571813, "merged": "2026-10-16T19:04:23Z"}
+        self.assertIsNone(branches.current_staging_next(self.FOUND, merged))
+        self.assertFalse(about.taken()["branch:staging-next"]["used"])
+
+    def test_after_the_merge_or_unknown_used(self):
+        # Of the next cycle, or with nothing merged since: used.
+        earlier = {"n": 566094, "merged": "2026-09-28T17:40:27Z"}
+        self.assertIs(branches.current_staging_next(self.FOUND, earlier), self.FOUND)
+        self.assertIs(branches.current_staging_next(self.FOUND, None), self.FOUND)
+        self.assertIsNone(branches.current_staging_next(None, earlier))

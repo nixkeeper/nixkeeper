@@ -370,7 +370,10 @@ and how it builds there, from Hydra's newest evaluation of staging-next
 (nixkeeper-hydra's `staging-next.json.gz`): `eval` (`eval`, `evaluatedAt`),
 `inEval` (false: merged since that evaluation), and `builds` (`system`,
 `status`, `build`: each platform's job at the PR's version, or at a newer
-one when staging-next has moved past it: then `evalVersion`, that version).
+one when staging-next has moved past it: then `evalVersion`, that version). None of the staging-next build fields (these, `stagingNextBreaks`,
+`stagingNextBlockedBy`, `stagingNextBlocks`) come from an evaluation made
+before the last staging-next cycle was merged into master: that cycle is
+master's now, and until Hydra evaluates the next, there are none.
 `openPR` also has `facts` (the full row only), what
 nixkeeper-prs found of it: `fixesBuild` (it touches the package while its
 build fails on Hydra: then not in `fixPRs` too), `mergeBot` (`ready`: a maintainer can merge

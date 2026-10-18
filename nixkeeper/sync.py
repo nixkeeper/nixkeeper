@@ -284,11 +284,14 @@ def main():
     # the digest's only (it knows where each is).
     prs_digest.add_staging_prs(outdated, digest.get("staging"))
     # And how those on staging-next build there (Hydra's evaluation of it).
-    staging_next = branches.load_staging_next(now)
+    cycles = (digest.get("staging") or {}).get("stagingNext") or {}
+    staging_next = branches.current_staging_next(
+        branches.load_staging_next(now), cycles.get("lastMerged")
+    )
     branches.apply_staging_next(outdated, staging_next)
     # And what staging-next breaks: packages that build on master, failing
     # there themselves (a forecast, for their panel and a filter).
-    cycle = ((digest.get("staging") or {}).get("stagingNext") or {}).get("open")
+    cycle = cycles.get("open")
     branches.apply_staging_next_breaks(shown, staging_next, cycle)
     # And who stops whom there: a dependency failing on staging-next.
     branches.apply_staging_next_blocked(index_rows, staging_next)
