@@ -203,12 +203,16 @@ clicking one shows only that team's packages, as `?team=` does in the
 address (`?team=gaming`, in any case).
 
 **You can merge these:** on a maintainer's page, above the list, the open
-PRs they can merge themselves with nixpkgs' merge bot: CI passed, nixpkgs'
-CI labels it merge-bot eligible, and they maintain every package it touches
+PRs they can merge themselves with nixpkgs' merge bot: CI passed (nixpkgs
+CI's own verdict, its `no PR failures` status), nixpkgs' CI labels it
+merge-bot eligible, and they maintain every package it touches
 (their own PRs first, then the longest waiting). Each says who opened it,
 how long it has waited, the branch when it isn't master, and who approved
 it. Review it, then comment `@NixOS/nixpkgs-merge-bot merge` on the PR (the
-block's **Copy** button): the bot merges it. On a team's page, the same for
+block's **Copy** button): the bot merges it, if they're also in
+[@NixOS/nixpkgs-maintainers](https://github.com/orgs/NixOS/teams/nixpkgs-maintainers),
+which the bot asks for too (who's in it isn't public, so nixkeeper can't
+check). On a team's page, the same for
 the packages nixpkgs lists under the team (`meta.teams`, whose members are
 their maintainers), each with who can merge it; not those a list of the
 team's name adds, which their own maintainers merge. Left out: drafts, PRs with

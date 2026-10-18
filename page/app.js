@@ -1396,9 +1396,11 @@ function mergeHtml(path, handle) {
   const what = mine
     ? html`You can merge ${prs.length === 1 ? 'this PR' : html`these ${fmt(prs.length)} PRs`}`
     : html`${fmt(prs.length)} PR${prs.length === 1 ? '' : 's'} on the team's packages, ready to merge`;
+  // The merge bot also asks that whoever comments be in
+  // @NixOS/nixpkgs-maintainers (nixpkgs' ci/README.md): not public, so said.
   const why = mine
-    ? 'CI passed, and you maintain every package it touches: the merge bot merges it for you'
-    : 'CI passed, and the people named under each maintain every package it touches: the merge bot merges it for any of them';
+    ? 'CI passed, and you maintain every package it touches: if you’re in @NixOS/nixpkgs-maintainers, the merge bot merges it for you'
+    : 'CI passed, and the people named under each maintain every package it touches: the merge bot merges it for any of them in @NixOS/nixpkgs-maintainers';
   const more =
     prs.length > MERGE_SHOWN
       ? html`<button type="button" class="merge-more">${mergeAll ? 'Show fewer' : `Show all ${fmt(prs.length)}`}</button>`

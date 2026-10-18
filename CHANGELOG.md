@@ -14,10 +14,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 - "You can merge these" on a maintainer's page: the open PRs they can merge
   themselves with nixpkgs' merge bot (CI green, merge-bot eligible, they
   maintain every package it touches), their own first, then the longest
-  waiting, with the comment to post and a button to copy it. On a team's
+  waiting, with the comment to post and a button to copy it (the merge bot
+  also asks that they be in @NixOS/nixpkgs-maintainers). On a team's
   page, those on the packages nixpkgs lists under the team (`meta.teams`,
   not a list of the same name), with who can merge each. On
   2026-10-18, 479 PRs, for 499 maintainers; 87 waiting over three months.
+  "CI passed" is nixpkgs CI's own verdict (its `no PR failures` status), as
+  the merge bot reads it, once nixkeeper-prs has it: not every check's,
+  which ofborg's, queued for weeks, kept pending for 526 more.
   From nixkeeper-prs' digest (`views/merge.json`).
 - start-runs also starts [nixkeeper/status](https://github.com/nixkeeper/status)'
   hourly check, which says on a page whether every workflow, digest and
