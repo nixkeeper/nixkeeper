@@ -954,11 +954,13 @@ button.checked:focus-visible {
   color: var(--ink-faint);
   font-size: 13px;
 }
-/* Under "Blocking the most": staging-next's own, before its merge. */
-.hl-sub {
-  margin: 6px 6px 0;
-  font-size: 12px;
-  color: var(--ink-soft);
+/* "Blocking the most" on staging-next: when, where "Show all" would be. */
+.hl-all.hl-when {
+  color: var(--ink-faint);
+  cursor: help;
+}
+.hl-all.hl-when:hover {
+  background: none;
 }
 .hl-all {
   justify-self: start;

@@ -25,6 +25,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   nixkeeper's data: one package's state, what needs attention for a
   maintainer or a team, build failures, PRs, issues, update attempts, CVEs.
 
+### Changed
+
+- The overview's "Blocking the most" switches between master and
+  staging-next ("Master | Next") as the other lists switch between newest
+  and oldest, instead of a line under it: the line, its names wrapping,
+  made the card taller and left an empty band under the build failures,
+  outdated and update failures beside it. Without staging-next data (as
+  between a cycle's merge and Hydra's evaluation of the next), no switch.
+
 ### Fixed
 
 - Once a staging-next cycle is merged into master, what Hydra's last

@@ -62,10 +62,10 @@ list. From the top:
   Beside them, the failing packages **blocking the most** others: a build
   that fails because one of its dependencies did, as zh.fail counts them in
   all of nixpkgs (fix that one, and they all build again), and "show all"
-  for every package blocked (`?view=blocked`). Under them, the same on
-  staging-next, before its merge into master: the dependencies failing
-  there that stop the most packages building on master (in Hydra's newest
-  evaluation of it, its day said). The panels of both say it too: "its
+  for every package blocked (`?view=blocked`). While Hydra has evaluated
+  the current staging-next, "Master | Next" switches it to staging-next,
+  before its merge into master: the dependencies failing there that stop
+  the most packages building on master (its evaluation's day said). The panels of both say it too: "its
   failure stops N other packages' builds on staging-next", "on
   staging-next, its build is stopped by X".
 - **Why things fail**: failed builds grouped by the same error (the line of

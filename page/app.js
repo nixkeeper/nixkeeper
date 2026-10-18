@@ -1822,7 +1822,12 @@ const HIGHLIGHTS = [
   { key: 'outdated', label: 'Outdated', filter: 'warn', color: 'var(--warn)' },
   { key: 'updateFailing', label: 'Update failures', filter: 'updates', color: 'var(--caution)' },
 ];
-const highlightShown = { failing: 'newest', outdated: 'newest', updateFailing: 'newest' };
+const highlightShown = {
+  failing: 'newest',
+  outdated: 'newest',
+  updateFailing: 'newest',
+  blockers: 'master',
+};
 
 function highlightsHtml() {
   const found = manifest.highlights;
@@ -1853,10 +1858,6 @@ function highlightsHtml() {
     <div class="hl-cols">${columns}${blockersHtml()}</div>`;
 }
 
-// The failing dependencies that stop the most packages' builds (the
-// manifest's blockers, from nixkeeper-hydra's blockedBy): fix one, and
-// they all build again. Of all of nixpkgs, as zh.fail counts them; not
-// with data from before, or before the digest has read any.
 // Why things fail, across packages (the manifest's causes, nixkeeper's
 // causes.py): failed builds grouped by the same error (a friendly title
 // where the pattern is known, else the error line), each opening its
@@ -1931,42 +1932,51 @@ function causesHtml() {
     <div class="hl-cols">${groups}${reasons}</div>`;
 }
 
+// "Blocking the most": the failing dependencies stopping the most packages'
+// builds (nixkeeper-hydra's blockedBy: fix one, and they all build again;
+// of all of nixpkgs, as zh.fail counts them; not with data from before, or
+// before the digest has read any), on master (the manifest's blockers) or,
+// while Hydra has evaluated
+// the current cycle, on staging-next before its merge (blockers.stagingNext,
+// branches.apply_staging_next_blocked), switched in its header as the other
+// lists switch newest and oldest: one list, one height, the cards aligned.
 function blockersHtml() {
   const b = manifest.blockers;
-  if (!b?.count) return '';
+  const sn = b?.stagingNext?.top?.length ? b.stagingNext : null;
+  if (!b?.count && !sn) return '';
+  const onNext = sn && highlightShown.blockers === 'stagingNext';
+  const shown = onNext ? sn : b;
+  const toggle = (m, text, title) =>
+    html`<button type="button" class="hl-mode" data-hl="blockers" data-mode="${m}" aria-pressed="${(onNext ? 'stagingNext' : 'master') === m}" title="${title}">${text}</button>`;
+  const when = sn?.evaluatedAt
+    ? ` (Hydra's evaluation of ${shortDay(sn.evaluatedAt.slice(0, 10))})`
+    : '';
+  const title = onNext
+    ? `On staging-next${when}, ${fmt(sn.count)} failing dependencies stop ${fmt(sn.packages)} packages that build on master: unless fixed there, they're stopped on master too when staging-next is merged`
+    : `${fmt(b.count)} failing dependencies stop ${fmt(b.packages)} packages' builds, in all of nixpkgs`;
   return html`<section class="hl-card" style="--hl:var(--danger)" aria-label="Blocking the most">
     <div class="hl-head">
-      <h3 class="hl-title" title="${fmt(b.count)} failing dependencies stop ${fmt(b.packages)} packages' builds, in all of nixpkgs"><span class="hl-label">Blocking the most</span><span class="hl-n">${fmt(b.packages)}</span></h3>
-      <span class="hl-unit">packages stopped</span>
+      <h3 class="hl-title" title="${title}"><span class="hl-label">Blocking the most</span><span class="hl-n">${fmt(shown.packages)}</span></h3>
+      ${
+        sn
+          ? html`<div class="hl-modes" role="group" aria-label="Blocking the most: on">${toggle('master', 'Master', 'On master, now')}${toggle('stagingNext', 'Next', 'On staging-next, before its merge into master')}</div>`
+          : html`<span class="hl-unit">packages stopped</span>`
+      }
     </div>
-    <ol class="hl-list">${b.top.map(
+    <ol class="hl-list">${shown.top.map(
       ([name, isRow, packages, builds]) =>
         html`<li>${
           isRow
             ? html`<a class="hl-row" href="${scopeHref({ pkg: name })}" data-scope-pkg="${name}">`
             : raw('<span class="hl-row">')
-        }<span class="status-dot missing" aria-hidden="true"></span><span class="hl-name mono">${name}</span><span class="hl-age" title="Stops ${fmt(packages)} ${packages === 1 ? 'package' : 'packages'} (${fmt(builds)} ${builds === 1 ? 'build' : 'builds'})">stops ${fmt(packages)}</span>${raw(isRow ? '</a>' : '</span>')}</li>`,
+        }<span class="status-dot missing" aria-hidden="true"></span><span class="hl-name mono">${name}</span><span class="hl-age" title="Stops ${fmt(packages)} ${packages === 1 ? 'package' : 'packages'} (${fmt(builds)} ${builds === 1 ? 'build' : 'builds'})${onNext ? ' on staging-next' : ''}">stops ${fmt(packages)}</span>${raw(isRow ? '</a>' : '</span>')}</li>`,
     )}</ol>
-    ${stagingNextBlockersHtml(b.stagingNext)}
-    <a class="hl-all" href="${scopeHref({ view: 'blocked' })}" data-card-view="blocked">Show all ${fmt(b.packages)} <span aria-hidden="true">→</span></a>
+    ${
+      onNext
+        ? html`<p class="hl-all hl-when" title="${title}">On staging-next${sn.evaluatedAt ? `, evaluated ${shortDay(sn.evaluatedAt.slice(0, 10))}` : ''}</p>`
+        : html`<a class="hl-all" href="${scopeHref({ view: 'blocked' })}" data-card-view="blocked">Show all ${fmt(b.packages)} <span aria-hidden="true">→</span></a>`
+    }
   </section>`;
-}
-
-// The same on staging-next, before its merge into master (the manifest's
-// blockers.stagingNext, branches.apply_staging_next_blocked): the failing
-// dependencies there stopping the most packages that build on master.
-function stagingNextBlockersHtml(sn) {
-  if (!sn?.top?.length) return '';
-  const when = sn.evaluatedAt
-    ? ` (Hydra's evaluation of ${shortDay(sn.evaluatedAt.slice(0, 10))})`
-    : '';
-  const shown = sn.top
-    .slice(0, 3)
-    .map(
-      ([name, isRow, packages], i) =>
-        html`${i ? ' · ' : ''}${isRow ? html`<a class="files-link mono" href="${scopeHref({ pkg: name })}" data-scope-pkg="${name}">${name}</a>` : html`<span class="mono">${name}</span>`} stops ${fmt(packages)}`,
-    );
-  return html`<p class="hl-sub" title="Failing dependencies on staging-next stop ${fmt(sn.packages)} packages that build on master${when}: unless fixed there, they're stopped on master too when staging-next is merged">On staging-next, ${fmt(sn.packages)} stopped: ${shown}</p>`;
 }
 
 // Days of history the cards draw, and how many points before they do.
