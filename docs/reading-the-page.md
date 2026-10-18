@@ -224,11 +224,11 @@ sync read from it:
 
 | Digest | Read |
 |---|---|
-| nixkeeper-hydra ([digest-builds](https://github.com/nixkeeper/digest-builds)) | the Hydra evaluations of master and haskell-updates |
-| nixkeeper-versions ([digest-versions](https://github.com/nixkeeper/digest-versions)) | Repology and the other version sources, when each was read |
-| nixkeeper-updates ([digest-update-bot](https://github.com/nixkeeper/digest-update-bot)) | nixpkgs-update's attempts, with how many are still to read, and its queue |
-| nixkeeper-vulnerabilities ([digest-vulnerabilities](https://github.com/nixkeeper/digest-vulnerabilities)) | the NixOS security tracker and OSV |
-| nixkeeper-prs ([digest-prs](https://github.com/nixkeeper/digest-prs)) | nixpkgs' open PRs and issues, and the PRs merged since the channel's commit |
+| [digest-builds](https://github.com/nixkeeper/digest-builds) | the Hydra evaluations of master (which the channels follow), staging-next (only the jobs that differ from master, while its cycle isn't merged) and haskell-updates |
+| [digest-versions](https://github.com/nixkeeper/digest-versions) | Repology and the other version sources, when each was read |
+| [digest-update-bot](https://github.com/nixkeeper/digest-update-bot) | nixpkgs-update's attempts, with how many are still to read, and its queue |
+| [digest-vulnerabilities](https://github.com/nixkeeper/digest-vulnerabilities) | the NixOS security tracker and OSV |
+| [digest-prs](https://github.com/nixkeeper/digest-prs) | nixpkgs' open PRs and issues, the PRs merged since the channel's commit, and those merged into staging or staging-next |
 
 A source the sync didn't use (too old, or it couldn't be read) says so in
 yellow: its packages were then asked about one by one instead.

@@ -1018,11 +1018,29 @@ const SOURCES = [
     says: () => '',
     instead: 'the rest of the sync went on',
   },
-  { key: 'hydra', digest: 'hydra', label: 'Builds', says: hydraEval },
+  {
+    // Hydra's nixpkgs/trunk jobset: master, which the channels follow.
+    key: 'hydra',
+    digest: 'hydra',
+    label: 'master',
+    from: 'https://hydra.nixos.org/jobset/nixpkgs/trunk',
+    says: hydraEval,
+  },
+  {
+    // Only the jobs that differ from master's (nixkeeper/sources/branches.py),
+    // and only while its cycle isn't merged yet.
+    key: 'branch:staging-next',
+    digest: 'hydra',
+    label: 'staging-next',
+    from: 'https://hydra.nixos.org/jobset/nixpkgs/staging-next',
+    says: (s) => html`${hydraEval(s)}, ${s.jobs?.toLocaleString()} jobs differing from master`,
+    instead: 'not shown until its next evaluation',
+  },
   {
     key: 'branch:haskell-updates',
     digest: 'hydra',
     label: 'haskell-updates',
+    from: 'https://hydra.nixos.org/jobset/nixpkgs/haskell-updates',
     says: hydraEval,
     instead: 'not shown',
   },
@@ -1118,6 +1136,7 @@ const SOURCES = [
         `made ${timeAgo(s.at)}`,
         s.prs != null && `${s.prs.toLocaleString()} open PRs, ${s.issues?.toLocaleString()} issues`,
         s.merged != null && `${s.merged.toLocaleString()} merged since the channel`,
+        s.staging != null && `${s.staging.toLocaleString()} merged into staging or staging-next`,
         s.partly && `${s.partly}: listed during the sync`,
       ]
         .filter(Boolean)
@@ -1154,12 +1173,12 @@ function sourcesHtml() {
   const digests = Object.entries(DIGESTS).map(([digest, url]) => {
     const mine = shown.filter((src) => src.digest === digest);
     return mine.length
-      ? html`<li class="src-digest"><a class="files-link" href="${url}" target="_blank" rel="noopener">nixkeeper-${digest}</a></li>${mine.map(row)}`
+      ? html`<li class="src-digest"><a class="files-link" href="${url}" target="_blank" rel="noopener">${url.split('/').pop()}</a></li>${mine.map(row)}`
       : '';
   });
   return html`<p class="pop-title">Where the data is from</p>
     <ul>
-      <li><b>Daily sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
+      <li><b>Last sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
       <li><b>Hourly checks</b><span>frequent update checks and update PRs, between syncs</span></li>
       ${own}
       ${digests}

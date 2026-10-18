@@ -36,6 +36,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- Where the data is from: the digests under their names since the move to
+  the nixkeeper organisation (digest-builds, not nixkeeper-hydra); Hydra's
+  evaluations named by branch (master, staging-next, haskell-updates), each
+  linking to its jobset; staging-next's evaluation and the PRs merged into
+  staging or staging-next listed; "Last sync", not "Daily sync" (every 3
+  hours on nixkeeper.com).
+
 - Once a staging-next cycle is merged into master, what Hydra's last
   evaluation of it said (what breaks there, what blocks it, how an update
   builds there) is no longer shown as a forecast: it's master's now. Until
