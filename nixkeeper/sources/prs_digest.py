@@ -24,6 +24,7 @@ import urllib.error
 from datetime import datetime, timedelta
 
 from .. import config
+from ..changes import is_vulnerable
 from ..versions import is_newer, version_key
 from . import about, github, http
 
@@ -150,18 +151,49 @@ def facts(prs, groups, issues):
     return {"prs": by_number, "fixes": fixes, "issues": checked, "open": open_prs}
 
 
+def cross_check(rows):
+    """What nixkeeper knows of a row that its update PR's facts (the
+    digest's) don't, added to them ("openPR"'s "facts"): "behind", upstream's
+    newer version (refVersion) when it's newer than the PR's: merged, the
+    package would still be outdated (496 open update PRs on 2026-10-18, 152
+    of them ready for the merge bot); "vulnerable", the package counts as
+    vulnerable (changes.is_vulnerable): a PR worth reviewing first (98).
+    After the versions and vulnerabilities are in: the sync's last word, and
+    the hourly check's after add_facts."""
+    for row in rows:
+        pr = row.get("openPR")
+        if not pr:
+            continue
+        facts = {k: v for k, v in (pr.get("facts") or {}).items() if k not in CROSS}
+        ref, to = row.get("refVersion"), pr.get("to")
+        if ref and to and is_newer(ref, to):
+            facts["behind"] = ref
+        if is_vulnerable(row):
+            facts["vulnerable"] = True
+        if facts:
+            pr["facts"] = facts
+        else:
+            pr.pop("facts", None)
+
+
+# The facts cross_check adds: worked out again each time.
+CROSS = ("behind", "vulnerable")
+
+
 def mergeable(prs, rows):
     """The PRs a maintainer can merge now with the merge bot (nixpkgs'
     @NixOS/nixpkgs-merge-bot): eligible, as nixpkgs' CI labels them (or the
     digest finds them), CI green, no conflict, no changes requested, not a
     draft, and touching packages of rows; with who can ("who": the
-    maintainers of every package it touches, the digest's merge_bot), for
-    the maintainer and team views' "You can merge these" (views/merge.json).
-    Oldest first: the longest waiting."""
-    known = {package_key(r["name"]): r["name"] for r in rows}
+    maintainers of every package it touches, the digest's merge_bot), and,
+    for an update, "behind" (upstream's newer version) and "vulnerable" as
+    cross_check has them, for the maintainer and team views' "You can merge
+    these" (views/merge.json). Oldest first: the longest waiting."""
+    by_key = {package_key(r["name"]): r for r in rows}
     for row in rows:
         for attr in row.get("attrs") or []:
-            known.setdefault(package_key(attr), row["name"])
+            by_key.setdefault(package_key(attr), row)
+    known = {key: row["name"] for key, row in by_key.items()}
     found = []
     for pr in prs:
         mb = pr.get("mergeBot") or {}
@@ -187,6 +219,13 @@ def mergeable(prs, rows):
         }
         if pr.get("approvedBy"):
             item["approvedBy"] = pr["approvedBy"]
+        update = pr.get("update") or {}
+        if row := by_key.get(package_key(update.get("attr") or "")):
+            ref, to = row.get("refVersion"), update.get("to")
+            if ref and to and is_newer(ref, to):
+                item["behind"] = ref
+            if is_vulnerable(row):
+                item["vulnerable"] = True
         found.append(item)
     found.sort(key=lambda p: (p["created"], p["number"]))
     return found

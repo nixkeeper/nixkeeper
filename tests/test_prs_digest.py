@@ -522,3 +522,50 @@ class Mergeable(unittest.TestCase):
             self.pr(7, mergeBot=None),
         ]
         self.assertEqual(prs_digest.mergeable(prs, self.ROWS), [])
+
+
+class CrossCheck(unittest.TestCase):
+    """An update PR behind upstream, or for a vulnerable package."""
+
+    def row(self, **kw):
+        found = {
+            "name": "wine",
+            "nixVersion": "10.15",
+            "refVersion": "10.17",
+            "openPR": {"number": 1, "to": "10.16", "facts": {"mergeBot": "ready"}},
+        }
+        found.update(kw)
+        return found
+
+    def test_behind_and_vulnerable(self):
+        row = self.row(vulnerabilities=[{"id": "CVE-1", "verdict": "affected"}])
+        prs_digest.cross_check([row])
+        self.assertEqual(
+            row["openPR"]["facts"],
+            {"mergeBot": "ready", "behind": "10.17", "vulnerable": True},
+        )
+
+    def test_up_to_upstream_and_again(self):
+        row = self.row(refVersion="10.16")
+        row["openPR"]["facts"]["behind"] = "10.16"  # an earlier run's
+        prs_digest.cross_check([row])
+        self.assertEqual(row["openPR"]["facts"], {"mergeBot": "ready"})
+        # Nothing at all: no facts left.
+        bare = self.row(refVersion=None, openPR={"number": 2, "to": "10.16"})
+        prs_digest.cross_check([bare])
+        self.assertNotIn("facts", bare["openPR"])
+
+    def test_in_the_merge_list(self):
+        rows = [self.row(markedInsecure=["CVE-2"])]
+        prs = [
+            {
+                "n": 1,
+                "title": "wine: 10.15 -> 10.16",
+                "created": "2026-10-01T00:00:00Z",
+                "packages": ["wine"],
+                "update": {"attr": "wine", "to": "10.16"},
+                "mergeBot": {"ready": True, "maintainers": ["a"]},
+            }
+        ]
+        found = prs_digest.mergeable(prs, rows)[0]
+        self.assertEqual((found["behind"], found["vulnerable"]), ("10.17", True))

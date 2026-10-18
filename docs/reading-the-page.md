@@ -180,7 +180,11 @@ merged since that likely fixes it, waiting for Hydra.
 **On GitHub**: what nixkeeper-prs found of the package's PRs and issues:
 
 - its update PR ready for the merge bot, superseded or overtaken, blocking
-  the update bot, or duplicated;
+  the update bot, or duplicated; **behind** when upstream has a newer
+  version than it brings (merged, the package would still be outdated:
+  worth updating the PR first), and **for a vulnerable package** when the
+  package counts as vulnerable (worth reviewing first, and checking whether
+  its version fixes the CVEs);
 - open PRs touching it while its build fails on Hydra (maybe its fix);
 - its other open PRs, a removal first ("removes it from nixpkgs": the list
   says **being removed** too);
@@ -206,7 +210,8 @@ address (`?team=gaming`, in any case).
 PRs they can merge themselves with nixpkgs' merge bot: CI passed (nixpkgs
 CI's own verdict, its `no PR failures` status), nixpkgs' CI labels it
 merge-bot eligible, and they maintain every package it touches
-(their own PRs first, then the longest waiting). Each says who opened it,
+(their own PRs first, then those for a vulnerable package, then the
+longest waiting; each says so, and when it's behind upstream). Each says who opened it,
 how long it has waited, the branch when it isn't master, and who approved
 it. Review it, then comment `@NixOS/nixpkgs-merge-bot merge` on the PR (the
 block's **Copy** button): the bot merges it, if they're also in

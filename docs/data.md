@@ -218,7 +218,8 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   green, no conflict, no changes requested, not a draft, touching tracked
   packages), oldest first: `{ "checkedAt", "prs": [ { "number", "title",
   "author", "created", "base", "packages": [row names], "who": [the
-  maintainers of every package it touches, GitHub handles], "approvedBy"? },
+  maintainers of every package it touches, GitHub handles], "approvedBy"?,
+  "behind"?, "vulnerable"? },
   ... ] }`. With every package only. The maintainer and team views'
   "You can merge these" (`prs_digest.mergeable`);
 - `history.json`: `{ "points": [ { "day", "tracked", "outdated", "failed",
@@ -390,7 +391,11 @@ are sorted), `state` (`overtaken`, `downgrade`, `snapshotToRelease`,
 `preRelease`) with nixpkgs' version `now`, `blocksBot` (the day
 nixpkgs-update is expected to try the update it blocks, or `true`), and
 `duplicates` (open PRs with the same diff or change, or for the same
-package and branch).
+package and branch); and what nixkeeper adds (`prs_digest.cross_check`):
+`behind` (upstream's newer version, `refVersion`, when it's newer than the
+PR's `to`: merged, the package would still be outdated) and `vulnerable`
+(`true`: the package counts as vulnerable). `views/merge.json`'s PRs have
+the same two, by the update's package.
 
 `dropPR` (in the list too): an open PR removes the package from nixpkgs,
 its title naming the package itself: `{"number", "title"}` (the list's

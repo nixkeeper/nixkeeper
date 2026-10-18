@@ -1370,11 +1370,13 @@ function mergeHtml(path, handle) {
     ? new Set(packages.filter((p) => !p.teamsByList?.includes(theirs)).map((p) => p.name))
     : null;
   const own = (p) => mine && p.author.toLowerCase() === who;
+  // Their own first, then those for a vulnerable package, then the
+  // longest waiting (the list's own order).
   const prs = mergeList
     .filter((p) =>
       mine ? p.who.some((w) => w.toLowerCase() === who) : p.packages.some((n) => names.has(n)),
     )
-    .sort((a, b) => own(b) - own(a));
+    .sort((a, b) => own(b) - own(a) || Boolean(b.vulnerable) - Boolean(a.vulnerable));
   if (!prs.length) return '';
   const shown = mergeAll ? prs : prs.slice(0, MERGE_SHOWN);
   const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
@@ -1389,6 +1391,10 @@ function mergeHtml(path, handle) {
       html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">${waited(p.created)}</span>`,
       p.base !== 'master' && html`into <span class="mono">${p.base}</span>`,
       p.approvedBy?.length && `approved by ${people(p.approvedBy)}`,
+      p.vulnerable &&
+        html`<span class="merge-warn" title="The package counts as vulnerable: worth reviewing this first">for a vulnerable package</span>`,
+      p.behind &&
+        html`<span class="merge-warn" title="Merged as it is, the package would still be outdated: worth updating the PR first">behind: upstream has ${p.behind}</span>`,
       team && `${people(p.who)} can merge it`,
     ].filter(Boolean);
     return html`<li><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
@@ -3378,6 +3384,18 @@ function githubSection(pkg) {
           'The merge bot could merge it once CI is green and any conflict is sorted out',
         ),
       f.state && fact('warn', (PR_STATES[f.state] || (() => f.state))(f.now || '?')),
+      f.behind &&
+        fact(
+          'warn',
+          `behind: upstream has ${f.behind}`,
+          'Merged as it is, the package would still be outdated: worth updating the PR first',
+        ),
+      f.vulnerable &&
+        fact(
+          'warn',
+          'for a vulnerable package',
+          'The package counts as vulnerable (see its vulnerabilities): worth reviewing this PR first, and checking whether its version fixes them',
+        ),
       f.blocksBot &&
         fact(
           'warn',

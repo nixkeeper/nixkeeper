@@ -100,6 +100,8 @@ def main():
         prs_digest.add_staging_prs(outdated, digest["staging"])
     if digest.get("facts"):
         prs_digest.add_facts(outdated, digest)
+        # add_facts replaces the PR facts: behind and vulnerable again.
+        prs_digest.cross_check(outdated)
     else:
         for row in outdated:
             pr, before = row.get("openPR"), facts.get(row["name"])

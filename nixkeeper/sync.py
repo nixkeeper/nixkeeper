@@ -311,6 +311,9 @@ def main():
     # What this sync finds fixed since the last (with who, when a PR is
     # known), kept on each package a month too, for its panel.
     found_fixes = history.fixes(index_rows, previous, now)
+    # An update PR behind upstream, or for a vulnerable package: once the
+    # versions and vulnerabilities are in (prs_digest.cross_check).
+    prs_digest.cross_check(index_rows)
     history.add_recent_fixes(index_rows, previous, found_fixes, now)
     # Packages one update moves together (one package file, version and
     # homepage): one entry in the overview's lists, and their fixes, next

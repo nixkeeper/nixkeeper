@@ -1213,6 +1213,9 @@ button.checked:focus-visible {
   color: var(--ink-soft);
   font-size: 12.5px;
 }
+.merge-warn {
+  color: var(--warn);
+}
 .merge-how {
   margin: 10px 0 0;
   color: var(--ink-soft);

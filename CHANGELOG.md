@@ -11,6 +11,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- An update PR **behind** upstream ("behind: upstream has 7.3.2": merged,
+  the package would still be outdated) or **for a vulnerable package**
+  (worth reviewing first) says so, in the package's panel and in "You can
+  merge these", where those for a vulnerable package come right after the
+  maintainer's own. On 2026-10-18, 582 packages' update PRs were behind
+  and 110 were for a vulnerable package; of the PRs ready to merge, 44 and
+  11. Worked out by the sync from its versions and vulnerabilities
+  (`prs_digest.cross_check`), again in the hourly checks.
 - "You can merge these" on a maintainer's page: the open PRs they can merge
   themselves with nixpkgs' merge bot (CI green, merge-bot eligible, they
   maintain every package it touches), their own first, then the longest
