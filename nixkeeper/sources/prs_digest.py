@@ -178,6 +178,59 @@ def cross_check(rows):
 
 # The facts cross_check adds: worked out again each time.
 CROSS = ("behind", "vulnerable")
+CVE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.IGNORECASE)
+# A CVE's verdicts that say nixpkgs' version isn't affected
+# (vulnerabilities_digest): outside every affected range, or patched.
+NOT_AFFECTED = ("fixed", "patched")
+
+
+def add_cve_issues(rows, issues):
+    """An open issue naming CVEs (in its title) that nixkeeper finds don't
+    affect a package's nixpkgs version, every one of them (its
+    vulnerabilities' verdicts: fixed or patched): a candidate to close, in
+    that package's issue checks ({"kind": "cve", "verdict": "cveFixed",
+    "cves"}), after the digest's (4 of the 17 such issues on 2026-10-18).
+    issues: the digest's open ones ({"number", "title"}). After the
+    vulnerabilities are in: the sync's, and the hourly check's after
+    add_facts, which replaces the checks."""
+    # Worked out again each time: an earlier run's are dropped first.
+    for row in rows:
+        if checks := row.get("issueChecks"):
+            if kept := [c for c in checks if c.get("kind") != "cve"]:
+                row["issueChecks"] = kept
+            else:
+                del row["issueChecks"]
+    named = []
+    for issue in issues:
+        if cves := sorted({c.upper() for c in CVE.findall(issue.get("title") or "")}):
+            named.append((issue, cves))
+    if not named:
+        return
+    by_cve = {}
+    for row in rows:
+        for v in row.get("vulnerabilities") or []:
+            by_cve.setdefault(v["id"].upper(), []).append(row)
+    for issue, cves in named:
+        candidates = {id(r): r for c in cves for r in by_cve.get(c, [])}
+        for row in candidates.values():
+            verdicts = {v["id"].upper(): v["verdict"] for v in row["vulnerabilities"]}
+            if not all(verdicts.get(c) in NOT_AFFECTED for c in cves):
+                continue
+            checks = row.setdefault("issueChecks", [])
+            if len(checks) >= SHOWN or any(
+                c["number"] == issue["number"] for c in checks
+            ):
+                continue
+            checks.append(
+                {
+                    "number": issue["number"],
+                    "title": issue["title"],
+                    "url": ISSUE_URL + str(issue["number"]),
+                    "kind": "cve",
+                    "verdict": "cveFixed",
+                    "cves": cves,
+                }
+            )
 
 
 def mergeable(prs, rows):

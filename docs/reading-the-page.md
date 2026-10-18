@@ -154,6 +154,7 @@ what's left.
 | **not marked broken** | failures nobody has marked yet | `?refine=notbroken` |
 | **not fixed on master yet** | outdated packages, leaving out those whose update is merged and waits for nixos-unstable | `?refine=notonmaster` |
 | **breaks on staging-next** | packages that build on master but fail their own build on staging-next, at the same version, in Hydra's newest evaluation of it (a day or two old): unless fixed, they fail on master when staging-next is merged into it. A forecast: no count includes it, and a fix may already be waiting on staging. The details link each failing build | `?refine=stagingnext` |
+| **with an open PR** | packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) | `?refine=withpr` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
 | **build failed because** | build failures for one reason, as the build's log on Hydra says (read by nixkeeper-hydra): compile error, tests, link error, missing header, CMake 4 (it refuses projects asking for CMake older than 3.5), CMake, Python import, dependencies, build or metadata, writes to `$HOME`, hash, patch, download, out of disk (Hydra's side), other, and more; "not read yet" while nixkeeper-hydra catches up. Each with how many there are in the list, on the platform picked | `?buildFailed=cmake4` |
@@ -185,12 +186,14 @@ merged since that likely fixes it, waiting for Hydra.
   worth updating the PR first), and **for a vulnerable package** when the
   package counts as vulnerable (worth reviewing first, and checking whether
   its version fixes the CVEs);
-- open PRs touching it while its build fails on Hydra (maybe its fix);
+- open PRs touching it while its build fails on Hydra (maybe its fix), and
+  for a package marked broken, that open PRs touch it (one may fix it);
 - its other open PRs, a removal first ("removes it from nixpkgs": the list
   says **being removed** too);
 - its issues that look done (a build failure that builds on Hydra now, an
-  update request nixpkgs has met; "check the condition" when the title
-  names something Hydra doesn't build) or still fail.
+  update request nixpkgs has met, an issue about CVEs none of which affect
+  nixpkgs' version as nixkeeper reads them; "check the condition" when the
+  title names something Hydra doesn't build) or still fail.
 
 These are worked out automatically, from titles, Hydra's builds and the
 merge bot's rules: hints for a person to check before acting (closing an

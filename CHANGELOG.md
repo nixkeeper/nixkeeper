@@ -11,6 +11,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- An issue about CVEs that none affect nixpkgs' version, as nixkeeper reads
+  them (fixed or patched), is a candidate to close in the package's panel,
+  beside the build and update checks (4 of the 17 open CVE issues on
+  2026-10-18, crewai's and urllib3's among them).
+- A package marked broken with open PRs says so in its panel (one may fix
+  it, or be moot), and **With an open PR** (`?refine=withpr`) keeps only
+  packages an open PR touches: with Marked broken, 49 on 2026-10-18.
 - An update PR **behind** upstream ("behind: upstream has 7.3.2": merged,
   the package would still be outdated) or **for a vulnerable package**
   (worth reviewing first) says so, in the package's panel and in "You can

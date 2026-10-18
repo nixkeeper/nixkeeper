@@ -100,8 +100,11 @@ def main():
         prs_digest.add_staging_prs(outdated, digest["staging"])
     if digest.get("facts"):
         prs_digest.add_facts(outdated, digest)
-        # add_facts replaces the PR facts: behind and vulnerable again.
+        # add_facts replaces the PR facts and issue checks: behind,
+        # vulnerable and the CVE issues again.
         prs_digest.cross_check(outdated)
+        if digest.get("open"):
+            prs_digest.add_cve_issues(outdated, digest["open"][1])
     else:
         for row in outdated:
             pr, before = row.get("openPR"), facts.get(row["name"])

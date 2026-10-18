@@ -334,6 +334,13 @@ const REFINES = {
       'Only packages that build on master but fail their own build on staging-next, at the same version: unless fixed, they fail on master when staging-next is merged into it',
     test: (p) => Boolean(p.stagingNextBreaks),
   },
+  // Something open on GitHub about it: for a broken package, maybe its fix.
+  withpr: {
+    label: 'With an open PR',
+    title:
+      'Only packages an open PR touches: for one marked broken, maybe its fix (or moot: a person checks)',
+    test: (p) => (p.openPRs || 0) > 0,
+  },
   // Where a person is needed: nixpkgs-update won't open the PR.
   nobot: {
     label: "Bot won't update it",
@@ -3361,6 +3368,11 @@ function githubSection(pkg) {
   const fact = (kind, text, title) =>
     html`<span class="gh-fact ${kind}"${title ? html` title="${title}"` : ''}>${text}</span>`;
   const lines = [];
+  // Marked broken with open PRs: one may fix it, or be moot now.
+  if (pkg.markedBroken && pkg.openPRs > 0)
+    lines.push(
+      html`<li>${fact('warn', `marked broken, and ${pkg.openPRs === 1 ? 'an open PR touches' : `${fmt(pkg.openPRs)} open PRs touch`} it`, 'One may fix it, or be moot while it stays broken: worth a look before reviewing it')}</li>`,
+    );
   const pr = pkg.openPR;
   const f = pr?.facts;
   if (f) {
@@ -3452,6 +3464,12 @@ function githubSection(pkg) {
     done: (c) => fact('ok', `nixpkgs has ${c.now || 'it'}: a candidate to close`),
     partly: (c) =>
       fact('warn', `nixpkgs moved to ${c.now || 'a newer version'}, not to the one asked`),
+    cveFixed: (c) =>
+      fact(
+        'ok',
+        `${c.cves?.length > 1 ? 'none of its CVEs affect' : "its CVE doesn't affect"} nixpkgs' version: a candidate to close`,
+        `${(c.cves || []).join(', ')}: fixed or patched, as nixkeeper reads the security tracker and OSV against nixpkgs' version. Check before closing`,
+      ),
   };
   for (const c of pkg.issueChecks || [])
     lines.push(html`<li>${link(c)} ${c.title} ${(ISSUE[c.verdict] || (() => c.verdict))(c)}</li>`);

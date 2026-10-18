@@ -569,3 +569,52 @@ class CrossCheck(unittest.TestCase):
         ]
         found = prs_digest.mergeable(prs, rows)[0]
         self.assertEqual((found["behind"], found["vulnerable"]), ("10.17", True))
+
+
+class CveIssues(unittest.TestCase):
+    """CVE issues nixkeeper finds fixed: candidates to close."""
+
+    def rows(self):
+        return [
+            {
+                "name": "crewai",
+                "vulnerabilities": [
+                    {"id": "CVE-2026-2275", "verdict": "fixed"},
+                    {"id": "CVE-2026-2287", "verdict": "patched"},
+                    {"id": "CVE-2026-9999", "verdict": "affected"},
+                ],
+                "issueChecks": [{"number": 3, "kind": "cve", "verdict": "cveFixed"}],
+            },
+            {"name": "other"},
+        ]
+
+    def test_fixed_ones(self):
+        rows = self.rows()
+        issues = [
+            {"number": 1, "title": "crewai: CVE-2026-2275, cve-2026-2287"},
+            {
+                "number": 2,
+                "title": "crewai: CVE-2026-2275 CVE-2026-9999",
+            },  # one affects
+            {"number": 4, "title": "CVE-2026-1111 Record"},  # not known
+            {"number": 5, "title": "crewai: crashes"},
+        ]
+        prs_digest.add_cve_issues(rows, issues)
+        self.assertEqual(
+            rows[0]["issueChecks"],
+            [
+                {
+                    "number": 1,
+                    "title": "crewai: CVE-2026-2275, cve-2026-2287",
+                    "url": "https://github.com/NixOS/nixpkgs/issues/1",
+                    "kind": "cve",
+                    "verdict": "cveFixed",
+                    "cves": ["CVE-2026-2275", "CVE-2026-2287"],
+                }
+            ],
+        )
+        self.assertNotIn("issueChecks", rows[1])
+        # The earlier run's (#3) went: worked out again.
+        rows[0]["issueChecks"] = [{"number": 9, "kind": "build"}]
+        prs_digest.add_cve_issues(rows, [])
+        self.assertEqual(rows[0]["issueChecks"], [{"number": 9, "kind": "build"}])
