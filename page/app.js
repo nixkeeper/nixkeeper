@@ -1,4 +1,5 @@
 import {
+  attentionPrint,
   botWontUpdate,
   buildFailedBecause,
   buildsWith as buildsOn,
@@ -972,6 +973,41 @@ const store = (key, value) => {
   }
 };
 
+// "Hide until it changes": in this browser only (localStorage), each hidden
+// package by name with what it needed attention for then (attentionPrint).
+// Back as soon as that differs; "Show hidden" shows them all, greyed.
+const HIDDEN_KEY = 'nixkeeper-hidden';
+const hiddenPrints = (() => {
+  try {
+    return JSON.parse(stored(HIDDEN_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+})();
+let showHidden = false;
+// Entries that no longer match (it changed, or left the data) dropped, once
+// a view's packages are in: what's hidden only ever matches now.
+function pruneHidden(list) {
+  let changed = false;
+  for (const pkg of list) {
+    if (pkg.name in hiddenPrints && !isHidden(pkg)) {
+      delete hiddenPrints[pkg.name];
+      changed = true;
+    }
+  }
+  if (changed)
+    store(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
+}
+const isHidden = (pkg) => hiddenPrints[pkg.name] === attentionPrint(pkg, checkedAt);
+const notHidden = (pkg) => showHidden || !isHidden(pkg);
+function setHidden(pkg, hide) {
+  if (hide) hiddenPrints[pkg.name] = attentionPrint(pkg, checkedAt);
+  else delete hiddenPrints[pkg.name];
+  store(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
+  announce(hide ? `${pkg.name} hidden until it changes` : `${pkg.name} shown again`);
+  update({ keepPage: true });
+}
+
 function applyTheme() {
   const { palette, mode } = themeFor(
     { palette: stored('nixkeeper-palette'), mode: stored('nixkeeper-mode') },
@@ -1341,6 +1377,7 @@ async function ensureView() {
   }
   if (wantedView !== path) return; // another view was asked for meanwhile
   packages = found.map((p) => withRunStamps(p, checkedAt));
+  pruneHidden(packages);
   shownView = path;
 }
 
@@ -1591,7 +1628,7 @@ function setFavicon(base) {
 function renderStats() {
   // Counts follow the platform and list filters, so "outdated" means
   // outdated on Darwin, or on the gaming-team list, while that's selected.
-  const base = packages.filter((p) => inPlatform(p) && inList(p) && inPeople(p));
+  const base = packages.filter((p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p));
   setFavicon(base);
   renderLists();
   // With every package, the counts are the list's tiles (renderScope), and
@@ -1753,7 +1790,7 @@ const CHEVRON = raw(
 
 function rowHtml(pkg, i) {
   const st = computeStatus(pkg);
-  return html`<tr class="row" tabindex="0" data-i="${i}">
+  return html`<tr class="row${isHidden(pkg) ? ' is-hidden' : ''}" tabindex="0" data-i="${i}">
       <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}" title="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}</div></td>
       <td class="c-ver ver mono">${versionCell(pkg, st)}</td>
       <td class="c-gh${pkg.openPRs || pkg.openIssues ? '' : ' quiet'}">${githubLinks(pkg)}</td>
@@ -2406,7 +2443,13 @@ function listHeaderHtml() {
   const path = shownView || '';
   // The tiles count the view shown, with the platform, list and team
   // filters, as the count chips do (renderStats).
-  const base = packages.filter((p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p));
+  const base = packages.filter(
+    (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && notHidden(p),
+  );
+  // Hidden here ("Hide until it changes"), by the same filters.
+  const hiddenHere = packages.filter(
+    (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && isHidden(p),
+  ).length;
   const shownCount = base.filter((p) => refined(p)).length;
   const tiles = Object.entries(TILES).map(([key, label]) => {
     const count = base.filter((p) => FILTERS[key].test(p) && refined(p, key)).length;
@@ -2442,6 +2485,11 @@ function listHeaderHtml() {
     <div class="scope-view">
       <span class="scope-label">Showing</span>
       <span class="view-chip">${what} · ${fmt(shownCount)}<a class="view-x" href="${scopeHref({})}" data-scope-home aria-label="Back to the overview" title="Back to the overview">✕</a></span>
+      ${
+        hiddenHere
+          ? html`<button type="button" class="hidden-toggle" aria-pressed="${showHidden}" title="Packages you hid here, in this browser, until what they need attention for changes">${fmt(hiddenHere)} hidden · ${showHidden ? 'hide them' : 'show them'}</button>`
+          : ''
+      }
       ${path.startsWith('views/cause/') && causeShown ? html`<span class="scope-hint cause-line" title="The error line these builds share (paths, numbers and names vary)"><code>${causeShown.line}</code></span>` : ''}
       ${
         // Marked broken's neighbour: listed for a platform, never built there.
@@ -3990,8 +4038,9 @@ function fillDetail(pkg, el, entries) {
     }
     ${githubSection(pkg)}
     ${people.length ? html`<div class="pd-people">${people}</div>` : ''}
-    <div class="pd-links">${links}<button type="button" class="pd-why" aria-expanded="${open}">${icon('chevron-down')}Why?</button></div>
+    <div class="pd-links">${links}<button type="button" class="pd-why" aria-expanded="${open}">${icon('chevron-down')}Why?</button>${hideButton(pkg)}</div>
   </div>`;
+  el.querySelector('.pd-hide')?.addEventListener('click', () => setHidden(pkg, !isHidden(pkg)));
   const why = el.querySelector('.pd-why');
   why.addEventListener('click', () => {
     const body = el.querySelector('.pd-why-body');
@@ -4032,6 +4081,20 @@ function fillDetail(pkg, el, entries) {
   });
 }
 
+// The panel's "Hide until it changes" (or "Show it again" while hidden):
+// for something that needs attention, kept in this browser.
+function hideButton(pkg) {
+  const hidden = isHidden(pkg);
+  // Something to hide: what the list's tiles count as needing attention.
+  const needs = ['warn', 'builds', 'updates', 'vuln', 'broken'].some((k) => FILTERS[k]?.test(pkg));
+  if (!hidden && !needs) return '';
+  return html`<button type="button" class="pd-hide" title="${
+    hidden
+      ? 'Shown again in your lists'
+      : 'Leave it out of your lists, in this browser only, until what it needs attention for changes (a newer version, another failing build, a new CVE). Wrong for everyone? Report it, or add a community rule'
+  }">${hidden ? 'Show it again' : 'Hide until it changes'}</button>`;
+}
+
 // How many repositories a panel shows before "Show all".
 const COMPARED_SHOWN = 8;
 
@@ -4043,6 +4106,7 @@ function currentFiltered() {
       inList(p) &&
       inPeople(p) &&
       inSet(p) &&
+      notHidden(p) &&
       refined(p) &&
       FILTERS[activeFilter].test(p) &&
       matchesSearch(p, q),
@@ -4137,6 +4201,11 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   if (mode) {
     highlightShown[mode.dataset.hl] = mode.dataset.mode;
     renderScope();
+    return;
+  }
+  if (e.target.closest('button.hidden-toggle')) {
+    showHidden = !showHidden;
+    update({ keepPage: true });
     return;
   }
   const copy = e.target.closest('button.merge-copy');

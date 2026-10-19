@@ -11,6 +11,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Hide until it changes**, in a package's panel: it leaves your lists,
+  in this browser only, until what it needs attention for changes (a
+  newer version, another failing build, a new update failure, the broken
+  mark, a new CVE; a vulnerable package comes back at the next sync).
+  "N hidden · show them" beside the list's count shows them again, greyed.
 - **Not built where listed** (`?view=unbuilt`, linked from Marked broken):
   every package nixpkgs lists for a platform Hydra doesn't build it on,
   outside the sets, and with a platform picked, those not built there

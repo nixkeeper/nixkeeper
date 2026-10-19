@@ -2269,6 +2269,42 @@ tbody tr.row.open td {
   display: none;
 }
 /* "Why?": the explanation's toggle, at the end of the links. */
+/* "Hide until it changes" (hideButton), after "Why?". */
+.pd-hide {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 3px 9px;
+  min-height: 24px;
+  cursor: pointer;
+}
+.pd-hide:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+/* The scope's "5 hidden · show them". */
+.hidden-toggle {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.hidden-toggle[aria-pressed="true"] {
+  border-style: solid;
+  color: var(--ink);
+}
+/* A hidden package, while "show them" is on. */
+tr.row.is-hidden {
+  opacity: 0.5;
+}
 .pd-why {
   margin-left: auto;
   display: inline-flex;

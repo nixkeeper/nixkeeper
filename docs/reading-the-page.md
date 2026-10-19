@@ -233,6 +233,18 @@ team's name adds, which their own maintainers merge. Left out: drafts, PRs with
 a conflict or changes requested, and those only committers can merge. From
 nixkeeper-prs' digest, as of the last sync.
 
+**Hide until it changes:** a package that needs attention has this button
+in its panel, for what you've looked at and decided to leave (an update
+held back on purpose, a failure you can't fix there). It leaves your lists
+until what it needs attention for changes: a newer version than the one
+it was outdated against, another failing build, a new update failure,
+nixpkgs' broken mark, a new CVE; a vulnerable package comes back at the
+next sync anyway. "N hidden · show them", beside the list's count, shows
+them again, greyed, each with **Show it again** in its panel. Kept in this
+browser only (its local storage, nothing sent anywhere): another browser,
+a private window or clearing the site's data starts over. Wrong for
+everyone, not just you? Report it, or add a community rule instead.
+
 Leaving packages out, each a chip to undo it:
 
 - `?team=-Geospatial` leaves a team's packages out, on any list

@@ -211,6 +211,32 @@ export function unbuiltOn(pkg, key) {
   );
 }
 
+// What a package needs attention for, as one string: hidden ("Hide until
+// it changes") while it stays the same. Its status, the version it's
+// outdated against, each failing build (system and status), the update
+// bot's outcome and why it failed, its counted CVEs, and nixpkgs' broken
+// mark: any of them changing (1.3 out after 1.2 was hidden, a new failing
+// system, a new CVE) brings it back. A vulnerable package's has the sync's
+// time too (checkedAt): a CVE comes back at the next sync, never hidden
+// for long.
+export function attentionPrint(pkg, checkedAt = '') {
+  const failing = (pkg.builds || [])
+    .filter((b) => b.status === 'failed' || b.status === 'dependency')
+    .map((b) => `${b.system}:${b.status}`)
+    .sort();
+  return JSON.stringify([
+    computeStatus(pkg),
+    pkg.refVersion || '',
+    failing,
+    pkg.updateFailure ? [pkg.update?.outcome || '', pkg.update?.failedBecause || ''] : [],
+    // The list's entry has vuln, the full row vulnerabilities: the same
+    // count either way (vulnSummary), so a panel's hide matches the list.
+    vulnSummary(pkg)?.n || (pkg.nixVulnerable ? 1 : 0),
+    Boolean(pkg.markedBroken),
+    isVulnerable(pkg) ? checkedAt || '' : '',
+  ]);
+}
+
 // The systems pkg is listed for but not built on (unbuiltOn), each Linux
 // system apart, Darwin as one: [] when Hydra builds it everywhere listed.
 export function unbuiltWhere(pkg) {

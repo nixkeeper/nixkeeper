@@ -7,6 +7,7 @@ import { describe, test } from 'node:test';
 
 import {
   aheadOnMaster,
+  attentionPrint,
   attentionRank,
   botWontUpdate,
   buildFailedBecause,
@@ -80,6 +81,46 @@ const daysAgo = (n) => new Date(NOW - n * 86400e3).toISOString();
 const pkg = (fields = {}) => ({ name: 'p', nixStatus: 'newest', ...fields });
 const outdated = (fields = {}) =>
   pkg({ nixStatus: 'outdated', nixVersion: '1.0', refVersion: '1.1', ...fields });
+
+describe('attentionPrint', () => {
+  const juce = (fields = {}) =>
+    outdated({ name: 'juce', nixVersion: '8.0.12', refVersion: '9.0.4', ...fields });
+  test('the same while nothing changes', () => {
+    assert.equal(attentionPrint(juce(), 'a'), attentionPrint(juce(), 'b'));
+  });
+  test('a newer version, a new failing build, an update failure, broken', () => {
+    const before = attentionPrint(juce());
+    assert.notEqual(attentionPrint(juce({ refVersion: '9.0.5' })), before);
+    assert.notEqual(
+      attentionPrint(juce({ builds: [{ system: 'aarch64-darwin', status: 'failed' }] })),
+      before,
+    );
+    assert.notEqual(
+      attentionPrint(
+        juce({ updateFailure: true, update: { outcome: 'failed', failedBecause: 'patch' } }),
+      ),
+      before,
+    );
+    assert.notEqual(attentionPrint(juce({ markedBroken: true })), before);
+    // An ok build isn't attention: no change.
+    assert.equal(
+      attentionPrint(juce({ builds: [{ system: 'x86_64-linux', status: 'ok' }] })),
+      before,
+    );
+  });
+  test('the same from the list entry and the full row', () => {
+    const entry = juce({ vuln: { n: 1, by: ['tracker'] } });
+    const row = juce({
+      vulnerabilities: [{ id: 'CVE-1', verdict: 'affected', source: 'tracker' }],
+    });
+    assert.equal(attentionPrint(entry, 's'), attentionPrint(row, 's'));
+  });
+  test('vulnerable: back at the next sync', () => {
+    const vuln = juce({ vuln: { n: 1, by: ['tracker'] } });
+    assert.equal(attentionPrint(vuln, 'sync1'), attentionPrint(vuln, 'sync1'));
+    assert.notEqual(attentionPrint(vuln, 'sync1'), attentionPrint(vuln, 'sync2'));
+  });
+});
 
 describe('computeStatus', () => {
   test("follows Repology's statuses", () => {
