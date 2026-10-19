@@ -118,7 +118,10 @@ A list says what it is under "Showing" (✕ goes back to the overview):
 top (tracked, outdated, failed, and flagged vulnerable or blocked when any
 are) filter the list, as do the list names beside them and a row's
 platform tags (Linux, Darwin, or "Linux x86_64" for a package on only one
-Linux system). On a page tracking every package, a list's tiles do the same
+Linux system). A tag struck through and dimmed is a platform nixpkgs lists
+the package for but Hydra doesn't build it on: no build exists there,
+usually because a dependency isn't available there (built on one Linux
+system only, the tags split: "Linux x86_64 · ~~aarch64~~"). On a page tracking every package, a list's tiles do the same
 (outdated, failing, vulnerable, fixes to backport (`?filter=backport`),
 marked broken, blocked).
 
@@ -154,6 +157,7 @@ what's left.
 | **not marked broken** | failures nobody has marked yet | `?refine=notbroken` |
 | **not fixed on master yet** | outdated packages, leaving out those whose update is merged and waits for nixos-unstable | `?refine=notonmaster` |
 | **breaks on staging-next** | packages that build on master but fail their own build on staging-next, at the same version, in Hydra's newest evaluation of it (a day or two old): unless fixed, they fail on master when staging-next is merged into it. A forecast: no count includes it, and a fix may already be waiting on staging. The details link each failing build | `?refine=stagingnext` |
+| **not built where listed** | packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there: usually a dependency isn't available there, or `meta.platforms` promises too much); with a platform picked, that platform's only. Packages Hydra builds nowhere (unfree, kept off it) aren't | `?refine=unbuilt` |
 | **with an open PR** | packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) | `?refine=withpr` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
@@ -161,7 +165,7 @@ what's left.
 | **update failed because** | update failures for one reason, as nixpkgs-update's log says: build, updateScript, source, dependency, patch, unavailable, tests, hash, request, "build, no log", bot (the bot's own machine failed, not the package: when that was in the last 3 days, its details link nixpkgs-update's issues, to tell them; older, it was a past outage the bot's next round clears), or other when none was recognised. Each with how many there are in the list | `?updateFailed=patch` |
 | **older than** a month, 6 months, a year, 2 or 3 years | how long it's been failing or outdated (the counts' kind, when one is picked: failing for over 6 months, say) | `?age=1m`, `6m`, `1y`, `2y`, `3y` |
 | **never built** | a failing build that never succeeded on Hydra, which has no date. With **on**, only there: when it's all that fails, the list shows "n/a" instead of how long, and the build column "never: darwin", say | `?age=never` |
-| **on** Linux, Linux x86_64, Linux aarch64 or Darwin (macOS, as nixpkgs calls it) | the packages available there, and only their builds there (build failures on aarch64-linux, say), as clicking a row's platform tag does | `?platform=linux`, `x86_64-linux`, `aarch64-linux`, `darwin` (`macos` still works) |
+| **on** Linux, Linux x86_64, Linux aarch64 or Darwin (macOS, as nixpkgs calls it) | the packages available there, and only their builds there (build failures on aarch64-linux, say), as clicking a row's platform tag does; not those listed there but not built there by Hydra (a struck tag), unless **not built where listed** is on | `?platform=linux`, `x86_64-linux`, `aarch64-linux`, `darwin` (`macos` still works) |
 
 The `?refine=` words combine (`?refine=unmaintained,notbroken`), so
 "failing for 6 months, with no maintainer" is a link. A build failure's date

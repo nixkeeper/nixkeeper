@@ -59,6 +59,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- A platform a package is listed for but Hydra doesn't build it on (no
+  build exists there, usually as a dependency isn't available there) has
+  its tag struck through and dimmed: "Linux · ~~Darwin~~", and "Linux
+  x86_64 · ~~aarch64~~" when one Linux system is missing. Picking that
+  platform no longer counts it as available there, and **Not built where
+  listed** (`?refine=unbuilt`) finds them: on 2026-10-19, 1,659 listed for
+  Darwin and about 900 for aarch64-linux alone, among packages outside the
+  sets.
 - When nixpkgs-update is set to update a package to the newest version (the
   green robot) and nothing's reported, its update cell says when instead of
   "—": **auto update in 4 days**, in green, so it's clear the bot has it

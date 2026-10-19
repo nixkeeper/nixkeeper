@@ -195,6 +195,29 @@ export function onPlatform(pkg, key) {
 const onSystem = (system, platform) =>
   platform.includes('-') ? system === platform : system.endsWith(`-${platform}`);
 
+// Listed for key (a family or a system) but not built there by Hydra: none
+// of its builds there exists ("notBuilt": no job, usually as a dependency
+// isn't available there, so the job fails to evaluate and Hydra drops it),
+// while Hydra builds it elsewhere (not a package Hydra skips altogether:
+// unfree, or kept off it). 1,659 Darwin listings on 2026-10-19, juce's and
+// driftnet's among them.
+export function unbuiltOn(pkg, key) {
+  const here = (pkg.builds || []).filter((b) => onSystem(b.system, key));
+  return (
+    here.length > 0 &&
+    here.every((b) => b.status === 'notBuilt') &&
+    (pkg.builds || []).some((b) => !onSystem(b.system, key) && b.status !== 'notBuilt')
+  );
+}
+
+// The systems pkg is listed for but not built on (unbuiltOn), each Linux
+// system apart, Darwin as one: [] when Hydra builds it everywhere listed.
+export function unbuiltWhere(pkg) {
+  return ['x86_64-linux', 'aarch64-linux', 'darwin'].filter(
+    (key) => onPlatform(pkg, key) && unbuiltOn(pkg, key),
+  );
+}
+
 // Follows Repology's statuses, but "legacy" (an older version nixpkgs keeps
 // beside a newer one under another attribute: tracy_0_11 beside tracy) isn't
 // outdated by itself: only by a newer release in its own series (an update

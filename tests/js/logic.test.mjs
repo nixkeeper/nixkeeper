@@ -59,6 +59,8 @@ import {
   themeFor,
   timeAgo,
   trendChange,
+  unbuiltOn,
+  unbuiltWhere,
   updateTitle,
   versionDiff,
   viewPath,
@@ -393,6 +395,39 @@ describe('failures and platforms', () => {
     assert.equal(hasFailure(pkg({ updateFailure: { version: '1.1' } }), 'darwin'), true);
     assert.equal(hasFailure(pkg({ nixStatus: 'missing' })), true);
     assert.equal(hasFailure(pkg()), false);
+  });
+  test('listed but not built there', () => {
+    const built = (system) => ({ system, status: 'ok' });
+    const none = (system) => ({ system, status: 'notBuilt' });
+    const both = { linux: true, darwin: true };
+    // juce: built on Linux, no Darwin build.
+    const juce = pkg({
+      platforms: both,
+      builds: [built('x86_64-linux'), built('aarch64-linux'), none('aarch64-darwin')],
+    });
+    assert.equal(unbuiltOn(juce, 'darwin'), true);
+    assert.equal(unbuiltOn(juce, 'linux'), false);
+    assert.deepEqual(unbuiltWhere(juce), ['darwin']);
+    // One Linux system missing: that one, not the family.
+    const arm = pkg({
+      platforms: { linux: true, darwin: false },
+      builds: [built('x86_64-linux'), none('aarch64-linux')],
+    });
+    assert.equal(unbuiltOn(arm, 'aarch64-linux'), true);
+    assert.equal(unbuiltOn(arm, 'linux'), false);
+    assert.deepEqual(unbuiltWhere(arm), ['aarch64-linux']);
+    // Hydra builds it nowhere (unfree, kept off it): not this.
+    const unfree = pkg({
+      platforms: both,
+      builds: [none('x86_64-linux'), none('aarch64-linux'), none('aarch64-darwin')],
+    });
+    assert.deepEqual(unbuiltWhere(unfree), []);
+    // Not listed there: not this either.
+    const linuxOnly = pkg({
+      platforms: { linux: true, darwin: false },
+      builds: [built('x86_64-linux'), none('aarch64-darwin')],
+    });
+    assert.deepEqual(unbuiltWhere(linuxOnly), []);
   });
   test('"any platform" counts as both', () => {
     assert.equal(onPlatform(pkg({ platforms: null }), 'linux'), true);

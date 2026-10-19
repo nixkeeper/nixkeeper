@@ -1528,6 +1528,12 @@ tbody tr.row td {
 button.plat {
   cursor: pointer;
 }
+/* Listed for the platform, not built there by Hydra (unbuiltOn). */
+.plat.unbuilt {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+  opacity: 0.6;
+}
 button.plat:hover {
   color: var(--ink);
   text-decoration: underline;

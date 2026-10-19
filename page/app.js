@@ -50,6 +50,8 @@ import {
   themeFor,
   timeAgo,
   trendChange,
+  unbuiltOn,
+  unbuiltWhere,
   updateTitle,
   VIEWS,
   VULN_COUNTED,
@@ -245,8 +247,14 @@ const PLATFORMS = {
 };
 // The systems of a family nixpkgs builds (SYSTEMS in nixkeeper/sources/nixpkgs.py).
 const LINUX_SYSTEMS = ['x86_64-linux', 'aarch64-linux'];
+// Available on the platform picked: listed for it, and built there by Hydra
+// when Hydra builds it at all (unbuiltOn); listed but not built counts only
+// with "Not built where listed" on, which finds exactly those.
 function inPlatform(pkg) {
-  return !platformFilter || onPlatform(pkg, platformFilter);
+  return (
+    !platformFilter ||
+    (onPlatform(pkg, platformFilter) && (refines.has('unbuilt') || !unbuiltOn(pkg, platformFilter)))
+  );
 }
 // The sync runs daily; older than this means runs are failing or GitHub has
 // paused the schedule (it does after 60 days without commits).
@@ -340,6 +348,18 @@ const REFINES = {
     title:
       'Only packages an open PR touches: for one marked broken, maybe its fix (or moot: a person checks)',
     test: (p) => (p.openPRs || 0) > 0,
+  },
+  // Listed for a platform Hydra doesn't build it on (unbuiltWhere): a
+  // dependency missing there, or meta.platforms promising too much. With a
+  // platform picked, that platform's only.
+  unbuilt: {
+    label: 'Not built where listed',
+    title:
+      "Only packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there): usually a dependency isn't available there, or meta.platforms promises too much",
+    test: (p) =>
+      platformFilter
+        ? onPlatform(p, platformFilter) && unbuiltOn(p, platformFilter)
+        : unbuiltWhere(p).length > 0,
   },
   // Where a person is needed: nixpkgs-update won't open the PR.
   nobot: {
@@ -3347,14 +3367,28 @@ function platformTags(pkg) {
   if (pl === null)
     return html`<span class="plats"><span class="plat any" title="nixpkgs doesn't restrict its platforms">any platform</span></span>`;
   const linux = LINUX_SYSTEMS.filter((s) => onPlatform(pkg, s));
-  const keys = [
-    ...(pl.linux ? [linux.length === 1 ? linux[0] : 'linux'] : []),
-    ...(pl.darwin ? ['darwin'] : []),
-  ];
-  const tags = keys.map((key) => {
+  // Each chip: its platform, and whether Hydra builds it there
+  // (unbuiltOn: listed, not built). On both Linux systems with one not
+  // built, they split: "Linux x86_64 · aarch64", the latter struck.
+  const chips = [];
+  if (pl.linux) {
+    const built = linux.filter((s) => !unbuiltOn(pkg, s));
+    if (linux.length === 2 && built.length === 1) {
+      const missing = linux.find((s) => s !== built[0]);
+      chips.push([built[0], false], [missing, true, missing.split('-')[0]]);
+    } else {
+      const key = linux.length === 1 ? linux[0] : 'linux';
+      chips.push([key, unbuiltOn(pkg, key)]);
+    }
+  }
+  if (pl.darwin) chips.push(['darwin', unbuiltOn(pkg, 'darwin')]);
+  const tags = chips.map(([key, unbuilt, short]) => {
     const p = PLATFORMS[key];
-    return html`<button class="plat" type="button" data-platform="${key}" aria-pressed="${platformFilter === key}"
-      title="${p.title}. ${platformFilter === key ? 'Show all platforms' : `Click to show only packages available on ${p.label}`}">${p.label}</button>`;
+    const said = unbuilt
+      ? `Listed for ${p.label} in nixpkgs, but Hydra doesn't build it there: no build exists, usually because a dependency isn't available on ${p.label}`
+      : p.title;
+    return html`<button class="plat${unbuilt ? ' unbuilt' : ''}" type="button" data-platform="${key}" aria-pressed="${platformFilter === key}"
+      title="${said}. ${platformFilter === key ? 'Show all platforms' : `Click to show only packages available on ${p.label}`}">${short || p.label}${unbuilt ? html`<span class="sr-only"> (not built by Hydra)</span>` : ''}</button>`;
   });
   // Together, so they wrap as one.
   return tags.length ? html`<span class="plats">${tags}</span>` : '';
