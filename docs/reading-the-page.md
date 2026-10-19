@@ -237,7 +237,11 @@ check). On a team's page, the same for
 the packages nixpkgs lists under the team (`meta.teams`, whose members are
 their maintainers), each with who can merge it; not those a list of the
 team's name adds, which their own maintainers merge. Left out: drafts, PRs with
-a conflict or changes requested, and those only committers can merge. From
+a conflict or changes requested, and those only committers can merge.
+Each PR has a **Hide**: it leaves the block, in this browser only, until it
+changes (a newer version in its title, or a CVE; not upstream moving on,
+so an update held back on purpose stays hidden), with "N hidden · show
+them" to see them again, greyed. From
 nixkeeper-prs' digest, as of the last sync.
 
 **Hide until it changes:** a package that needs attention has this button

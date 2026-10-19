@@ -1250,6 +1250,40 @@ button.checked:focus-visible {
   color: var(--ink-soft);
   font-size: 12.5px;
 }
+/* "You can merge these"'s Hide (setPrHidden) and its "N hidden" toggle. */
+.merge-hide {
+  margin-left: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  min-height: 24px;
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.merge-hide:hover {
+  color: var(--ink);
+}
+.merge-hidden-toggle {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  padding: 1px 9px;
+  cursor: pointer;
+}
+.merge-hidden-toggle[aria-pressed="true"] {
+  border-style: solid;
+  color: var(--ink);
+}
+.merge-list li.is-hidden {
+  opacity: 0.5;
+}
 .merge-warn {
   color: var(--warn);
 }

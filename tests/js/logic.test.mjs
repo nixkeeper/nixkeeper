@@ -48,6 +48,7 @@ import {
   parseMaintainers,
   parseTeams,
   problemSince,
+  prPrint,
   raw,
   safeUrl,
   searchHandle,
@@ -119,6 +120,17 @@ describe('attentionPrint', () => {
     const vuln = juce({ vuln: { n: 1, by: ['tracker'] } });
     assert.equal(attentionPrint(vuln, 'sync1'), attentionPrint(vuln, 'sync1'));
     assert.notEqual(attentionPrint(vuln, 'sync1'), attentionPrint(vuln, 'sync2'));
+  });
+});
+
+describe('prPrint', () => {
+  const pr = (fields = {}) => ({ number: 1, title: 'foo: 1.2 -> 1.3', ...fields });
+  test('the same while nothing that matters changes', () => {
+    assert.equal(prPrint(pr()), prPrint(pr({ behind: '1.5', approvedBy: ['x'] })));
+  });
+  test('a newer version in its title, or a CVE, brings it back', () => {
+    assert.notEqual(prPrint(pr()), prPrint(pr({ title: 'foo: 1.2 -> 1.4' })));
+    assert.notEqual(prPrint(pr()), prPrint(pr({ vulnerable: true })));
   });
 });
 

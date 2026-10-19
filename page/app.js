@@ -37,6 +37,7 @@ import {
   pageLinks,
   parseMaintainers,
   parseTeams,
+  prPrint,
   attentionRank as rankOn,
   raw,
   githubRepo as repoFrom,
@@ -1008,6 +1009,33 @@ function setHidden(pkg, hide) {
   update({ keepPage: true });
 }
 
+// "You can merge these"'s Hide, as the packages': in this browser only,
+// each hidden PR by number with what it was then (prPrint), back as soon as
+// that differs. Entries for PRs no longer in the list are dropped once it's
+// in (loadMerge).
+const HIDDEN_PRS_KEY = 'nixkeeper-hidden-prs';
+const hiddenPrPrints = (() => {
+  try {
+    return JSON.parse(stored(HIDDEN_PRS_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+})();
+let showHiddenPrs = false;
+const isPrHidden = (pr) => hiddenPrPrints[pr.number] === prPrint(pr);
+function saveHiddenPrs() {
+  store(HIDDEN_PRS_KEY, Object.keys(hiddenPrPrints).length ? JSON.stringify(hiddenPrPrints) : '');
+}
+function setPrHidden(number, hide) {
+  const pr = (mergeList || []).find((p) => p.number === number);
+  if (!pr) return;
+  if (hide) hiddenPrPrints[number] = prPrint(pr);
+  else delete hiddenPrPrints[number];
+  saveHiddenPrs();
+  announce(hide ? `#${number} hidden until it changes` : `#${number} shown again`);
+  renderScope();
+}
+
 function applyTheme() {
   const { palette, mode } = themeFor(
     { palette: stored('nixkeeper-palette'), mode: stored('nixkeeper-mode') },
@@ -1433,6 +1461,11 @@ function loadMerge() {
     .then((res) => (res.ok ? res.json() : { prs: [] }))
     .then((data) => {
       mergeList = data.prs || [];
+      // Hidden PRs that changed, or left the list: not hidden anymore.
+      const now = new Map(mergeList.map((p) => [String(p.number), prPrint(p)]));
+      for (const number of Object.keys(hiddenPrPrints))
+        if (now.get(number) !== hiddenPrPrints[number]) delete hiddenPrPrints[number];
+      saveHiddenPrs();
       update({ keepPage: true });
     })
     .catch(() => {
@@ -1468,7 +1501,15 @@ function mergeHtml(path, handle) {
     )
     .sort((a, b) => own(b) - own(a) || Boolean(b.vulnerable) - Boolean(a.vulnerable));
   if (!prs.length) return '';
-  const shown = mergeAll ? prs : prs.slice(0, MERGE_SHOWN);
+  // Those hidden here (Hide), left out unless shown again, greyed.
+  const hiddenN = prs.filter(isPrHidden).length;
+  const listed = showHiddenPrs ? prs : prs.filter((p) => !isPrHidden(p));
+  const hiddenToggle = hiddenN
+    ? html`<button type="button" class="merge-hidden-toggle" aria-pressed="${showHiddenPrs}" title="PRs you hid here, in this browser, until they change (a newer version, or a CVE)">${fmt(hiddenN)} hidden · ${showHiddenPrs ? 'hide them' : 'show them'}</button>`
+    : '';
+  if (!listed.length)
+    return html`<section class="merge-block merge-all-hidden"><p class="merge-how">You've hidden ${hiddenN === 1 ? 'the PR' : html`the ${fmt(hiddenN)} PRs`} ready to merge here. ${hiddenToggle}</p></section>`;
+  const shown = mergeAll ? listed : listed.slice(0, MERGE_SHOWN);
   const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
   const waited = (iso) => {
     const d = days(iso);
@@ -1487,22 +1528,24 @@ function mergeHtml(path, handle) {
         html`<span class="merge-warn" title="Merged as it is, the package would still be outdated: worth updating the PR first">behind: upstream has ${p.behind}</span>`,
       team && `${people(p.who)} can merge it`,
     ].filter(Boolean);
-    return html`<li><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
+    const hidden = isPrHidden(p);
+    return html`<li${hidden ? raw(' class="is-hidden"') : ''}><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><button type="button" class="merge-hide" data-pr="${p.number}" title="${hidden ? 'Shown again here' : 'Leave it out of this list, in this browser only, until it changes: a newer version in its title, or a CVE'}">${hidden ? 'Show it again' : 'Hide'}</button><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
   };
+  const n = listed.length;
   const what = mine
-    ? html`You can merge ${prs.length === 1 ? 'this PR' : html`these ${fmt(prs.length)} PRs`}`
-    : html`${fmt(prs.length)} PR${prs.length === 1 ? '' : 's'} on the team's packages, ready to merge`;
+    ? html`You can merge ${n === 1 ? 'this PR' : html`these ${fmt(n)} PRs`}`
+    : html`${fmt(n)} PR${n === 1 ? '' : 's'} on the team's packages, ready to merge`;
   // The merge bot also asks that whoever comments be in
   // @NixOS/nixpkgs-maintainers (nixpkgs' ci/README.md): not public, so said.
   const why = mine
     ? 'CI passed, and you maintain every package it touches: if you’re in @NixOS/nixpkgs-maintainers, the merge bot merges it for you'
     : 'CI passed, and the people named under each maintain every package it touches: the merge bot merges it for any of them in @NixOS/nixpkgs-maintainers';
   const more =
-    prs.length > MERGE_SHOWN
-      ? html`<button type="button" class="merge-more">${mergeAll ? 'Show fewer' : `Show all ${fmt(prs.length)}`}</button>`
+    listed.length > MERGE_SHOWN
+      ? html`<button type="button" class="merge-more">${mergeAll ? 'Show fewer' : `Show all ${fmt(listed.length)}`}</button>`
       : '';
   return html`<section class="merge-block" aria-labelledby="mergeHead">
-    <h3 id="mergeHead">${what} <span class="scope-hint">${why}</span></h3>
+    <h3 id="mergeHead">${what} <span class="scope-hint">${why}</span> ${hiddenToggle}</h3>
     <ul class="merge-list">${shown.map(line)}</ul>
     ${more}
     <p class="merge-how">Review it, then comment on the PR: <code>${MERGE_COMMAND}</code>
@@ -4273,6 +4316,18 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   const copy = e.target.closest('button.merge-copy');
   if (copy) {
     copyTitle(copy);
+    return;
+  }
+  const hidePr = e.target.closest('button.merge-hide');
+  if (hidePr) {
+    const number = Number(hidePr.dataset.pr);
+    const pr = (mergeList || []).find((p) => p.number === number);
+    if (pr) setPrHidden(number, !isPrHidden(pr));
+    return;
+  }
+  if (e.target.closest('button.merge-hidden-toggle')) {
+    showHiddenPrs = !showHiddenPrs;
+    renderScope();
     return;
   }
   if (e.target.closest('button.merge-more')) {

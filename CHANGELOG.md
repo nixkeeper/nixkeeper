@@ -11,6 +11,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Hide** on each PR of "You can merge these": it leaves the block, in this
+  browser only, until it changes (a newer version in its title, or a CVE),
+  with "N hidden · show them" to see them again.
 - **nixpkgs in numbers**, at the bottom of the overview: open PRs (12,514
   on 2026-10-19), ready for the merge bot and waiting for their own
   maintainers (1,018), update PRs behind upstream (582), the update bot's

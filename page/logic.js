@@ -237,6 +237,15 @@ export function attentionPrint(pkg, checkedAt = '') {
   ]);
 }
 
+// What a PR of "You can merge these" is, as one string: hidden there
+// ("Hide") while it stays the same. Its title, which the update bot
+// rewrites when it pushes a newer version ("foo: 1.2 -> 1.4"), and whether
+// it's for a vulnerable package. Not upstream moving on ("behind"): a PR
+// held back on purpose stays hidden through new releases.
+export function prPrint(pr) {
+  return JSON.stringify([pr.title, Boolean(pr.vulnerable)]);
+}
+
 // The systems pkg is listed for but not built on (unbuiltOn), each Linux
 // system apart, Darwin as one: [] when Hydra builds it everywhere listed.
 export function unbuiltWhere(pkg) {
