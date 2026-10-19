@@ -121,7 +121,9 @@ platform tags (Linux, Darwin, or "Linux x86_64" for a package on only one
 Linux system). A tag struck through and dimmed is a platform nixpkgs lists
 the package for but Hydra doesn't build it on: no build exists there,
 usually because a dependency isn't available there (built on one Linux
-system only, the tags split: "Linux x86_64 · ~~aarch64~~"). On a page tracking every package, a list's tiles do the same
+system only, the tags split: "Linux x86_64 · ~~aarch64~~"). A package
+nixpkgs doesn't restrict ("any platform") shows these tags too when Hydra
+doesn't build it somewhere. On a page tracking every package, a list's tiles do the same
 (outdated, failing, vulnerable, fixes to backport (`?filter=backport`),
 marked broken, blocked).
 

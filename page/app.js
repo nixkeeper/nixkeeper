@@ -3364,14 +3364,19 @@ function fillBuilds(pkg, el) {
 function platformTags(pkg) {
   const pl = pkg.platforms;
   if (pl === undefined) return '';
-  if (pl === null)
+  // No restriction: "any platform", unless Hydra doesn't build it
+  // somewhere, which the chips then say as for a listed platform (fzssh:
+  // Linux, not Darwin; 334 such on 2026-10-19).
+  const any = pl === null;
+  if (any && !unbuiltWhere(pkg).length)
     return html`<span class="plats"><span class="plat any" title="nixpkgs doesn't restrict its platforms">any platform</span></span>`;
+  const listed = pl || { linux: true, darwin: true };
   const linux = LINUX_SYSTEMS.filter((s) => onPlatform(pkg, s));
   // Each chip: its platform, and whether Hydra builds it there
   // (unbuiltOn: listed, not built). On both Linux systems with one not
   // built, they split: "Linux x86_64 · aarch64", the latter struck.
   const chips = [];
-  if (pl.linux) {
+  if (listed.linux) {
     const built = linux.filter((s) => !unbuiltOn(pkg, s));
     if (linux.length === 2 && built.length === 1) {
       const missing = linux.find((s) => s !== built[0]);
@@ -3381,12 +3386,17 @@ function platformTags(pkg) {
       chips.push([key, unbuiltOn(pkg, key)]);
     }
   }
-  if (pl.darwin) chips.push(['darwin', unbuiltOn(pkg, 'darwin')]);
+  if (listed.darwin) chips.push(['darwin', unbuiltOn(pkg, 'darwin')]);
   const tags = chips.map(([key, unbuilt, short]) => {
     const p = PLATFORMS[key];
+    const where = any
+      ? "nixpkgs doesn't restrict its platforms"
+      : `Listed for ${p.label} in nixpkgs`;
     const said = unbuilt
-      ? `Listed for ${p.label} in nixpkgs, but Hydra doesn't build it there: no build exists, usually because a dependency isn't available on ${p.label}`
-      : p.title;
+      ? `${where}, but Hydra doesn't build it on ${p.label}: no build exists there, usually because a dependency isn't available on ${p.label}`
+      : any
+        ? `${p.title} (nixpkgs doesn't restrict its platforms)`
+        : p.title;
     return html`<button class="plat${unbuilt ? ' unbuilt' : ''}" type="button" data-platform="${key}" aria-pressed="${platformFilter === key}"
       title="${said}. ${platformFilter === key ? 'Show all platforms' : `Click to show only packages available on ${p.label}`}">${short || p.label}${unbuilt ? html`<span class="sr-only"> (not built by Hydra)</span>` : ''}</button>`;
   });

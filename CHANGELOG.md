@@ -80,6 +80,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A package nixpkgs doesn't restrict to platforms ("any platform") that
+  Hydra doesn't build somewhere shows the struck tags too ("Linux ·
+  ~~Darwin~~", fzssh's), not "any platform" (334 on 2026-10-19).
 - Where the data is from: the digests under their names since the move to
   the nixkeeper organisation (digest-builds, not nixkeeper-hydra); Hydra's
   evaluations named by branch (master, staging-next, haskell-updates), each
