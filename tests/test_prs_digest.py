@@ -618,3 +618,16 @@ class CveIssues(unittest.TestCase):
         rows[0]["issueChecks"] = [{"number": 9, "kind": "build"}]
         prs_digest.add_cve_issues(rows, [])
         self.assertEqual(rows[0]["issueChecks"], [{"number": 9, "kind": "build"}])
+
+
+class MergeSummary(unittest.TestCase):
+    def test_counts(self):
+        prs = [
+            {"created": "2026-06-01T00:00:00Z", "who": ["A", "b"]},
+            {"created": "2026-10-01T00:00:00Z", "who": ["a"]},
+            {"created": "", "who": ["c"]},
+        ]
+        self.assertEqual(
+            prs_digest.merge_summary(prs, NOW),
+            {"prs": 3, "maintainers": 3, "over90": 1},
+        )

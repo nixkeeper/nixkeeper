@@ -590,6 +590,38 @@ def unbuilt_where(row):
     return found
 
 
+def numbers(rows):
+    """The overview's "nixpkgs in numbers" (with every package), of what the
+    sync has: Hydra's builds of every row ("builds") and of those not built,
+    the counts' failingBuilds, each kind: its own failure ("failing"), a
+    dependency's ("blocked"), timed out or aborted ("unfinished"); update
+    PRs behind upstream ("behind": prs_digest's
+    cross_check) and packages outside the sets with no maintainer
+    ("unmaintained"). Not how long packages have been outdated:
+    outdatedSince only goes back to when nixkeeper began watching every
+    package (2026-10-04), so a median of it says nixkeeper's age."""
+    builds = failing = blocked = unfinished = behind = unmaintained = 0
+    for row in rows:
+        for b in row.get("builds") or []:
+            if b["status"] != "notBuilt":
+                builds += 1
+                failing += b["status"] == "failed"
+                blocked += b["status"] == "dependency"
+                unfinished += b["status"] == "unfinished"
+        if ((row.get("openPR") or {}).get("facts") or {}).get("behind"):
+            behind += 1
+        if not row.get("set") and row.get("maintainers") == []:
+            unmaintained += 1
+    return {
+        "builds": builds,
+        "failing": failing,
+        "blocked": blocked,
+        "unfinished": unfinished,
+        "behind": behind,
+        "unmaintained": unmaintained,
+    }
+
+
 def views(rows, out):
     """With every package: the views the page starts from instead of a
     summary of every row (each {"packages": [summary entries]}, sorted by

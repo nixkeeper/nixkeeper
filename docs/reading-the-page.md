@@ -87,6 +87,13 @@ list. From the top:
   many are outdated (for Haskell, how many of those are already updated on
   haskell-updates, waiting for its merge), and how much of it is marked
   broken or failing (a bar).
+- **nixpkgs in numbers**, last, for the curious: open PRs and issues, PRs
+  ready for the merge bot and waiting for their own maintainers (yours are
+  on your page), update PRs behind upstream, how long the update bot takes
+  to go through its queue, Hydra's builds not built (the failing builds at
+the top, split: their own failure, a dependency's, unfinished), packages not built where
+  listed, the share up to date, and packages without a maintainer, each
+  opening its list where there is one.
 
 ## Lists
 

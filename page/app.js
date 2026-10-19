@@ -2350,7 +2350,7 @@ function overviewHtml() {
       ${teamPicker('Browse a team…')}
     </div>
     <p class="find-more">or <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">browse every maintainer</a></p>
-    <div class="overview-more">${highlightsHtml()}${causesHtml()}${fixedHtml()}${setsHtml(sets)}</div>`;
+    <div class="overview-more">${highlightsHtml()}${causesHtml()}${fixedHtml()}${setsHtml(sets)}${numbersHtml()}</div>`;
 }
 
 // The overview's recently fixed (the manifest's "fixed", from history.json):
@@ -2407,6 +2407,68 @@ const SET_BAR_TITLE =
 // The overview's sets updated in bulk: each one's size, what updates it,
 // and how much of it is failing, marked broken or outdated (a bar, in
 // their colours).
+// The overview's last section, "nixpkgs in numbers": figures for the
+// curious, out of the way of the lists above (the manifest's "numbers",
+// datastore.numbers; "merge", prs_digest.merge_summary; the sources' PR and
+// queue counts). Each says what it means, and opens its list when there is
+// one. Only those the data has.
+function numbersHtml() {
+  const n = manifest.numbers;
+  if (!n) return '';
+  const m = manifest.merge;
+  const prs = sources?.prs;
+  const queue = sources?.queue;
+  const link = (href, text) => html` <a class="files-link" href="${href}">${text} →</a>`;
+  const items = [
+    prs?.prs != null && [
+      fmt(prs.prs),
+      'open PRs',
+      `in nixpkgs, and ${fmt(prs.issues)} open issues`,
+    ],
+    m?.prs != null && [
+      fmt(m.prs),
+      'ready for the merge bot',
+      html`PRs waiting for their own maintainers (${fmt(m.maintainers)} people could each merge one), ${fmt(m.over90)} for over three months. Yours: "You can merge these", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>`,
+    ],
+    [
+      fmt(n.behind),
+      'update PRs behind upstream',
+      'upstream has moved on since they were opened: merged as they are, the package would still be outdated',
+    ],
+    queue?.cycleDays != null && [
+      `${queue.cycleDays} days`,
+      "the update bot's round",
+      'how long nixpkgs-update takes to go through its whole queue, trying each package once',
+    ],
+    // The top card's failing builds (counts.failingBuilds), split by kind.
+    [
+      fmt(n.failing + (n.blocked || 0) + (n.unfinished || 0)),
+      'builds not built on Hydra',
+      `${fmt(n.failing)} failing themselves · ${fmt(n.blocked || 0)} blocked by a failing dependency · ${fmt(n.unfinished || 0)} unfinished (timed out or aborted) · of ${fmt(n.builds)} in master's evaluation, every platform, sets included`,
+    ],
+    manifest.views?.unbuilt != null && [
+      fmt(manifest.views.unbuilt),
+      'not built where listed',
+      html`nixpkgs lists them for a platform Hydra doesn't build them on${link(scopeHref({ view: 'unbuilt' }), 'see them')}`,
+    ],
+    manifest.counts?.tracked > 0 && [
+      `${Math.round((100 * (manifest.counts.tracked - manifest.counts.outdated)) / manifest.counts.tracked)}%`,
+      'up to date',
+      `of the ${fmt(manifest.counts.tracked)} packages outside the sets: nixpkgs has the newest version (${fmt(manifest.counts.outdated)} outdated)`,
+    ],
+    [
+      fmt(n.unmaintained),
+      'without a maintainer',
+      html`packages outside the sets nobody maintains${link('?maintainer=none', 'see them')}`,
+    ],
+  ].filter(Boolean);
+  return html`<h2 class="scope-label">nixpkgs in numbers</h2>
+    <div class="numbers">${items.map(
+      ([value, label, what]) =>
+        html`<div class="number"><span class="number-v">${value}</span><span class="number-l">${label}</span><span class="number-what">${what}</span></div>`,
+    )}</div>`;
+}
+
 function setsHtml(sets) {
   if (!sets.length) return '';
   const pct = (n, of) => (of ? Math.min(100, (100 * n) / of) : 0).toFixed(1);

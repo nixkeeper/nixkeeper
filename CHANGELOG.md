@@ -11,6 +11,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **nixpkgs in numbers**, at the bottom of the overview: open PRs (12,514
+  on 2026-10-19), ready for the merge bot and waiting for their own
+  maintainers (1,018), update PRs behind upstream (582), the update bot's
+  round (10.8 days), builds not built on Hydra (the top card's, split:
+  failing themselves, blocked by a dependency, unfinished), not built
+  where listed (2,617), up to date (79%), without a maintainer (14,136).
 - **Hide until it changes**, in a package's panel: it leaves your lists,
   in this browser only, until what it needs attention for changes (a
   newer version, another failing build, a new update failure, the broken

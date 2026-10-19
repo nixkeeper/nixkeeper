@@ -216,6 +216,15 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   name in lowercase, each run of other characters than letters and digits
   a `-`: `Security review` is `security-review`), `set/<name>.json` (a
   set's rows);
+- `merge` and `numbers` in `index.json` (with every package): the
+  overview's "nixpkgs in numbers". `merge`: `{ "prs", "maintainers" (who
+  could merge at least one), "over90" (waiting over 90 days) }` of
+  `views/merge.json` (`prs_digest.merge_summary`); `numbers`: `{ "builds",
+  "failing", "blocked", "unfinished" (Hydra's builds of every row, sets
+  too, and of those not built, by kind: their own failure, a dependency's,
+  timed out or aborted; together, the counts' `failingBuilds`),
+  "behind" (update PRs behind upstream), "unmaintained" (packages outside
+  the sets with no maintainer) }` (`datastore.numbers`).
 - `views/merge.json`: the open PRs a maintainer can merge now with nixpkgs'
   merge bot, from nixkeeper-prs' digest (eligible by nixpkgs CI's label, CI
   green, no conflict, no changes requested, not a draft, touching tracked

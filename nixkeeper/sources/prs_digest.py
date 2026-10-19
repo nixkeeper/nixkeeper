@@ -284,6 +284,26 @@ def mergeable(prs, rows):
     return found
 
 
+# Waiting over so many days, in the overview's merge line.
+MERGE_LONG_DAYS = 90
+
+
+def merge_summary(prs, now):
+    """The overview's line on mergeable's PRs: {"prs", "maintainers" (who
+    could merge at least one), "over90" (waiting over MERGE_LONG_DAYS
+    days)}."""
+    then = datetime.fromisoformat(now) - timedelta(days=MERGE_LONG_DAYS)
+    return {
+        "prs": len(prs),
+        "maintainers": len({m.lower() for pr in prs for m in pr["who"]}),
+        "over90": sum(
+            1
+            for pr in prs
+            if pr["created"] and datetime.fromisoformat(pr["created"]) < then
+        ),
+    }
+
+
 def add_facts(rows, digest):
     """Give each row the digest's findings for its own package (facts'): its
     update PR's ("openPR"'s "facts", with "fixesBuild" when it touches the

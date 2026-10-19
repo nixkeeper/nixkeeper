@@ -335,6 +335,19 @@ def main():
     # Where the data is from: each digest's time, used or not (the page's
     # "checked" panel). Hydra's is noted in the background: done by now.
     index["sources"] = about.taken()
+    # The PRs maintainers can merge with the merge bot (with every
+    # package): the maintainer and team views' "You can merge these", and
+    # their count in the overview's numbers.
+    merge = (
+        prs_digest.mergeable(digest["raw"], index_rows)
+        if everything and digest.get("raw") is not None
+        else None
+    )
+    if merge is not None:
+        index["merge"] = prs_digest.merge_summary(merge, now)
+    if everything:
+        # The overview's "nixpkgs in numbers".
+        index["numbers"] = datastore.numbers(index_rows)
     datastore.write(
         index,
         datastore.kept_entries(projects, index_rows),
@@ -358,11 +371,8 @@ def main():
             # The PRs maintainers can merge with the merge bot: the
             # maintainer and team views' "You can merge these" (every
             # package's PRs: with every package only).
-            "views/merge.json": {
-                "checkedAt": now,
-                "prs": prs_digest.mergeable(digest["raw"], index_rows),
-            }
-            if everything and digest.get("raw") is not None
+            "views/merge.json": {"checkedAt": now, "prs": merge}
+            if merge is not None
             else None,
         },
     )
