@@ -11,6 +11,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Not built where listed** (`?view=unbuilt`, linked from Marked broken):
+  every package nixpkgs lists for a platform Hydra doesn't build it on,
+  outside the sets, and with a platform picked, those not built there
+  (`?view=unbuilt&platform=darwin`, `aarch64-linux`). On 2026-10-19:
+  2,624, of them 2,253 for Darwin and 806 for aarch64-linux. Written by the
+  sync (`views/unbuilt.json`) with the same rule as the page's struck tags.
 - An issue about CVEs that none affect nixpkgs' version, as nixkeeper reads
   them (fixed or patched), is a candidate to close in the package's panel,
   beside the build and update checks (4 of the 17 open CVE issues on

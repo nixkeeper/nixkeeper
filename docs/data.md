@@ -208,7 +208,9 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   fix to backport, not in a set updated in bulk), `broken.json` (marked broken, not in such a set),
   `backport.json` (a CVE to backport: `backport`, not in such a set),
   `blocked.json` (a build not tried because a dependency failed, in such
-  sets too),
+  sets too), `unbuilt.json` (listed for a platform Hydra doesn't build it
+  on, not in such a set: `datastore.unbuilt_where`, the page's struck
+  platform tags; its count in `index.json`'s `views.unbuilt`),
   `maintainer/<handle>.json` (the handle in lowercase; `none.json`: no
   maintainer, not in such a set), `team/<slug>.json` and `list/<slug>.json` (the
   name in lowercase, each run of other characters than letters and digits

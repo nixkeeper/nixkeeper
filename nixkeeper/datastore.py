@@ -545,6 +545,51 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+# The systems unbuilt_where looks at: each Linux system apart, Darwin as one.
+UNBUILT_KEYS = ("x86_64-linux", "aarch64-linux", "darwin")
+
+
+def _on_platform(row, key):
+    """Whether row is listed for key, a family or a system (the page's
+    onPlatform): no restriction ("platforms": null) counts as every one."""
+    platforms = row.get("platforms", {})
+    if platforms is None:
+        return True
+    family = key.split("-")[-1]
+    if not platforms.get(family):
+        return False
+    systems = platforms.get("systems")
+    return key == family or not systems or key in systems
+
+
+def _on_system(system, key):
+    return system == key if "-" in key else system.endswith("-" + key)
+
+
+def unbuilt_where(row):
+    """The systems row is listed for but Hydra doesn't build it on (the
+    page's unbuiltWhere, the struck platform tags): none of its builds there
+    exists ("notBuilt", usually as a dependency isn't available there), while
+    Hydra builds it elsewhere. [] when Hydra builds it everywhere listed, or
+    nowhere (unfree, kept off it)."""
+    builds = row.get("builds") or []
+    found = []
+    for key in UNBUILT_KEYS:
+        here = [b for b in builds if _on_system(b["system"], key)]
+        if (
+            here
+            and _on_platform(row, key)
+            and all(b["status"] == "notBuilt" for b in here)
+            and any(
+                b["status"] != "notBuilt"
+                for b in builds
+                if not _on_system(b["system"], key)
+            )
+        ):
+            found.append(key)
+    return found
+
+
 def views(rows, out):
     """With every package: the views the page starts from instead of a
     summary of every row (each {"packages": [summary entries]}, sorted by
@@ -557,6 +602,8 @@ def views(rows, out):
         the newest release branch (backport; not in such a set)
       views/blocked.json: a build of it not tried, as a dependency failed
         (in such sets too, as the overview's blockers count them)
+      views/unbuilt.json: listed for a platform Hydra doesn't build it on
+        (unbuilt_where; not in such a set)
       views/maintainer/<handle>.json: a maintainer's (lowercase handle),
         and none.json those with no maintainer (not in such a set)
       views/team/<slug>.json, views/list/<slug>.json, views/set/<name>.json
@@ -729,6 +776,8 @@ def views(rows, out):
         if row.get("markedBroken") or broken_builds(row):
             counts["broken"] += 1
             put("views/broken.json", row)
+        if unbuilt_where(row):
+            put("views/unbuilt.json", row)
         # A fix to backport is the maintainer's to do too, even with
         # nixos-unstable fine (its list tile: Fixes to backport).
         if letter[0] in "fmo" or letter.endswith("v") or row.get("backport"):
@@ -815,6 +864,7 @@ def views(rows, out):
             "broken": len(found.get("views/broken.json", [])),
             "blocked": len(found.get("views/blocked.json", [])),
             "backport": len(found.get("views/backport.json", [])),
+            "unbuilt": len(found.get("views/unbuilt.json", [])),
             # (In the file, by name with capitals first, as its keys sort: the
             # page sorts them its way.)
             "teams": dict(sorted(teams.items())),

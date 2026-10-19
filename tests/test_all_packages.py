@@ -384,6 +384,7 @@ class Data(unittest.TestCase):
                 "broken": 0,
                 "blocked": 0,
                 "backport": 0,
+                "unbuilt": 0,
                 "teams": {"Gaming": 1},
                 "lists": {"gaming-team": 1},
                 "sets": {
@@ -512,6 +513,40 @@ class Data(unittest.TestCase):
         self.assertEqual(
             [p["name"] for p in self.read("views/broken.json")["packages"]], ["b"]
         )
+
+    def test_unbuilt_view(self):
+        def builds(**on):
+            return [{"attr": "x", "system": s, "status": st} for s, st in on.items()]
+
+        both = {"linux": True, "darwin": True}
+        rows = [
+            # Listed for Darwin, built on Linux only: in the view.
+            row(
+                "juce",
+                platforms=both,
+                builds=builds(**{"x86_64-linux": "ok", "aarch64-darwin": "notBuilt"}),
+            ),
+            # Built everywhere listed: not.
+            row(
+                "fine",
+                platforms=both,
+                builds=builds(**{"x86_64-linux": "ok", "aarch64-darwin": "ok"}),
+            ),
+            # A set's: not (its set's line counts it).
+            row(
+                "haskellPackages.x",
+                set="haskellPackages",
+                platforms=both,
+                builds=builds(**{"x86_64-linux": "ok", "aarch64-darwin": "notBuilt"}),
+            ),
+        ]
+        datastore.write(
+            {"checkedAt": NOW, "allPackages": True, "packages": rows}, {}, self.out
+        )
+        self.assertEqual(
+            [p["name"] for p in self.read("views/unbuilt.json")["packages"]], ["juce"]
+        )
+        self.assertEqual(self.read("index.json")["views"]["unbuilt"], 1)
 
     def test_failing_builds_every_job(self):
         def builds(*statuses):

@@ -249,12 +249,15 @@ const PLATFORMS = {
 const LINUX_SYSTEMS = ['x86_64-linux', 'aarch64-linux'];
 // Available on the platform picked: listed for it, and built there by Hydra
 // when Hydra builds it at all (unbuiltOn); listed but not built counts only
-// with "Not built where listed" on, which finds exactly those.
+// with "Not built where listed" on, or in its view, which find exactly
+// those.
 function inPlatform(pkg) {
-  return (
-    !platformFilter ||
-    (onPlatform(pkg, platformFilter) && (refines.has('unbuilt') || !unbuiltOn(pkg, platformFilter)))
-  );
+  if (!platformFilter) return true;
+  if (!onPlatform(pkg, platformFilter)) return false;
+  // Not built where listed (?view=unbuilt): a platform picked keeps those
+  // not built there (Darwin: the Darwin ones), as the refine does.
+  if (shownView === VIEWS.unbuilt) return unbuiltOn(pkg, platformFilter);
+  return refines.has('unbuilt') || !unbuiltOn(pkg, platformFilter);
 }
 // The sync runs daily; older than this means runs are failing or GitHub has
 // paused the schedule (it does after 60 days without commits).
@@ -2430,14 +2433,24 @@ function listHeaderHtml() {
                 ? 'Marked broken'
                 : path === 'views/blocked.json'
                   ? 'Blocked by a dependency'
-                  : path === 'views/backport.json'
-                    ? 'Fixes to backport'
-                    : 'Needs attention';
+                  : path === 'views/unbuilt.json'
+                    ? 'Not built where listed'
+                    : path === 'views/backport.json'
+                      ? 'Fixes to backport'
+                      : 'Needs attention';
   return html`<h2 class="sr-only">${what}</h2>
     <div class="scope-view">
       <span class="scope-label">Showing</span>
       <span class="view-chip">${what} · ${fmt(shownCount)}<a class="view-x" href="${scopeHref({})}" data-scope-home aria-label="Back to the overview" title="Back to the overview">✕</a></span>
       ${path.startsWith('views/cause/') && causeShown ? html`<span class="scope-hint cause-line" title="The error line these builds share (paths, numbers and names vary)"><code>${causeShown.line}</code></span>` : ''}
+      ${
+        // Marked broken's neighbour: listed for a platform, never built there.
+        path === 'views/broken.json' && manifest.views?.unbuilt
+          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'unbuilt' })}" title="Packages nixpkgs lists for a platform Hydra doesn't build them on: usually a dependency isn't available there">also: ${fmt(manifest.views.unbuilt)} not built where listed →</a>`
+          : path === 'views/unbuilt.json'
+            ? html`<span class="scope-hint">listed for a platform Hydra doesn't build them on (struck tags); pick a platform to see its own</span>`
+            : ''
+      }
       ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(setFilter)}${profileOf(setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
       ${teamPicker('Any team')}${teamOutChips()}
     </div>
