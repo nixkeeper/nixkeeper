@@ -9,6 +9,20 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-19
+
+The open PRs a maintainer can merge themselves become a list on their page:
+**You can merge these**, the PRs ready for the merge bot that they maintain
+every package of, with the comment to post (over 1,000 on nixkeeper.com,
+for some 830 maintainers, about 200 waiting over three months). Update PRs
+say when they're **behind** upstream or **for a vulnerable package**, and
+CVE issues nixkeeper finds fixed are candidates to close. Platforms a
+package is listed for but Hydra never builds it on show struck through,
+with a list of all 2,600 of them. What you've looked at can be **hidden
+until it changes**, packages and PRs alike, in your own browser. The update
+column says **auto update in 4 days** when the bot has it in hand, and the
+overview ends with **nixpkgs in numbers**.
+
 ### Added
 
 - **Hide** on each PR of "You can merge these": it leaves the block, in this
@@ -2079,7 +2093,8 @@ to its restructuring into a Python package.
   packages removed from the lists don't leave files behind.
 - The sync script is a Python package (`nixkeeper/`) with tests in `tests/`.
 
-[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.16.0...v0.17.0
