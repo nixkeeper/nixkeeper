@@ -324,6 +324,7 @@ select:focus-visible,
 .row:focus-visible,
 .failure-btn:focus-visible,
 button.plat:focus-visible,
+.fold-btn:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -1613,6 +1614,34 @@ button.plat:hover {
 button.plat[aria-pressed="true"] {
   color: var(--accent);
   font-weight: 600;
+}
+/* A fold's lead (foldButton): how many more packages the same update
+   moves, a button showing them; 24 px tall, like every tap target. */
+.fold-btn {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.fold-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+.fold-btn[aria-expanded="true"] {
+  color: var(--accent);
+}
+/* The packages an open fold shows, after its lead: set in under it. */
+.row.fold-member .c-name {
+  box-shadow: inset 3px 0 0 var(--hairline-strong);
+}
+.row.fold-member .pkg-name {
+  padding-left: 32px;
 }
 .plat-filter {
   font: inherit;

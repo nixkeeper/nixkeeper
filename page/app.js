@@ -13,7 +13,9 @@ import {
   daysUntil,
   failedBecause,
   hasFailure as failureOn,
+  familyLabel,
   faviconKey,
+  foldFamilies,
   fromMaster,
   homeHref,
   html,
@@ -1826,6 +1828,22 @@ function renderLists() {
 
 // The packages the table shows, in order: a row's data-i is its place here.
 let shown = [];
+// Packages one update moves together, folded into one row (foldFamilies):
+// the folds of the list drawn (lead's name → its fold), the names shown
+// behind an open one's lead, and the folds opened (by key, until reload).
+let folds = new Map();
+let inOpenFold = new Set();
+const openFolds = new Set();
+
+// A fold's lead: how many more it stands for, a button showing or folding
+// them.
+function foldButton(pkg) {
+  const fold = folds.get(pkg.name);
+  if (!fold) return '';
+  const more = fold.members.length - 1;
+  const label = familyLabel(fold.members.map((m) => m.name)) || `${pkg.name} and the like`;
+  return html`<button type="button" class="fold-btn" data-fold="${fold.key}" aria-expanded="${fold.open}" title="${fmt(more + 1)} packages one update moves together (${label}): ${fold.open ? 'fold them into one row' : 'show them all'}">${fold.open ? `fold ${fmt(more)}` : `+${fmt(more)} like it`}</button>`;
+}
 
 const CHEVRON = raw(
   '<svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
@@ -1833,8 +1851,8 @@ const CHEVRON = raw(
 
 function rowHtml(pkg, i) {
   const st = computeStatus(pkg);
-  return html`<tr class="row${isHidden(pkg) ? ' is-hidden' : ''}" tabindex="0" data-i="${i}">
-      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}" title="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}</div></td>
+  return html`<tr class="row${isHidden(pkg) ? ' is-hidden' : ''}${inOpenFold.has(pkg.name) ? ' fold-member' : ''}" tabindex="0" data-i="${i}">
+      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}" title="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}${foldButton(pkg)}</div></td>
       <td class="c-ver ver mono">${versionCell(pkg, st)}</td>
       <td class="c-gh${pkg.openPRs || pkg.openIssues ? '' : ' quiet'}">${githubLinks(pkg)}</td>
       <td class="c-build">${buildCell(pkg)}</td>
@@ -1912,6 +1930,8 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     writeViewToUrl();
     return;
   }
+  // One update moving many packages: one row (foldFamilies), alike by dot.
+  ({ list, folds, inOpen: inOpenFold } = foldFamilies(list, computeStatus, openFolds));
   const pages = Math.max(1, Math.ceil(list.length / pageSize));
   pageNum = keepPage ? Math.min(pageNum, pages) : 1;
   writeViewToUrl();
@@ -2840,6 +2860,19 @@ document.getElementById('content').addEventListener('click', (e) => {
   const copy = e.target.closest('.vcopy');
   if (copy) {
     copyTitle(copy);
+    return;
+  }
+  const fold = e.target.closest('button.fold-btn');
+  if (fold) {
+    // Shown or folded again, the keyboard back on the same button.
+    const key = fold.dataset.fold;
+    if (openFolds.has(key)) openFolds.delete(key);
+    else openFolds.add(key);
+    update({ keepPage: true }).then(() =>
+      [...document.querySelectorAll('button.fold-btn')]
+        .find((b) => b.dataset.fold === key)
+        ?.focus(),
+    );
     return;
   }
   const plat = e.target.closest('button.plat');

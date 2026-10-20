@@ -9,6 +9,20 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+### Added
+
+- One update, one row: in the package list, three or more packages one
+  update moves together (the same family, status and newest version) are
+  one row with "+186 like it", a button showing the others after it.
+  fabaff's outdated list: 578 rows to 393 (the 187 huaweicloudsdk*).
+
+### Fixed
+
+- Outdated only by another spelling of the same snapshot
+  (`unstable-2022-10-20` against nixpkgs' older channels' `2022-10-20`):
+  up to date now. 104 packages on 2026-10-20 (gawkextlib's 17,
+  celeste-classic, haste-server...).
+
 ### Changed
 
 - "being removed" in the list only when removal looks likely: the removal

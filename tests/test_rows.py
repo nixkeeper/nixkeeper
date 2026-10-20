@@ -125,6 +125,26 @@ class Rows(unittest.TestCase):
         (row,) = self.rows(project("godot", ["godot"], entries, "godot"))
         self.assertEqual(row["nixStatus"], "outdated")
 
+    def test_outdated_only_by_a_snapshots_spelling(self):
+        """gawkextlib.csv, 2026-10-20: unstable-2022-10-20, against nixpkgs'
+        older channels' 2022-10-20."""
+
+        def row(nix_version, newest):
+            entries = [
+                nix("p", nix_version, "outdated"),
+                other("nix_stable_25_05", newest, "unique"),
+            ]
+            (row,) = self.rows(project("p", ["p"], entries, "p"))
+            return row["nixStatus"], row["refVersion"]
+
+        self.assertEqual(row("unstable-2022-10-20", "2022-10-20")[0], "newest")
+        self.assertEqual(row("0-unstable-2012-12-08", "2012-12-08")[0], "newest")
+        # A newer date, or a release, is still newer.
+        self.assertEqual(
+            row("unstable-2022-10-20", "2023-01-01"), ("outdated", "2023-01-01")
+        )
+        self.assertEqual(row("1.2-unstable-2022-10-20", "2022-10-20")[0], "outdated")
+
     def test_outdated_only_by_a_distributions_snapshot(self):
         """python3Packages.mintotp 0.3.0, 2026-10-15: SlackBuilds' git
         snapshot 0.3.0.20240120 was the only newer version."""

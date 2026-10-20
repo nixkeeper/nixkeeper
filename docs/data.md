@@ -311,7 +311,7 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 | `unversioned` | with every package: `true` for a row of `darwin` or `freebsd`, not versioned software: its builds are what's checked |
 | `unread` | with every package: the sources this sync didn't read for the row and kept as they were (`["update"]`: its nixpkgs-update attempt, which nixkeeper-updates' digest hasn't read yet) |
 | `source` | where nixpkgs defines it, on GitHub at the channel's commit and line |
-| `family` | when one update moves it with other rows (the same package file in nixpkgs, the same version and homepage: the 187 `huaweicloudsdk*` Python packages, a kernel module once per kernel): a short key they share. The overview's lists show a family as one entry |
+| `family` | when one update moves it with other rows (the same package file in nixpkgs, the same version and homepage: the 187 `huaweicloudsdk*` Python packages, a kernel module once per kernel): a short key they share. The overview's lists show a family as one entry, and the package list folds three or more alike (the same status and newest version) into one row |
 | `unfree` | `true` when every attribute is unfree (Hydra doesn't build those) |
 
 ### Versions (Repology, and nixkeeper's own checks)

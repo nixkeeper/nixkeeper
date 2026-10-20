@@ -149,6 +149,14 @@ kept when moving between views; the maintainers' list too), staying on the
 page that holds the first package you were looking at. Changing a filter,
 the search or the order goes back to the first page.
 
+**One update, one row.** Three or more packages one update moves together
+(one package file in nixpkgs, one version and homepage, the same dot and
+the same newest version: `python313Packages.huaweicloudsdk*`, 187 of them)
+are one row, the first of them, with "+186 like it" under its name. The
+button shows the others right after it ("fold 186" folds them again).
+One of them failing to build, or behind on another version, keeps its own
+row.
+
 **Two words you'll see.** "not on Repology" is a package Repology doesn't
 know; "not read" an update attempt the sync didn't read (with every
 package, attempts come from a digest of the bot's, which hasn't read that
@@ -296,7 +304,7 @@ to "checked" at the top for all of them):
 
 | Dot | Means |
 |---|---|
-| green | up to date: nixpkgs has the newest version (for a devel package, the newest devel one), or is the only one packaging it, or an [up-to-date rule](community.md#up-to-date-rules-until-something-changes) says Repology gets its version wrong (the details say why) |
+| green | up to date: nixpkgs has the newest version (for a devel package, the newest devel one), or is the only one packaging it, or an [up-to-date rule](community.md#up-to-date-rules-until-something-changes) says Repology gets its version wrong (the details say why). Also when the newer version is only another spelling of the same snapshot: `unstable-2022-10-20` against nixpkgs' older channels' `2022-10-20` |
 | orange | outdated: Repology or nixkeeper's own update check knows a newer version |
 | violet | outdated, but the update is already merged on master, waiting for nixos-unstable (usually a few days). Master having a newer version than the channel counts too, even before Repology or an update check knows of it |
 | pink | not in nixpkgs unstable (counted as failed) |

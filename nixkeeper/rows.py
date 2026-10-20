@@ -180,6 +180,19 @@ def snapshot_only(version, newest, others):
     )
 
 
+# nixpkgs' spelling of a snapshot of a date, with nothing (or 0) before it:
+# unstable-2022-10-20, 0-unstable-2012-12-08.
+NIX_SNAPSHOT = re.compile(r"(?:0-)?unstable-([0-9]{4}-[0-9]{2}-[0-9]{2})")
+
+
+def same_snapshot(version, newest):
+    """Whether newest is only another spelling of nixpkgs' snapshot version:
+    the date alone (gawkextlib.csv's unstable-2022-10-20, which nixpkgs'
+    older channels spelled 2022-10-20, and Repology ranks above it)."""
+    match = NIX_SNAPSHOT.fullmatch(version or "")
+    return bool(match) and match[1] == newest
+
+
 def not_packaging(families):
     """The versions of families ({version: the distributions that have
     it}) that aren't only a packaging of another: one adding a part to
@@ -358,6 +371,14 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         # Outdated only by one distribution's snapshot of this very release
         # (python3Packages.mintotp 0.3.0, SlackBuilds' 0.3.0.20240120): the
         # newest.
+        row["nixStatus"] = "newest"
+    if (
+        nix
+        and nix.get("status") == "outdated"
+        and same_snapshot(nix.get("version"), row["refVersion"])
+    ):
+        # Outdated only by another spelling of the same snapshot, mostly
+        # nixpkgs' own older channels' (104 rows on 2026-10-20): the newest.
         row["nixStatus"] = "newest"
     if nix and nix.get("status") == config.KEPT:
         # An older version kept beside a newer one: which, for the page.

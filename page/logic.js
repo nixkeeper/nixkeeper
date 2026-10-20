@@ -943,3 +943,51 @@ export function midway(pkg) {
     ? master
     : null;
 }
+
+// Packages one update moves together (the sync's family: the same file,
+// version and homepage, rows.add_families) as the list folds them: at the
+// same status and target version, and also alike by key(pkg) (the list's
+// dot), FOLD_MIN or more of them in the list are one row, the first in the
+// list's order (the most pressing), with the others behind it; or, when
+// their fold is in open (by its key), the others right after it. Returns
+// {list, folds: lead's name → {key, members, open}, inOpen: the names shown
+// behind an open fold's lead}.
+export const FOLD_MIN = 3;
+export function foldFamilies(list, key = () => '', open = new Set()) {
+  const keyOf = (pkg) =>
+    pkg.family ? [pkg.family, pkg.nixStatus, targetVersion(pkg) ?? '', key(pkg)].join('|') : null;
+  const groups = new Map();
+  for (const pkg of list) {
+    const k = keyOf(pkg);
+    if (k) groups.set(k, [...(groups.get(k) ?? []), pkg]);
+  }
+  const out = [];
+  const folds = new Map();
+  const inOpen = new Set();
+  for (const pkg of list) {
+    const k = keyOf(pkg);
+    const members = k && groups.get(k);
+    if (!members || members.length < FOLD_MIN) out.push(pkg);
+    else if (members[0] === pkg) {
+      folds.set(pkg.name, { key: k, members, open: open.has(k) });
+      out.push(pkg);
+      if (open.has(k)) {
+        for (const m of members.slice(1)) inOpen.add(m.name);
+        out.push(...members.slice(1));
+      }
+    }
+  }
+  return { list: out, folds, inOpen };
+}
+
+// What a family's members are called together (rows.family_label): the one
+// name they all end in (a kernel module once per kernel); else their names'
+// common start and a "*" ("python313Packages.huaweicloudsdk*"); null when
+// they share fewer than 4 characters.
+export function familyLabel(names) {
+  const ends = new Set(names.map((n) => n.split('.').pop()));
+  if (ends.size === 1) return [...ends][0];
+  let start = names[0] ?? '';
+  for (const n of names) while (!n.startsWith(start)) start = start.slice(0, -1);
+  return start.length >= 4 ? `${start}*` : null;
+}

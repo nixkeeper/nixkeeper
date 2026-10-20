@@ -23,7 +23,9 @@ import {
   daysUntil,
   escapeHtml,
   failedBecause,
+  familyLabel,
   faviconKey,
+  foldFamilies,
   fromMaster,
   githubRepo,
   hasFailure,
@@ -1183,5 +1185,61 @@ describe('failedBecause', () => {
     assert.equal(failedBecause({ updateFailure: true, update: { outcome: 'failed' } }), 'other');
     // Not failing: no reason, whatever an older attempt said.
     assert.equal(failedBecause({ update: { failedBecause: 'patch' } }), null);
+  });
+});
+
+describe('foldFamilies', () => {
+  const pkg = (name, extra = {}) => ({
+    name,
+    family: 'f1',
+    nixStatus: 'outdated',
+    refVersion: '3.1.218',
+    ...extra,
+  });
+  test('three or more alike are one row, the first; open shows them after it', () => {
+    const list = [pkg('sdk-a'), pkg('other', { family: null }), pkg('sdk-b'), pkg('sdk-c')];
+    const { list: out, folds, inOpen } = foldFamilies(list);
+    assert.deepEqual(
+      out.map((p) => p.name),
+      ['sdk-a', 'other'],
+    );
+    const fold = folds.get('sdk-a');
+    assert.equal(fold.members.length, 3);
+    assert.equal(fold.open, false);
+    assert.equal(inOpen.size, 0);
+    const opened = foldFamilies(list, () => '', new Set([fold.key]));
+    assert.deepEqual(
+      opened.list.map((p) => p.name),
+      ['sdk-a', 'sdk-b', 'sdk-c', 'other'],
+    );
+    assert.deepEqual([...opened.inOpen], ['sdk-b', 'sdk-c']);
+  });
+  test('not when fewer, or unlike in status, target or key', () => {
+    assert.equal(foldFamilies([pkg('a'), pkg('b')]).list.length, 2);
+    const list = [
+      pkg('a'),
+      pkg('b'),
+      pkg('c', { refVersion: '3.1.219' }),
+      pkg('d', { nixStatus: 'newest' }),
+    ];
+    assert.equal(foldFamilies(list).list.length, 4);
+    // a, b and c alike but for the key (the dot): c is its own.
+    const three = [pkg('a'), pkg('b'), pkg('c', { bad: true })];
+    assert.equal(foldFamilies(three, (p) => (p.bad ? 'bad' : 'ok')).list.length, 3);
+    assert.equal(foldFamilies(three).list.length, 1);
+  });
+});
+
+describe('familyLabel', () => {
+  test('the shared end, else the common start and a star', () => {
+    assert.equal(
+      familyLabel(['linuxPackages.mbp2018-bridge-drv', 'linuxPackages_6_1.mbp2018-bridge-drv']),
+      'mbp2018-bridge-drv',
+    );
+    assert.equal(
+      familyLabel(['python313Packages.huaweicloudsdkaad', 'python313Packages.huaweicloudsdkcce']),
+      'python313Packages.huaweicloudsdk*',
+    );
+    assert.equal(familyLabel(['abc', 'xyz']), null);
   });
 });
