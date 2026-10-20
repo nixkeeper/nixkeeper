@@ -320,7 +320,7 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 |---|---|
 | `nixVersion` | the version in nixos-unstable: Repology's, or the channel's own (its package index, as the sync read it) when that's newer, Repology not having read the channel since it moved; `nixStatus` is then worked out again (`outdated` turns `newest` when `refVersion` isn't newer than it) |
 | `repologyVersion` | when `nixVersion` is the channel's: the older version Repology still has for it |
-| `nixStatus` | Repology's status for it: `newest`, `outdated`, `devel`, `unique`, `legacy`, `untrusted`, `rolling`, `noscheme`, `incorrect`, ..., or `missing` when nixpkgs doesn't have it; with every package, `unlisted` for one Repology doesn't know (`nixVersion` is then nixpkgs') |
+| `nixStatus` | Repology's status for it: `newest`, `outdated`, `devel`, `unique`, `legacy`, `untrusted`, `rolling`, `noscheme`, `incorrect`, ..., or `missing` when nixpkgs doesn't have it; `unsupported` when nixpkgs' version is `0-unsupported`, its version for a package it doesn't build in its default configuration (CUDA packages for another CUDA), so with nothing to compare; with every package, `unlisted` for one Repology doesn't know (`nixVersion` is then nixpkgs') |
 | `refVersion` | the newest version seen elsewhere (for a devel row, the newest devel one), or what nixkeeper's update check found, or what master has (`master`), whichever is newest |
 | `refFromMaster` | `true` when `refVersion` is master's: newer than anything Repology or an update check knows of |
 | `repoCount` | how many other repositories Repology compares it with (each counted once) |

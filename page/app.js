@@ -775,7 +775,7 @@ function versionCell(pkg, st) {
   const failing = stale
     ? html`<span class="badge neutral" title="${staleText(stale, "nixkeeper's update check failing")}. ${communityCheck(pkg) ? "It's a community rule: report it to nixkeeper, or give the package a rule of your own." : 'Fix it in package-lists/update-checks.nix.'}">check failing</span>`
     : '';
-  const about = html`${pkg.set ? bulkBadge(pkg.set) : ''}${olderVersionKept(pkg) ? html`<span class="badge neutral" title="${keptText(pkg)}">older version</span>` : pkg.unversioned && st === 'neutral' ? html`<span class="badge neutral" title="${UNVERSIONED_TITLE}">not versioned</span>` : st === 'neutral' ? html`<span class="badge neutral">${statusLabel(pkg.nixStatus)}</span>` : ''}${pkg.archived ? html`<span class="badge warn" title="${archivedText(pkg)}">archived</span>` : ''}${pkg.dropPR && !pkg.dropPR.proposed ? html`<span class="badge warn" title="An open PR removes it from nixpkgs: #${pkg.dropPR.number} (${pkg.dropPR.title})">being removed</span>` : ''}${pkg.feed?.heldBack && st === 'ok' ? html`<span class="badge neutral" title="nixpkgs pins it to ${pkg.feed.name}: Hackage has ${pkg.feed.heldBack}, which Stackage holds back until its next series">Stackage LTS</span>` : ''}${pkg.devel ? html`<span class="badge devel ${st}">devel</span>` : ''}${vulnBadge(pkg)}${pkg.staleSince ? html`<span class="badge neutral" title="Repology lookup failed on the last run; this is data from ${new Date(pkg.staleSince).toLocaleString()}">not refreshed</span>` : pkg.lookupFailed ? html`<span class="badge neutral" title="${LOOKUP_FAILED}">not looked up</span>` : ''}`;
+  const about = html`${pkg.set ? bulkBadge(pkg.set) : ''}${olderVersionKept(pkg) ? html`<span class="badge neutral" title="${keptText(pkg)}">older version</span>` : pkg.unversioned && st === 'neutral' ? html`<span class="badge neutral" title="${UNVERSIONED_TITLE}">not versioned</span>` : st === 'neutral' ? html`<span class="badge neutral"${pkg.nixStatus === 'unsupported' ? html` title="${UNSUPPORTED_TEXT}"` : ''}>${statusLabel(pkg.nixStatus)}</span>` : ''}${pkg.archived ? html`<span class="badge warn" title="${archivedText(pkg)}">archived</span>` : ''}${pkg.dropPR && !pkg.dropPR.proposed ? html`<span class="badge warn" title="An open PR removes it from nixpkgs: #${pkg.dropPR.number} (${pkg.dropPR.title})">being removed</span>` : ''}${pkg.feed?.heldBack && st === 'ok' ? html`<span class="badge neutral" title="nixpkgs pins it to ${pkg.feed.name}: Hackage has ${pkg.feed.heldBack}, which Stackage holds back until its next series">Stackage LTS</span>` : ''}${pkg.devel ? html`<span class="badge devel ${st}">devel</span>` : ''}${vulnBadge(pkg)}${pkg.staleSince ? html`<span class="badge neutral" title="Repology lookup failed on the last run; this is data from ${new Date(pkg.staleSince).toLocaleString()}">not refreshed</span>` : pkg.lookupFailed ? html`<span class="badge neutral" title="${LOOKUP_FAILED}">not looked up</span>` : ''}`;
   if (st !== 'warn')
     return html`<div class="vcell"><span class="v-now"><span class="v">${now}</span></span><span class="v-tags top">${about}${failing}</span></div>`;
   const target = targetVersion(pkg);
@@ -1064,6 +1064,10 @@ function setSitePalette(palette) {
 // Repology's statuses as the page says them, where the code isn't clear
 // ("unlisted": with every package, one Repology doesn't know).
 const STATUS_LABEL = { unlisted: 'not on Repology' };
+// nixpkgs' 0-unsupported (rows.UNSUPPORTED): not built in its default
+// configuration, so no version to compare.
+const UNSUPPORTED_TEXT =
+  "nixpkgs doesn't build it in its default configuration (0-unsupported: for the CUDA it defaults to, say), so there's no version to compare";
 // An older version kept beside a newer one (olderVersionKept): which.
 const keptText = (pkg) =>
   pkg.keptBeside
@@ -3972,11 +3976,13 @@ function fillDetail(pkg, el, entries) {
                       : olderVersionKept(pkg)
                         ? html` — an older version nixpkgs keeps on purpose${pkg.keptBeside ? html`, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>` : ', beside a newer one'}: not outdated while nothing newer is out in its own series.`
                         : st === 'neutral'
-                          ? pkg.nixStatus === 'unlisted'
-                            ? pkg.lookupFailed
-                              ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
-                              : " — Repology doesn't list this package, so there's nothing to compare it with."
-                            : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
+                          ? pkg.nixStatus === 'unsupported'
+                            ? ` — ${UNSUPPORTED_TEXT}.`
+                            : pkg.nixStatus === 'unlisted'
+                              ? pkg.lookupFailed
+                                ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
+                                : " — Repology doesn't list this package, so there's nothing to compare it with."
+                              : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
                           : said && up && !failing
                             ? ' — the newest version, by its update check.'
                             : loaded

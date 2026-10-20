@@ -31,6 +31,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   repositories instead: 231 packages up to date on 2026-10-20. The newest
   channel ahead with no index saying otherwise still counts (a backport,
   msedgedriver).
+- Outdated only by another commit on a nixpkgs channel (tree-sitter
+  grammars' `0.0.0+rev=e45dbac` against 26.05's `rev=9566ca7`, which
+  Repology ranks as letters): up to date. 75 packages on 2026-10-20.
+- nixpkgs' `0-unsupported` (CUDA packages it doesn't build for its default
+  CUDA) is `unsupported`, grey: 14 packages on 2026-10-20, 10 of them outdated before.
 
 ### Changed
 

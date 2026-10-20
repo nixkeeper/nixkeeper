@@ -206,6 +206,28 @@ def old_channels(others):
     return channels - {newest}
 
 
+# A commit named in a version (tree-sitter grammars' 0.0.0+rev=e45dbac).
+COMMIT = re.compile(r"rev=[0-9a-f]{7,40}")
+
+
+def commit_only(version, newest):
+    """Whether version and newest differ only by the commit they name:
+    hashes have no order, so newest isn't newer (Repology ranks them as
+    letters: nvim-treesitter-parsers.liquid's rev=e45dbac below 26.05's
+    rev=9566ca7)."""
+    return (
+        bool(version and newest)
+        and version != newest
+        and bool(COMMIT.search(version))
+        and COMMIT.sub("", version) == COMMIT.sub("", newest)
+    )
+
+
+# nixpkgs' version for a package it doesn't build in its default
+# configuration (cudaPackages.cuda_compat, for the CUDA it defaults to).
+UNSUPPORTED = "0-unsupported"
+
+
 def ignored_channels(nix_version, others):
     """The nixpkgs release channels among others whose versions don't count
     as releases: the old ones (old_channels); and all of them when an
@@ -444,6 +466,22 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         row["refVersion"] = best
         if not (best and is_newer(best, nix.get("version") or "")):
             row["nixStatus"] = "newest" if rest else "unique"
+    if (
+        nix
+        and row["nixStatus"] == "outdated"
+        and commit_only(nix.get("version"), row["refVersion"])
+        and {e.get("repo", "") for e in others if e.get("version") == row["refVersion"]}
+        <= {e.get("repo", "") for e in others if e.get("repo", "").startswith("nix_")}
+    ):
+        # Behind only another commit on a nixpkgs channel (75 rows on
+        # 2026-10-20, tree-sitter grammars against 26.05's): no order to
+        # say which is newer, and unstable is the one that moves on.
+        row["nixStatus"] = "newest"
+        row["refVersion"] = nix.get("version")
+    if nix and nix.get("version") == UNSUPPORTED:
+        # Not a version: nothing to compare (10 outdated on 2026-10-20).
+        row["nixStatus"] = "unsupported"
+        row["refVersion"] = None
     if nix and nix.get("status") == config.KEPT:
         # An older version kept beside a newer one: which, for the page.
         newer = [

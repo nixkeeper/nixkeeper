@@ -156,6 +156,34 @@ class Rows(unittest.TestCase):
             row(old, current, other("aur", "39.0.0", "newest")), ("outdated", "39.0.0")
         )
 
+    def test_behind_only_another_commit(self):
+        """vimPlugins.nvim-treesitter-parsers.liquid, 2026-10-20:
+        0.0.0+rev=e45dbac, 26.05's 0.0.0+rev=9566ca7, ranked as letters."""
+
+        def row(*others):
+            entries = [nix("p", "0.0.0+rev=e45dbac", "outdated"), *others]
+            (row,) = self.rows(project("p", ["p"], entries, "p"))
+            return row["nixStatus"], row["refVersion"]
+
+        stable = other("nix_stable_26_05", "0.0.0+rev=9566ca7", "unique")
+        self.assertEqual(row(stable), ("newest", "0.0.0+rev=e45dbac"))
+        # Another distribution has that commit: kept.
+        aur = other("aur", "0.0.0+rev=9566ca7", "newest")
+        self.assertEqual(row(stable, aur), ("outdated", "0.0.0+rev=9566ca7"))
+        # A newer version, not only another commit: kept.
+        newer = other("nix_stable_26_05", "0.1.0+rev=9566ca7", "unique")
+        self.assertEqual(row(newer), ("outdated", "0.1.0+rev=9566ca7"))
+
+    def test_unsupported(self):
+        """cudaPackages.cuda_compat, 2026-10-20: 0-unsupported, nixpkgs'
+        version for what it doesn't build by default."""
+        entries = [
+            nix("p", "0-unsupported", "outdated"),
+            other("nix_stable_26_05", "12.9.40580548", "unique"),
+        ]
+        (row,) = self.rows(project("p", ["p"], entries, "p"))
+        self.assertEqual((row["nixStatus"], row["refVersion"]), ("unsupported", None))
+
     def test_outdated_only_by_a_snapshots_spelling(self):
         """gawkextlib.csv, 2026-10-20: unstable-2022-10-20, against nixpkgs'
         older channels' 2022-10-20."""
