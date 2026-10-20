@@ -125,6 +125,37 @@ class Rows(unittest.TestCase):
         (row,) = self.rows(project("godot", ["godot"], entries, "godot"))
         self.assertEqual(row["nixStatus"], "outdated")
 
+    def test_behind_only_nixpkgs_old_channels(self):
+        """python3Packages.azure-eventhub, 2026-10-20: 5.15.1, PyPI's too;
+        25.11 had 39.0.0, a mistake since reverted."""
+
+        def row(*others):
+            entries = [nix("p", "5.15.1", "outdated"), *others]
+            (row,) = self.rows(project("p", ["p"], entries, "p"))
+            return row["nixStatus"], row["refVersion"]
+
+        old = other("nix_stable_25_11", "39.0.0", "newest")
+        current = other("nix_stable_26_05", "5.15.1", "outdated")
+        pypi = other("pypi", "5.15.1", "outdated")
+        self.assertEqual(row(old, current, pypi), ("newest", "5.15.1"))
+        # Nobody else packages it: the newest still, as 26.05 has it too.
+        self.assertEqual(row(old, current), ("newest", "5.15.1"))
+        # Someone else has a newer one: outdated against that.
+        newer = other("pypi", "5.16.0", "outdated")
+        self.assertEqual(row(old, current, newer), ("outdated", "5.16.0"))
+        # The newest channel can be ahead for real (a backport, msedgedriver).
+        ahead = other("nix_stable_26_05", "39.0.0", "newest")
+        self.assertEqual(row(ahead), ("outdated", "39.0.0"))
+        # Unless an upstream index has nixpkgs' version: it says what's out.
+        self.assertEqual(row(ahead, pypi), ("newest", "5.15.1"))
+        self.assertEqual(
+            row(ahead, other("pypi", "5.15.0", "outdated")), ("outdated", "39.0.0")
+        )
+        # Or another distribution has it too: a release.
+        self.assertEqual(
+            row(old, current, other("aur", "39.0.0", "newest")), ("outdated", "39.0.0")
+        )
+
     def test_outdated_only_by_a_snapshots_spelling(self):
         """gawkextlib.csv, 2026-10-20: unstable-2022-10-20, against nixpkgs'
         older channels' 2022-10-20."""

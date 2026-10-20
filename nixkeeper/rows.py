@@ -193,6 +193,48 @@ def same_snapshot(version, newest):
     return bool(match) and match[1] == newest
 
 
+def old_channels(others):
+    """The nixpkgs release channels among others older than the newest one
+    there (nix_stable_25_11 beside nix_stable_26_05): they get no updates
+    anymore, so a version only they have isn't a release nixpkgs is behind.
+    The newest can be ahead of unstable for real, a backport landing there
+    first (msedgedriver)."""
+    channels = {
+        e.get("repo", "") for e in others if e.get("repo", "").startswith("nix_stable_")
+    }
+    newest = max(channels, default=None)
+    return channels - {newest}
+
+
+def ignored_channels(nix_version, others):
+    """The nixpkgs release channels among others whose versions don't count
+    as releases: the old ones (old_channels); and all of them when an
+    upstream index (PyPI, CRAN, ...) has nixpkgs' own version, as it says
+    what's released (python3Packages.azure-ai-vision-imageanalysis: PyPI's
+    1.0.0, nixpkgs unstable's; 25.11 and 26.05 still have 39.0.0, a mistake
+    unstable reverted)."""
+    if any(
+        e.get("repo") in config.UPSTREAM_INDEXES and e.get("version") == nix_version
+        for e in others
+    ):
+        return {
+            e.get("repo", "")
+            for e in others
+            if e.get("repo", "").startswith("nix_stable_")
+        }
+    return old_channels(others)
+
+
+def own_version_only(version, nix_version, others):
+    """Whether only ignored nixpkgs channels (ignored_channels) have version
+    among others: nixpkgs' own earlier version, not a release. A numbering
+    nixpkgs has changed since (yaziPlugins' 25.5.31-unstable-2025-06-18,
+    before 0-unstable-2026-09-30); a mistake, since reverted (azure's
+    39.0.0)."""
+    repos = {e.get("repo", "") for e in others if e.get("version") == version}
+    return bool(repos) and repos <= ignored_channels(nix_version, others)
+
+
 def not_packaging(families):
     """The versions of families ({version: the distributions that have
     it}) that aren't only a packaging of another: one adding a part to
@@ -380,6 +422,28 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         # Outdated only by another spelling of the same snapshot, mostly
         # nixpkgs' own older channels' (104 rows on 2026-10-20): the newest.
         row["nixStatus"] = "newest"
+    if (
+        nix
+        and not row["devel"]
+        and row["nixStatus"] == "outdated"
+        and row["refVersion"]
+        and own_version_only(row["refVersion"], nix.get("version"), others)
+    ):
+        # Behind only nixpkgs' own earlier version (231 rows on 2026-10-20):
+        # compared with the rest. The newest of theirs when it's newer, else
+        # the newest (unique when nobody else packages it).
+        old = ignored_channels(nix.get("version"), others)
+        rest = [
+            e["version"]
+            for e in others
+            if e.get("repo") not in old
+            and e.get("status") in SERIES_STATUSES
+            and e.get("version")
+        ]
+        best = max(rest, key=version_key, default=None)
+        row["refVersion"] = best
+        if not (best and is_newer(best, nix.get("version") or "")):
+            row["nixStatus"] = "newest" if rest else "unique"
     if nix and nix.get("status") == config.KEPT:
         # An older version kept beside a newer one: which, for the page.
         newer = [

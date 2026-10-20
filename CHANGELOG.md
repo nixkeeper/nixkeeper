@@ -22,6 +22,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   (`unstable-2022-10-20` against nixpkgs' older channels' `2022-10-20`):
   up to date now. 104 packages on 2026-10-20 (gawkextlib's 17,
   celeste-classic, haste-server...).
+- Outdated only by nixpkgs' own earlier version: one only its old release
+  channels have (24.05 to 25.11, no longer updated: rPackages' MeSH
+  1.15.1, yaziPlugins' old numbering), or one only its release channels
+  have while an upstream index (PyPI, CRAN...) has unstable's
+  (python3Packages.azure-ai-vision-imageanalysis: 39.0.0 on 25.11 and
+  26.05, a mistake reverted to PyPI's 1.0.0). Compared with the other
+  repositories instead: 231 packages up to date on 2026-10-20. The newest
+  channel ahead with no index saying otherwise still counts (a backport,
+  msedgedriver).
 
 ### Changed
 
