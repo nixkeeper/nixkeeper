@@ -631,3 +631,42 @@ class MergeSummary(unittest.TestCase):
             prs_digest.merge_summary(prs, NOW),
             {"prs": 3, "maintainers": 3, "over90": 1},
         )
+
+
+class RemovalProposed(unittest.TestCase):
+    """A removal PR that doesn't look likely: only proposed, no badge."""
+
+    def test_why(self):
+        recent = {"updated": "2026-10-01T00:00:00Z"}
+        self.assertIsNone(prs_digest.removal_proposed(recent, NOW))
+        self.assertEqual(
+            prs_digest.removal_proposed({**recent, "review": "CHANGES_REQUESTED"}, NOW),
+            "changes requested",
+        )
+        old = {"updated": "2026-05-01T00:00:00Z"}
+        self.assertEqual(
+            prs_digest.removal_proposed(old, NOW), "no activity since 2026-05-01"
+        )
+        # Without the time: never stale.
+        self.assertIsNone(prs_digest.removal_proposed(old, None))
+
+    def test_on_the_row(self):
+        prs = [
+            {
+                "n": 5,
+                "title": "wine: drop",
+                "draft": False,
+                "buckets": ["drop"],
+                "packages": ["wine"],
+                "review": "CHANGES_REQUESTED",
+                "updated": "2026-10-08T00:00:00Z",
+            }
+        ]
+        found = prs_digest.facts(prs, [], [], NOW)
+        row = {"name": "wine"}
+        prs_digest.add_facts([row], {"facts": found})
+        self.assertEqual(
+            row["dropPR"],
+            {"number": 5, "title": "wine: drop", "proposed": "changes requested"},
+        )
+        self.assertEqual(row["otherPRs"][0]["proposed"], "changes requested")

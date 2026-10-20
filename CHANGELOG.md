@@ -9,6 +9,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+### Changed
+
+- "being removed" in the list only when removal looks likely: the removal
+  PR has no changes requested and activity in the last 90 days (19 of 26
+  on 2026-10-20). Otherwise the panel says "removal proposed (changes
+  requested)" or "(no activity since ...)", and `dropPR` carries
+  `proposed`.
+
 ## [0.20.0] - 2026-10-19
 
 The open PRs a maintainer can merge themselves become a list on their page:

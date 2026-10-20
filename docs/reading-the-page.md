@@ -202,7 +202,9 @@ merged since that likely fixes it, waiting for Hydra.
 - open PRs touching it while its build fails on Hydra (maybe its fix), and
   for a package marked broken, that open PRs touch it (one may fix it);
 - its other open PRs, a removal first ("removes it from nixpkgs": the list
-  says **being removed** too);
+  says **being removed** too; when the removal PR has changes requested or
+  no activity in 90 days, it's only "removal proposed (changes requested)"
+  or "(no activity since ...)", and the list says nothing);
 - its issues that look done (a build failure that builds on Hydra now, an
   update request nixpkgs has met, an issue about CVEs none of which affect
   nixpkgs' version as nixkeeper reads them; "check the condition" when the

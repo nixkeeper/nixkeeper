@@ -86,7 +86,27 @@ def pr_facts(pr, duplicates):
     return found
 
 
-def facts(prs, groups, issues):
+# A removal PR this long without activity is only proposed, not likely.
+REMOVAL_STALE_DAYS = 90
+
+
+def removal_proposed(pr, now):
+    """Why a PR removing a package is only proposed (the panel says so, the
+    list's "being removed" badge stays off), or None when the removal looks
+    likely: a committer asked for changes, or nothing has happened on it for
+    REMOVAL_STALE_DAYS days (7 of 26 on 2026-10-20: telepresence's, fmt_10's,
+    ...)."""
+    if pr.get("review") == "CHANGES_REQUESTED":
+        return "changes requested"
+    updated = pr.get("updated")
+    if now and updated:
+        then = datetime.fromisoformat(updated)
+        if datetime.fromisoformat(now) - then > timedelta(days=REMOVAL_STALE_DAYS):
+            return f"no activity since {then:%Y-%m-%d}"
+    return None
+
+
+def facts(prs, groups, issues, now=None):
     """The digest's findings, by PR number and by package (package_key):
     {"prs": {number: pr_facts}, "fixes": {package: [PRs touching it while
     its build fails on Hydra]}, "issues": {package: [checked issues]},
@@ -110,6 +130,8 @@ def facts(prs, groups, issues):
             kind = None  # removes something from it, not the package
         if kind:
             item["kind"] = kind
+        if kind == "drop" and (why := removal_proposed(pr, now)):
+            item["proposed"] = why
         if mb := found.get("mergeBot"):
             item["mergeBot"] = mb
         named = TITLE_PACKAGE.match(pr["title"])
@@ -117,7 +139,7 @@ def facts(prs, groups, issues):
         keys = {package_key(p) for p in pr.get("packages") or []} | {title_key}
         # Only the package its title names is removed: the others it touches
         # move off it (fmt_11: remove version, imhex's package.nix to fmt).
-        touched = {k: v for k, v in item.items() if k != "kind"}
+        touched = {k: v for k, v in item.items() if k not in ("kind", "proposed")}
         for key in keys - {None}:
             mine = item if key == title_key or kind != "drop" else touched
             open_prs.setdefault(key, []).append(mine)
@@ -366,6 +388,9 @@ def add_facts(rows, digest):
             None,
         ):
             row["dropPR"] = {"number": drop["number"], "title": drop["title"]}
+            if drop.get("proposed"):
+                # Only proposed (removal_proposed): no badge in the list.
+                row["dropPR"]["proposed"] = drop["proposed"]
 
 
 def recent(at, now):
@@ -425,7 +450,7 @@ def load(now, revision):
             issues = [{"number": i["n"], "title": i["title"]} for i in raw_issues]
             found["open"] = (prs, issues)
             found["facts"] = facts(
-                data.get("prs") or [], data.get("groups") or [], raw_issues
+                data.get("prs") or [], data.get("groups") or [], raw_issues, now
             )
             found["raw"] = data.get("prs") or []
         else:

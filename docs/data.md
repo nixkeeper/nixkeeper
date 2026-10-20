@@ -410,8 +410,11 @@ PR's `to`: merged, the package would still be outdated) and `vulnerable`
 the same two, by the update's package.
 
 `dropPR` (in the list too): an open PR removes the package from nixpkgs,
-its title naming the package itself: `{"number", "title"}` (the list's
-"being removed" badge).
+its title naming the package itself: `{"number", "title"}`, with
+`"proposed"` saying why the removal looks unlikely for now ("changes
+requested", or "no activity since 2026-06-19" after 90 days); the same
+`proposed` is on the removal in `otherPRs`. The list's "being removed"
+badge is only for a removal without `proposed`.
 
 `recentFixes` (the full row only): its fixes of the last 30 days, newest
 first, at most 3, each as in `history.json`'s `fixed` (without the name):
