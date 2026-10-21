@@ -800,7 +800,7 @@
   "pmars"
   "pmars-x11"
   "pokefinder"
-  "pokemmo-installer"
+  "pokemmo"
   "pokerth"
   "pokerth-server"
   "pokete"
