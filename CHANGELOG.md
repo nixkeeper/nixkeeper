@@ -9,6 +9,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-21
+
+Fewer packages wrongly shown as outdated, over 400 of them: snapshots
+spelt differently, versions only nixpkgs' own older channels have (or a
+mistake an upstream index contradicts), commits that have no order, and
+CUDA's `0-unsupported`, now a status of its own (`unsupported`, grey). One
+update moving many packages is **one row** in the list ("+186 like it"),
+and "being removed" only shows when the removal looks likely.
+
 ### Added
 
 - One update, one row: in the package list, three or more packages one
@@ -30,7 +39,7 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   26.05, a mistake reverted to PyPI's 1.0.0). Compared with the other
   repositories instead: 231 packages up to date on 2026-10-20. The newest
   channel ahead with no index saying otherwise still counts (a backport,
-  msedgedriver).
+  firefly-iii's 6.7.9 on 26.05).
 - Outdated only by another commit on a nixpkgs channel (tree-sitter
   grammars' `0.0.0+rev=e45dbac` against 26.05's `rev=9566ca7`, which
   Repology ranks as letters): up to date. 75 packages on 2026-10-20.
@@ -2129,7 +2138,8 @@ to its restructuring into a Python package.
   packages removed from the lists don't leave files behind.
 - The sync script is a Python package (`nixkeeper/`) with tests in `tests/`.
 
-[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.20.0...HEAD
+[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.17.0...v0.18.0
