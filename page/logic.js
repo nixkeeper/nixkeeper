@@ -1019,3 +1019,40 @@ export function facetCounts(list, key) {
     .sort((a, b) => b[1] - a[1] || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0))
     .map(([value, n]) => [value, n]);
 }
+
+// A name index entry's status ([name, letter, set?]: datastore.status's
+// letter, then v when vulnerable), as the search's "Status" filter names
+// it (?status=); vulnerable is any letter with a v.
+export const NAME_STATUSES = {
+  failing: 'failing',
+  outdated: 'outdated',
+  waiting: 'waiting for the channel',
+  uptodate: 'up to date',
+  notcompared: "can't be compared",
+  vulnerable: 'vulnerable',
+};
+const LETTER_STATUS = {
+  f: 'failing',
+  m: 'waiting',
+  o: 'outdated',
+  u: 'uptodate',
+  n: 'notcompared',
+};
+export const nameStatusIs = (letter, status) =>
+  status === 'vulnerable' ? letter.endsWith('v') : LETTER_STATUS[letter[0]] === status;
+
+// The search's matches in all of nixpkgs ([[name, letter, set?]]) narrowed
+// to a package set (logic.nameSet's, or null) and a status (a NAME_STATUSES
+// key, or null): {kept, sets, statuses}, each facet counted with the other
+// one picked (facetCounts' [[value, count]]; statuses in NAME_STATUSES'
+// order, those with none left out).
+export function matchFacets(matches, { set = null, status = null } = {}) {
+  const inSet = ([name]) => !set || nameSet(name) === set;
+  const isStatus = ([, letter]) => !status || nameStatusIs(letter, status);
+  const sets = facetCounts(matches.filter(isStatus), ([name]) => nameSet(name));
+  const ofSet = matches.filter(inSet);
+  const statuses = Object.keys(NAME_STATUSES)
+    .map((s) => [s, ofSet.filter(([, letter]) => nameStatusIs(letter, s)).length])
+    .filter(([, n]) => n);
+  return { kept: ofSet.filter(isStatus), sets, statuses };
+}

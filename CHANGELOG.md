@@ -16,6 +16,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   (`?by=fabaff`, typed or picked from the 300 with the most there), and
   each platform of **on** with its count. Every choice says how many it
   would show with the other filters on.
+- Search across all of nixpkgs: its matches beyond the list narrow by
+  **in** a package set and **status** (failing, outdated, waiting for the
+  channel, up to date, can't be compared, vulnerable: `?status=outdated`),
+  each with its count, and show 200 more at a time instead of stopping at
+  50. **Clear filters** when they leave none.
 
 ## [0.21.0] - 2026-10-21
 

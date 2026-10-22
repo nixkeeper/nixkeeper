@@ -142,6 +142,15 @@ packages beyond it whose names match, closest first. The browser's find
 (Ctrl+F) only sees the page shown: the search box looks through every
 package.
 
+Those matches in all of nixpkgs show 50 at a time ("Show 200 more" for the
+next), and narrow by **in** a package set (the same `?in=` as the list's,
+so it narrows both) and **status**, as their dot says: failing, outdated,
+waiting for the channel, up to date, can't be compared, or vulnerable
+(`?status=failing`, `outdated`, `waiting`, `uptodate`, `notcompared`,
+`vulnerable`). Each choice says how many match with the other picked;
+**Clear filters** goes back to every match. `?q=python&status=outdated` is
+every outdated package with "python" in its name.
+
 **Pages.** The list shows 200 packages at a time, most in need of attention
 first; the page links under it go through the rest (`?page=2`). "Per page"
 beside them shows 50, 100, 200, 500 or 1,000 at a time instead (`?per=500`,

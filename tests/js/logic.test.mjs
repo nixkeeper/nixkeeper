@@ -38,6 +38,7 @@ import {
   maintainersParam,
   maintainsDirectly,
   matchesSearch,
+  matchFacets,
   midway,
   nameMatches,
   nameSet,
@@ -1274,5 +1275,44 @@ describe('facetCounts', () => {
       facetCounts([{ n: 'x' }, { n: null }], (p) => p.n),
       [['x', 1]],
     );
+  });
+});
+
+describe('matchFacets', () => {
+  const matches = [
+    ['ripgrep', 'u'],
+    ['ripgrep-all', 'o'],
+    ['emacsPackages.ripgrep', 'fv'],
+    ['vimPlugins.blink-ripgrep-nvim', 'u'],
+  ];
+  test('counts each facet with the other picked', () => {
+    const all = matchFacets(matches);
+    assert.equal(all.kept.length, 4);
+    assert.deepEqual(all.sets, [
+      ['top-level', 2],
+      ['emacsPackages', 1],
+      ['vimPlugins', 1],
+    ]);
+    assert.deepEqual(all.statuses, [
+      ['failing', 1],
+      ['outdated', 1],
+      ['uptodate', 2],
+      ['vulnerable', 1],
+    ]);
+    const upToDate = matchFacets(matches, { status: 'uptodate' });
+    assert.deepEqual(
+      upToDate.kept.map(([n]) => n),
+      ['ripgrep', 'vimPlugins.blink-ripgrep-nvim'],
+    );
+    assert.deepEqual(upToDate.sets, [
+      ['top-level', 1],
+      ['vimPlugins', 1],
+    ]);
+    const top = matchFacets(matches, { set: 'top-level', status: 'vulnerable' });
+    assert.equal(top.kept.length, 0);
+    assert.deepEqual(top.statuses, [
+      ['outdated', 1],
+      ['uptodate', 1],
+    ]);
   });
 });

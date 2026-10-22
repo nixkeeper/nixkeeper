@@ -1409,6 +1409,13 @@ button.checked:focus-visible {
   padding: 2px 0;
   break-inside: avoid;
 }
+/* The matches' own filters (In, Status), and their "Show more". */
+.more-matches .match-filters {
+  margin: 8px 0 4px;
+}
+.more-matches-btn {
+  margin-top: 10px;
+}
 /* With every package: maintainers (under an @ search, and the maintainers
    page): the handle, then their counts. */
 .maint-list li {

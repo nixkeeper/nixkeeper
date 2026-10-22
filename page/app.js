@@ -25,8 +25,10 @@ import {
   maintainersKeep,
   maintainersParam,
   matchesSearch,
+  matchFacets,
   midway,
   NAME_DOTS,
+  NAME_STATUSES,
   NEVER_BUILT,
   nameMatches,
   nameSet,
@@ -177,6 +179,15 @@ let byFilter = null;
 const inNameSet = (pkg) => !inFilter || nameSet(pkg.name) === inFilter;
 const byMaintainer = (pkg) =>
   !byFilter || (pkg.maintainers || []).some((m) => m.toLowerCase() === byFilter);
+// ?status=: the search's matches in all of nixpkgs of one status (a
+// NAME_STATUSES key: what the name index's letter says). How many of them
+// are shown, more on asking (moreMatchesHtml), from MATCHES_SHOWN again
+// with another search or filter (matchQuery: what was asked).
+let statusFilter = null;
+const MATCHES_SHOWN = 50;
+const MATCHES_MORE = 200;
+let matchLimit = MATCHES_SHOWN;
+let matchQuery = '';
 // What every filter but the facets kept, last time the list was worked out
 // (currentFiltered): the facets count over it, with no second pass.
 let facetBase = [];
@@ -985,6 +996,7 @@ function readViewFromUrl() {
   inFilter = /^[\w.+-]{1,100}$/.test(inSetParam) ? inSetParam : null;
   const by = (params.get('by') || '').replace(/^@/, '').toLowerCase();
   byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
+  statusFilter = NAME_STATUSES[params.get('status')] ? params.get('status') : null;
   pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
   const per = Number(params.get('per'));
   pageSize = PAGE_SIZES.includes(per) ? per : DEFAULT_PAGE_SIZE;
@@ -1015,6 +1027,7 @@ function viewQuery(page = pageNum) {
   set('updateFailed', becauseFilter);
   set('in', inFilter);
   set('by', byFilter);
+  set('status', statusFilter);
   params.delete('because'); // the old name, written as the new one
   set('page', page > 1 ? page : '');
   set('per', pageSize !== DEFAULT_PAGE_SIZE ? pageSize : '');
@@ -2731,6 +2744,7 @@ function scopeHref({ set = null, pkg = null, view = null, filter = null, cause =
     'buildFailed',
     'in',
     'by',
+    'status',
   ])
     params.delete(k);
   if (set) params.set('set', set);
@@ -2762,6 +2776,7 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
   platformFilter = null;
   inFilter = null;
   byFilter = null;
+  statusFilter = null;
   document.getElementById('search').value = '';
   update();
   // From the page's top, as a new page would: scrolling the view's header
@@ -2824,14 +2839,55 @@ function moreMatchesHtml() {
     loadNames();
     return html`<div class="more-matches"><div class="other-label">Searching all of nixpkgs…</div></div>`;
   }
-  const { found, total } = nameMatches(names, query, new Set(packages.map((p) => p.name)));
+  // Another search, or other filters: from the first ones again.
+  const asked = [query.trim(), inFilter, statusFilter].join('\n');
+  if (asked !== matchQuery) {
+    matchQuery = asked;
+    matchLimit = MATCHES_SHOWN;
+  }
+  const { found: all, total } = nameMatches(
+    names,
+    query,
+    new Set(packages.map((p) => p.name)),
+    Infinity,
+  );
   if (!total) return '';
+  const { kept, sets, statuses } = matchFacets(all, { set: inFilter, status: statusFilter });
+  const shownHere = kept.slice(0, matchLimit);
+  const narrowed = inFilter || statusFilter;
+  const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
+  const setChoices =
+    inFilter && !sets.some(([v]) => v === inFilter) ? [...sets, [inFilter, 0]] : sets;
+  const statusChoices =
+    statusFilter && !statuses.some(([v]) => v === statusFilter)
+      ? [...statuses, [statusFilter, 0]]
+      : statuses;
   return html`<div class="more-matches">
-    <div class="other-label">${total.toLocaleString()} ${shownView === 'overview' ? '' : 'more '}${total === 1 ? 'package matches' : 'packages match'} in all of nixpkgs${total > found.length ? html`, the first ${found.length}` : ''}</div>
-    <ul>${found.map(
+    <div class="other-label">${total.toLocaleString()} ${shownView === 'overview' ? '' : 'more '}${total === 1 ? 'package matches' : 'packages match'} in all of nixpkgs${narrowed ? html`, ${kept.length.toLocaleString()} with these filters` : ''}</div>
+    ${
+      // Shown whenever one is picked, even for one match: else a filter
+      // from an earlier search would hide it, with no way to undo it.
+      total > 1 || narrowed
+        ? html`<div class="refine match-filters" role="group" aria-label="Narrow the matches"><label class="refine-age" title="Only one package set, by the attribute's first part (python313Packages, vimPlugins), or the top-level packages: the list above too. Each with how many match.">In <select data-in><option value="">any set</option>${setChoices.map(
+            ([v, n]) => facetOption(v, setLabel(v), n, inFilter),
+          )}</select></label><label class="refine-age" title="Only the matches with this status, as their dot says. Each with how many match.">Status <select data-status><option value="">any status</option>${statusChoices.map(
+            ([v, n]) => facetOption(v, NAME_STATUSES[v], n, statusFilter),
+          )}</select></label>${
+            narrowed
+              ? html`<button type="button" class="refine-btn" data-clear-matches title="Back to every match: any set, any status">Clear filters</button>`
+              : ''
+          }</div>`
+        : ''
+    }
+    <ul>${shownHere.map(
       ([name, letter, set]) =>
         html`<li><span class="status-dot ${NAME_DOTS[letter[0]] || 'neutral'}" role="img" aria-label="${DOT_TITLE[NAME_DOTS[letter[0]] || 'neutral'] || ''}"></span><a class="files-link mono" href="${scopeHref({ pkg: name })}" data-scope-pkg="${name}">${name}</a>${set ? html` ${bulkBadge(set)}` : ''}${letter.endsWith('v') ? html` <span class="badge vuln">vulnerable</span>` : ''}</li>`,
     )}</ul>
+    ${
+      kept.length > shownHere.length
+        ? html`<button type="button" class="more-btn more-matches-btn" data-more-matches>Show ${Math.min(MATCHES_MORE, kept.length - shownHere.length).toLocaleString()} more (${shownHere.length.toLocaleString()} of ${kept.length.toLocaleString()} shown)</button>`
+        : ''
+    }
   </div>`;
 }
 
@@ -4393,6 +4449,18 @@ document.addEventListener('click', (e) => {
   else return;
   update();
 });
+// The search's matches in all of nixpkgs: the next ones, or every one again
+// (moreMatchesHtml).
+document.addEventListener('click', (e) => {
+  if (e.target.closest('button[data-more-matches]')) {
+    matchLimit += MATCHES_MORE;
+    update({ keepPage: true });
+  } else if (e.target.closest('button[data-clear-matches]')) {
+    inFilter = null;
+    statusFilter = null;
+    update();
+  }
+});
 // Narrowing the list (refineHtml), wherever it's drawn.
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-refine]');
@@ -4409,6 +4477,7 @@ document.addEventListener('change', (e) => {
     buildFailedFilter = e.target.value || null;
   else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
   else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
+  else if (e.target.matches('select[data-status]')) statusFilter = e.target.value || null;
   else if (e.target.matches('input[data-by]')) {
     const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
     byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
