@@ -22,6 +22,7 @@ import {
   daysText,
   daysUntil,
   escapeHtml,
+  facetCounts,
   failedBecause,
   familyLabel,
   faviconKey,
@@ -39,6 +40,7 @@ import {
   matchesSearch,
   midway,
   nameMatches,
+  nameSet,
   nixkeeperEntry,
   olderThan,
   olderVersionKept,
@@ -1241,5 +1243,36 @@ describe('familyLabel', () => {
       'python313Packages.huaweicloudsdk*',
     );
     assert.equal(familyLabel(['abc', 'xyz']), null);
+  });
+});
+
+describe('nameSet', () => {
+  test("the attribute's first part, or top-level", () => {
+    assert.equal(nameSet('python313Packages.requests'), 'python313Packages');
+    assert.equal(nameSet('vimPlugins.nvim-treesitter-parsers.lua'), 'vimPlugins');
+    assert.equal(nameSet('ripgrep'), 'top-level');
+  });
+});
+
+describe('facetCounts', () => {
+  test('the most first, ties by name; several values each counted', () => {
+    const list = [
+      { maintainers: ['b', 'a'] },
+      { maintainers: ['a'] },
+      { maintainers: [] },
+      { maintainers: ['C'] },
+    ];
+    assert.deepEqual(
+      facetCounts(list, (p) => p.maintainers),
+      [
+        ['a', 2],
+        ['b', 1],
+        ['C', 1],
+      ],
+    );
+    assert.deepEqual(
+      facetCounts([{ n: 'x' }, { n: null }], (p) => p.n),
+      [['x', 1]],
+    );
   });
 });

@@ -11,6 +11,7 @@ import {
   dayPosition,
   daysText,
   daysUntil,
+  facetCounts,
   failedBecause,
   hasFailure as failureOn,
   familyLabel,
@@ -28,6 +29,7 @@ import {
   NAME_DOTS,
   NEVER_BUILT,
   nameMatches,
+  nameSet,
   neverBuiltOn,
   nixkeeperEntry,
   olderThan,
@@ -48,6 +50,7 @@ import {
   severityRank,
   shardOf,
   shortAge,
+  TOP_LEVEL,
   targetVersion,
   teamsKeep,
   teamsParam,
@@ -165,6 +168,18 @@ let ageFilter = null;
 let becauseFilter = null;
 // ?buildFailed=: build failures for one reason (a BUILD_FAILED key).
 let buildFailedFilter = null;
+// ?in=: one package set, by the attribute's first part (logic.js nameSet:
+// python313Packages, vimPlugins, top-level); ?by=: one maintainer's
+// packages within the list shown (a handle, lowercase). Counted, with the
+// platforms, over the list's other filters (facetOptions).
+let inFilter = null;
+let byFilter = null;
+const inNameSet = (pkg) => !inFilter || nameSet(pkg.name) === inFilter;
+const byMaintainer = (pkg) =>
+  !byFilter || (pkg.maintainers || []).some((m) => m.toLowerCase() === byFilter);
+// What every filter but the facets kept, last time the list was worked out
+// (currentFiltered): the facets count over it, with no second pass.
+let facetBase = [];
 let sortAZ = false; // default order puts what needs attention first
 // The table shows pageSize rows at a time: drawing stays fast whatever the
 // data's size, and the page keeps working with Ctrl+F and screen readers
@@ -454,7 +469,46 @@ function buildFailedPick() {
   )}</select></label>`;
 }
 
+// The facets' choices with how many each would show: each counted over
+// what the list's other filters keep (facetBase), its own left out (the
+// sets as with the maintainer and platform picked). The platforms: of
+// those, how many are on each (with a platform picked, the tiles' tests
+// stay its own: failing on Darwin, how many are on Linux too).
+const BY_SHOWN = 300; // the maintainers offered, the most first
+function facetOptions() {
+  const sets = facetCounts(
+    facetBase.filter((p) => byMaintainer(p) && inPlatform(p)),
+    (p) => nameSet(p.name),
+  );
+  const by = facetCounts(
+    facetBase.filter((p) => inNameSet(p) && inPlatform(p)),
+    (p) =>
+      (p.maintainers || []).length > 1
+        ? [...new Set(p.maintainers.map((m) => m.toLowerCase()))]
+        : (p.maintainers || []).map((m) => m.toLowerCase()),
+  );
+  const near = facetBase.filter((p) => inNameSet(p) && byMaintainer(p));
+  const picked = platformFilter;
+  const platforms = {};
+  for (const key of Object.keys(PLATFORMS)) {
+    platformFilter = key;
+    platforms[key] = near.filter(inPlatform).length;
+  }
+  platformFilter = picked;
+  return { sets, by: by.slice(0, BY_SHOWN), platforms };
+}
+
+// A facet's choice, with its count, selected when it's the one picked.
+const facetOption = (value, label, count, picked) =>
+  html`<option value="${value}"${picked === value ? raw(' selected') : ''}>${label} (${fmt(count)})</option>`;
+
 function refineHtml() {
+  const facets = facetOptions();
+  const setCount = (v) => facets.sets.find(([s]) => s === v)?.[1] || 0;
+  const sets =
+    inFilter && !facets.sets.some(([s]) => s === inFilter)
+      ? [...facets.sets, [inFilter, 0]]
+      : facets.sets;
   return html`<div class="refine" role="group" aria-label="Narrow the list">${Object.entries(
     REFINES,
   ).map(
@@ -470,12 +524,24 @@ function refineHtml() {
   ).map(
     ([key, label]) =>
       html`<option value="${key}"${ageFilter === key ? raw(' selected') : ''}>${label}</option>`,
-  )}</select></label>${buildFailedPick()}${becausePick()}<label class="refine-age" title="Only packages available on it, and of their builds the ones there (build failures on Darwin, say). Darwin is macOS, as nixpkgs calls it.">On <select data-platform-pick><option value="">any platform</option>${Object.entries(
+  )}</select></label>${buildFailedPick()}${becausePick()}<label class="refine-age" title="Only packages available on it, and of their builds the ones there (build failures on Darwin, say). Darwin is macOS, as nixpkgs calls it. Each with how many it would show.">On <select data-platform-pick><option value="">any platform</option>${Object.entries(
     PLATFORMS,
-  ).map(
-    ([key, p]) =>
-      html`<option value="${key}"${platformFilter === key ? raw(' selected') : ''}>${p.label}</option>`,
-  )}</select></label></div>`;
+  ).map(([key, p]) =>
+    facetOption(key, p.label, facets.platforms[key], platformFilter),
+  )}</select></label>${
+    sets.length > 1 || inFilter
+      ? html`<label class="refine-age" title="Only one package set, by the attribute's first part (python313Packages, vimPlugins), or the top-level packages. Each with how many it would show.">In <select data-in><option value="">any set</option>${sets.map(
+          ([v]) => facetOption(v, v === TOP_LEVEL ? 'top level' : v, setCount(v), inFilter),
+        )}</select></label>`
+      : ''
+  }${
+    // Not on a maintainer's own page: it's theirs already.
+    shownHandle()
+      ? ''
+      : html`<label class="refine-age" title="Only the packages this maintainer is listed for (meta.maintainers), within this list: type a GitHub handle. The ${fmt(facets.by.length)} with the most here are offered, each with how many.">By <input type="search" class="by-pick" data-by list="byOptions" placeholder="any maintainer" value="${byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="byOptions">${facets.by.map(
+          ([h, n]) => html`<option value="${h}">${fmt(n)}</option>`,
+        )}</datalist></label>`
+  }</div>`;
 }
 
 // The overview's build failures by where they fail (the manifest's
@@ -915,6 +981,10 @@ function readViewFromUrl() {
   becauseFilter = /^[A-Za-z]{1,30}$/.test(updateFailed) ? updateFailed : null;
   const buildFailed = params.get('buildFailed') || '';
   buildFailedFilter = /^[A-Za-z]{1,30}$/.test(buildFailed) ? buildFailed : null;
+  const inSetParam = params.get('in') || '';
+  inFilter = /^[\w.+-]{1,100}$/.test(inSetParam) ? inSetParam : null;
+  const by = (params.get('by') || '').replace(/^@/, '').toLowerCase();
+  byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
   pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
   const per = Number(params.get('per'));
   pageSize = PAGE_SIZES.includes(per) ? per : DEFAULT_PAGE_SIZE;
@@ -943,6 +1013,8 @@ function viewQuery(page = pageNum) {
   set('age', ageFilter);
   set('buildFailed', buildFailedFilter);
   set('updateFailed', becauseFilter);
+  set('in', inFilter);
+  set('by', byFilter);
   params.delete('because'); // the old name, written as the new one
   set('page', page > 1 ? page : '');
   set('per', pageSize !== DEFAULT_PAGE_SIZE ? pageSize : '');
@@ -2657,6 +2729,8 @@ function scopeHref({ set = null, pkg = null, view = null, filter = null, cause =
     'view',
     'updateFailed',
     'buildFailed',
+    'in',
+    'by',
   ])
     params.delete(k);
   if (set) params.set('set', set);
@@ -2686,6 +2760,8 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
   becauseFilter = null;
   buildFailedFilter = null;
   platformFilter = null;
+  inFilter = null;
+  byFilter = null;
   document.getElementById('search').value = '';
   update();
   // From the page's top, as a new page would: scrolling the view's header
@@ -4246,19 +4322,20 @@ function hideButton(pkg) {
 // How many repositories a panel shows before "Show all".
 const COMPARED_SHOWN = 8;
 
+// What every filter but the facets (set, maintainer, platform) keeps.
+const passesOthers = (p, q) =>
+  inList(p) &&
+  inPeople(p) &&
+  inSet(p) &&
+  notHidden(p) &&
+  refined(p) &&
+  FILTERS[activeFilter].test(p) &&
+  matchesSearch(p, q);
+
 function currentFiltered() {
   const q = document.getElementById('search').value;
-  const list = packages.filter(
-    (p) =>
-      inPlatform(p) &&
-      inList(p) &&
-      inPeople(p) &&
-      inSet(p) &&
-      notHidden(p) &&
-      refined(p) &&
-      FILTERS[activeFilter].test(p) &&
-      matchesSearch(p, q),
-  );
+  facetBase = packages.filter((p) => passesOthers(p, q));
+  const list = facetBase.filter((p) => inPlatform(p) && inNameSet(p) && byMaintainer(p));
   if (sortAZ) return list;
   // The vulnerable ones: worst severity first (in the order they had).
   if (activeFilter === 'vuln') {
@@ -4331,7 +4408,11 @@ document.addEventListener('change', (e) => {
   else if (e.target.matches('select[data-build-failed]'))
     buildFailedFilter = e.target.value || null;
   else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
-  else if (e.target.matches('select[data-per]')) {
+  else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
+  else if (e.target.matches('input[data-by]')) {
+    const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
+    byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
+  } else if (e.target.matches('select[data-per]')) {
     // The page holding the first row shown before, at the new size.
     const first = (pageNum - 1) * pageSize;
     pageSize = Number(e.target.value);

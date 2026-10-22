@@ -9,6 +9,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+### Added
+
+- Facets in the list's filters: **in** a package set (`?in=python313Packages`,
+  `?in=top-level`) and **by** a maintainer within the list shown
+  (`?by=fabaff`, typed or picked from the 300 with the most there), and
+  each platform of **on** with its count. Every choice says how many it
+  would show with the other filters on.
+
 ## [0.21.0] - 2026-10-21
 
 Fewer packages wrongly shown as outdated, over 400 of them: snapshots

@@ -991,3 +991,31 @@ export function familyLabel(names) {
   for (const n of names) while (!n.startsWith(start)) start = start.slice(0, -1);
   return start.length >= 4 ? `${start}*` : null;
 }
+
+// The package set a name is in, by its attribute's first part
+// (python313Packages for python313Packages.requests, vimPlugins for
+// vimPlugins.nvim-treesitter-parsers.lua); TOP_LEVEL for a top-level one
+// (ripgrep). The list's "In" filter (?in=).
+export const TOP_LEVEL = 'top-level';
+export function nameSet(name) {
+  const dot = name.indexOf('.');
+  return dot < 0 ? TOP_LEVEL : name.slice(0, dot);
+}
+
+// How many of list have each value of key(pkg) (one or several values):
+// [[value, count]], the most first, ties by name (any case). A list's
+// filter counts. Names compared as plain lowercase strings: localeCompare
+// over a view's 2,900 maintainers took 50 ms a sort (2026-10-22).
+export function facetCounts(list, key) {
+  const counts = new Map();
+  for (const pkg of list) {
+    const found = key(pkg);
+    for (const value of Array.isArray(found) ? found : [found]) {
+      if (value != null) counts.set(value, (counts.get(value) || 0) + 1);
+    }
+  }
+  return [...counts]
+    .map(([value, n]) => [value, n, value.toLowerCase()])
+    .sort((a, b) => b[1] - a[1] || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0))
+    .map(([value, n]) => [value, n]);
+}

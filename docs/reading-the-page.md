@@ -183,6 +183,14 @@ what's left.
 | **older than** a month, 6 months, a year, 2 or 3 years | how long it's been failing or outdated (the counts' kind, when one is picked: failing for over 6 months, say) | `?age=1m`, `6m`, `1y`, `2y`, `3y` |
 | **never built** | a failing build that never succeeded on Hydra, which has no date. With **on**, only there: when it's all that fails, the list shows "n/a" instead of how long, and the build column "never: darwin", say | `?age=never` |
 | **on** Linux, Linux x86_64, Linux aarch64 or Darwin (macOS, as nixpkgs calls it) | the packages available there, and only their builds there (build failures on aarch64-linux, say), as clicking a row's platform tag does; not those listed there but not built there by Hydra (a struck tag), unless **not built where listed** is on | `?platform=linux`, `x86_64-linux`, `aarch64-linux`, `darwin` (`macos` still works) |
+| **in** a package set | one set, by the attribute's first part (`python313Packages` for `python313Packages.requests`, `vimPlugins`), or the top-level packages | `?in=python313Packages`, `?in=top-level` |
+| **by** a maintainer | the packages a maintainer is listed for (`meta.maintainers`), within the list shown (needs attention, a team's...): type their GitHub handle; those with the most there are suggested. Not on a maintainer's own page, which is theirs already | `?by=fabaff` |
+
+**On**, **in** and **by** say how many each choice would show, counted
+with every other filter (the tiles, the search, the others of the three):
+with `by` fabaff, `in` offers python313Packages with fabaff's count there.
+A set's count is in packages; the pages under the list count rows, where
+[one update moving many](#lists) is one.
 
 The `?refine=` words combine (`?refine=unmaintained,notbroken`), so
 "failing for 6 months, with no maintainer" is a link. A build failure's date
