@@ -1,5 +1,5 @@
 {
-  description = "Health dashboard for every nixpkgs package: new releases, build and update failures, vulnerabilities and open PRs, by maintainer and team.";
+  description = "Health dashboard for every nixpkgs package: new releases, build and update failures, vulnerabilities and open PRs, by maintainer and team";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

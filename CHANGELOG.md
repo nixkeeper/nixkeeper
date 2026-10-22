@@ -27,11 +27,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
-- The line by the logo and the tab's title: "the health of every nixpkgs
+- The line by the logo and the tab's title: "health of every nixpkgs
   package", as nixkeeper.com covers all of nixpkgs now; and the
-  description (page, flake, package): "Health dashboard for every nixpkgs
-  package: new releases, build and update failures, vulnerabilities and
-  open PRs, by maintainer and team." An instance of its own lists keeps
+  description (page, flake, package), in nixpkgs' style (no article, no
+  final period): "Health dashboard for every nixpkgs package: new
+  releases, build and update failures, vulnerabilities and open PRs, by
+  maintainer and team". An instance of its own lists keeps
   "your nixpkgs packages, at a glance" (set once its data loads; link
   previews show index.html's).
 
