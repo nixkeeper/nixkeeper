@@ -32,9 +32,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   description (page, flake, package), in nixpkgs' style (no article, no
   final period): "Health dashboard for every nixpkgs package: new
   releases, build and update failures, vulnerabilities and open PRs, by
-  maintainer and team". An instance of its own lists keeps
-  "your nixpkgs packages, at a glance" (set once its data loads; link
-  previews show index.html's).
+  maintainer and team". An instance of its own lists says "health of your
+  nixpkgs packages" (set once its data loads; link previews show
+  index.html's).
 
 ## [0.21.0] - 2026-10-21
 

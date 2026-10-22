@@ -138,7 +138,7 @@ let shardCount = 1;
 let community = false;
 // The line by the logo on an instance of its own lists (index.html's is
 // for every package).
-const OWN_TAG = 'your nixpkgs packages, at a glance';
+const OWN_TAG = 'health of your nixpkgs packages';
 let manifest = null;
 let sources = null; // the daily sync's sources (index.json's "sources")
 let shownView = null; // the path of the view in `packages`
