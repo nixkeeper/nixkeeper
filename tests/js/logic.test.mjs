@@ -21,6 +21,7 @@ import {
   dayPosition,
   daysText,
   daysUntil,
+  decodeFacets,
   escapeHtml,
   facetCounts,
   failedBecause,
@@ -1314,5 +1315,47 @@ describe('matchFacets', () => {
       ['outdated', 1],
       ['uptodate', 1],
     ]);
+  });
+});
+
+describe('decodeFacets and matchFacets with facets', () => {
+  const names = [
+    ['ripgrep', 'u'],
+    ['ripgrep-all', 'o'],
+    ['emacsPackages.ripgrep', 'fv'],
+  ];
+  const facets = decodeFacets({
+    handles: ['Iedame', 'someone'],
+    teams: ['Gaming'],
+    rows: [[7, [0], [0]], 1, [4, [1]]],
+  });
+  test('decoded beside names, handles lowercase', () => {
+    assert.deepEqual(facets[0], { bits: 7, handles: ['iedame'], teams: ['Gaming'] });
+    assert.deepEqual(facets[1], { bits: 1, handles: [], teams: [] });
+  });
+  const of = (e) => facets[names.indexOf(e)];
+  test('by, team and platform, each counted with the others', () => {
+    const all = matchFacets(names, {}, of);
+    assert.deepEqual(all.by, [
+      ['iedame', 1],
+      ['someone', 1],
+    ]);
+    assert.deepEqual(all.teams, [['Gaming', 1]]);
+    assert.deepEqual(all.platforms, { linux: 2, 'x86_64-linux': 2, 'aarch64-linux': 1, darwin: 2 });
+    const darwin = matchFacets(names, { platform: 'darwin' }, of);
+    assert.deepEqual(
+      darwin.kept.map(([n]) => n),
+      ['ripgrep', 'emacsPackages.ripgrep'],
+    );
+    assert.deepEqual(darwin.platforms.darwin, 2); // its own left out
+    const mine = matchFacets(names, { by: 'iedame', platform: 'darwin' }, of);
+    assert.deepEqual(
+      mine.kept.map(([n]) => n),
+      ['ripgrep'],
+    );
+    assert.deepEqual(mine.sets, [['top-level', 1]]);
+  });
+  test('while facets.json loads, its filters keep everything', () => {
+    assert.equal(matchFacets(names, { by: 'iedame' }).kept.length, 3);
   });
 });

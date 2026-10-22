@@ -147,8 +147,11 @@ next), and narrow by **in** a package set (the same `?in=` as the list's,
 so it narrows both) and **status**, as their dot says: failing, outdated,
 waiting for the channel, up to date, can't be compared, or vulnerable
 (`?status=failing`, `outdated`, `waiting`, `uptodate`, `notcompared`,
-`vulnerable`). Each choice says how many match with the other picked;
-**Clear filters** goes back to every match. `?q=python&status=outdated` is
+`vulnerable`). Then, once their data has loaded (a moment after the first
+search), **by** a maintainer and **on** a platform (the list's own `?by=`
+and `?platform=` too) and **team** (`?ofteam=Python`: not `?team=`, which
+opens a team's page). Each choice says how many match with the others
+picked; **Clear filters** goes back to every match. `?q=python&status=outdated` is
 every outdated package with "python" in its name.
 
 **Pages.** The list shows 200 packages at a time, most in need of attention

@@ -11,6 +11,7 @@ import {
   dayPosition,
   daysText,
   daysUntil,
+  decodeFacets,
   facetCounts,
   failedBecause,
   hasFailure as failureOn,
@@ -141,6 +142,14 @@ let shownView = null; // the path of the view in `packages`
 let wantedView = null; // the one being loaded (the newest asked for wins)
 let names = null; // the name index (names.json), once loaded: [[name, status, set?]]
 let namesLoading = null;
+// facets.json, decoded (decodeFacets): each names entry's maintainers,
+// teams and platforms, by its position there (nameIndex), once loaded for
+// a search's filters. Null if it doesn't line up with names (a sync
+// between the two loads): the search then filters without them.
+let facetIndex = null;
+let facetsLoading = null;
+let nameIndex = null;
+const facetsOf = (entry) => facetIndex[nameIndex.get(entry)];
 // ?pkg=: one package alone (with every package); ?set=: a generated set;
 // ?view=: a list by name (attention, broken).
 let pkgParam = null;
@@ -184,6 +193,9 @@ const byMaintainer = (pkg) =>
 // are shown, more on asking (moreMatchesHtml), from MATCHES_SHOWN again
 // with another search or filter (matchQuery: what was asked).
 let statusFilter = null;
+// ?ofteam=: the matches of one team (its name as nixpkgs writes it); the
+// maintainer (?by=) and platform (?platform=) ones are the list's own.
+let matchTeam = null;
 const MATCHES_SHOWN = 50;
 const MATCHES_MORE = 200;
 let matchLimit = MATCHES_SHOWN;
@@ -997,6 +1009,8 @@ function readViewFromUrl() {
   const by = (params.get('by') || '').replace(/^@/, '').toLowerCase();
   byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
   statusFilter = NAME_STATUSES[params.get('status')] ? params.get('status') : null;
+  const ofTeam = params.get('ofteam') || '';
+  matchTeam = /^[\w .+-]{1,60}$/.test(ofTeam) ? ofTeam : null;
   pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
   const per = Number(params.get('per'));
   pageSize = PAGE_SIZES.includes(per) ? per : DEFAULT_PAGE_SIZE;
@@ -1028,6 +1042,7 @@ function viewQuery(page = pageNum) {
   set('in', inFilter);
   set('by', byFilter);
   set('status', statusFilter);
+  set('ofteam', matchTeam);
   params.delete('because'); // the old name, written as the new one
   set('page', page > 1 ? page : '');
   set('per', pageSize !== DEFAULT_PAGE_SIZE ? pageSize : '');
@@ -1655,6 +1670,25 @@ function loadNames() {
     })
     .catch(() => {
       namesLoading = null; // tried again with the next search
+    });
+}
+
+// The search's maintainer, team and platform filters' data (facets.json),
+// on first use: about 120 KB.
+function loadFacets() {
+  if (facetsLoading || !names) return;
+  facetsLoading = fetch(dataUrl('facets.json'), { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      const found = data ? decodeFacets(data) : [];
+      if (found.length === names.length) {
+        facetIndex = found;
+        nameIndex = new Map(names.map((entry, i) => [entry, i]));
+        update({ keepPage: true });
+      }
+    })
+    .catch(() => {
+      facetsLoading = null; // tried again with the next search
     });
 }
 
@@ -2745,6 +2779,7 @@ function scopeHref({ set = null, pkg = null, view = null, filter = null, cause =
     'in',
     'by',
     'status',
+    'ofteam',
   ])
     params.delete(k);
   if (set) params.set('set', set);
@@ -2777,6 +2812,7 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
   inFilter = null;
   byFilter = null;
   statusFilter = null;
+  matchTeam = null;
   document.getElementById('search').value = '';
   update();
   // From the page's top, as a new page would: scrolling the view's header
@@ -2840,7 +2876,9 @@ function moreMatchesHtml() {
     return html`<div class="more-matches"><div class="other-label">Searching all of nixpkgs…</div></div>`;
   }
   // Another search, or other filters: from the first ones again.
-  const asked = [query.trim(), inFilter, statusFilter].join('\n');
+  const asked = [query.trim(), inFilter, statusFilter, byFilter, matchTeam, platformFilter].join(
+    '\n',
+  );
   if (asked !== matchQuery) {
     matchQuery = asked;
     matchLimit = MATCHES_SHOWN;
@@ -2852,9 +2890,20 @@ function moreMatchesHtml() {
     Infinity,
   );
   if (!total) return '';
-  const { kept, sets, statuses } = matchFacets(all, { set: inFilter, status: statusFilter });
+  const narrowed = inFilter || statusFilter || byFilter || matchTeam || platformFilter;
+  if (total > 1 || narrowed) loadFacets();
+  const { kept, sets, statuses, by, teams, platforms } = matchFacets(
+    all,
+    {
+      set: inFilter,
+      status: statusFilter,
+      by: byFilter,
+      team: matchTeam,
+      platform: platformFilter,
+    },
+    facetIndex ? facetsOf : null,
+  );
   const shownHere = kept.slice(0, matchLimit);
-  const narrowed = inFilter || statusFilter;
   const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
   const setChoices =
     inFilter && !sets.some(([v]) => v === inFilter) ? [...sets, [inFilter, 0]] : sets;
@@ -2872,9 +2921,9 @@ function moreMatchesHtml() {
             ([v, n]) => facetOption(v, setLabel(v), n, inFilter),
           )}</select></label><label class="refine-age" title="Only the matches with this status, as their dot says. Each with how many match.">Status <select data-status><option value="">any status</option>${statusChoices.map(
             ([v, n]) => facetOption(v, NAME_STATUSES[v], n, statusFilter),
-          )}</select></label>${
+          )}</select></label>${facetIndex ? matchFacetsHtml(by, teams, platforms) : ''}${
             narrowed
-              ? html`<button type="button" class="refine-btn" data-clear-matches title="Back to every match: any set, any status">Clear filters</button>`
+              ? html`<button type="button" class="refine-btn" data-clear-matches title="Back to every match: any set, status, maintainer, team and platform">Clear filters</button>`
               : ''
           }</div>`
         : ''
@@ -2889,6 +2938,26 @@ function moreMatchesHtml() {
         : ''
     }
   </div>`;
+}
+
+// The matches' filters from facets.json: by a maintainer (the BY_SHOWN with
+// the most matches offered), a team, a platform; each with its count.
+function matchFacetsHtml(by, teams, platforms) {
+  const teamChoices =
+    matchTeam && !teams.some(([t]) => t === matchTeam) ? [...teams, [matchTeam, 0]] : teams;
+  return html`<label class="refine-age" title="Only the matches this maintainer is listed for (meta.maintainers): type a GitHub handle; those with the most matches are offered, each with how many. The list above too.">By <input type="search" class="by-pick" data-by list="matchByOptions" placeholder="any maintainer" value="${byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="matchByOptions">${by
+    .slice(0, BY_SHOWN)
+    .map(([h, n]) => html`<option value="${h}">${fmt(n)}</option>`)}</datalist></label>${
+    teamChoices.length
+      ? html`<label class="refine-age" title="Only the matches of this nixpkgs team (meta.teams). Each with how many match.">Team <select data-match-team><option value="">any team</option>${teamChoices.map(
+          ([t, n]) => facetOption(t, t, n, matchTeam),
+        )}</select></label>`
+      : ''
+  }<label class="refine-age" title="Only the matches available there (meta.platforms). Darwin is macOS. Each with how many match. The list above too.">On <select data-platform-pick><option value="">any platform</option>${Object.entries(
+    PLATFORMS,
+  ).map(([key, p]) =>
+    facetOption(key, p.label, platforms[key] ?? 0, platformFilter),
+  )}</select></label>`;
 }
 
 // One panel under the row, showing the package details (clicking the row),
@@ -4458,6 +4527,9 @@ document.addEventListener('click', (e) => {
   } else if (e.target.closest('button[data-clear-matches]')) {
     inFilter = null;
     statusFilter = null;
+    byFilter = null;
+    matchTeam = null;
+    platformFilter = null;
     update();
   }
 });
@@ -4478,6 +4550,7 @@ document.addEventListener('change', (e) => {
   else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
   else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
   else if (e.target.matches('select[data-status]')) statusFilter = e.target.value || null;
+  else if (e.target.matches('select[data-match-team]')) matchTeam = e.target.value || null;
   else if (e.target.matches('input[data-by]')) {
     const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
     byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;

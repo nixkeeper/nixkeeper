@@ -590,6 +590,29 @@ def unbuilt_where(row):
     return found
 
 
+# A row's platforms in facets.json, as bits: where it's available
+# (sources.nixpkgs.available_on), all three when nixpkgs doesn't restrict it.
+FACET_SYSTEMS = (("x86_64-linux", 1), ("aarch64-linux", 2), ("aarch64-darwin", 4))
+
+
+def facet_entry(row, handles, teams):
+    """row's entry in facets.json: its platforms' bits (FACET_SYSTEMS), and
+    when it has maintainers or teams, [bits, [maintainers], [teams]?] by
+    their place in handles and teams (dicts filled as it goes: {name:
+    index}). Most rows have neither, so most entries are one number: all of
+    nixpkgs in about 120 KB compressed (2026-10-22)."""
+    bits = sum(
+        bit
+        for system, bit in FACET_SYSTEMS
+        if available_on(row.get("platforms"), system)
+    )
+    people = [handles.setdefault(h, len(handles)) for h in row.get("maintainers") or []]
+    groups = [teams.setdefault(t, len(teams)) for t in row.get("teams") or []]
+    if groups:
+        return [bits, people, groups]
+    return [bits, people] if people else bits
+
+
 def numbers(rows):
     """The overview's "nixpkgs in numbers" (with every package), of what the
     sync has: Hydra's builds of every row ("builds") and of those not built,
@@ -641,6 +664,8 @@ def views(rows, out):
       views/team/<slug>.json, views/list/<slug>.json, views/set/<name>.json
       names.json: every row's name and status (status), and its set when
         it has one: what a search looks through
+      facets.json: the same rows' maintainers, teams and platforms, in the
+        same order (facet_entry), for the search's filters
       maintainers.json: every maintainer, as nixpkgs writes the handle,
         with how many packages they have (in such sets too) and how many
         of the fully checked are outdated and failing: [handle, packages,
@@ -672,6 +697,8 @@ def views(rows, out):
     teams, lists, sets = {}, {}, {}
     failing_on = {}  # "linux", "darwin", each system -> packages failing there
     names = []
+    # facets.json: beside names, in its order (facet_entry).
+    facet_rows, facet_handles, facet_teams = [], {}, {}
     maintainers = {}  # lowercase handle -> [handle, packages, outdated, failing]
     # Since when each fully checked row has been failing, outdated, failing
     # its update attempts: the overview's newest and oldest of each.
@@ -715,6 +742,7 @@ def views(rows, out):
             if row.get("set")
             else [row["name"], letter]
         )
+        facet_rows.append(facet_entry(row, facet_handles, facet_teams))
         for handle in row.get("maintainers") or []:
             put(f"views/maintainer/{handle.lower()}.json", row)
             mine = maintainers.setdefault(handle.lower(), [handle, 0, 0, 0])
@@ -817,6 +845,11 @@ def views(rows, out):
     for path, members in found.items():
         out[path] = {"packages": [summary_entry(row) for row in members]}
     out["names.json"] = {"names": names}
+    out["facets.json"] = {
+        "handles": list(facet_handles),
+        "teams": list(facet_teams),
+        "rows": facet_rows,
+    }
     out["maintainers.json"] = {
         "maintainers": [maintainers[key] for key in sorted(maintainers)]
     }

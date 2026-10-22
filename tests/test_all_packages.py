@@ -322,7 +322,12 @@ class Data(unittest.TestCase):
                 teams=["Gaming"],
                 dataFile="a.json",
             ),
-            row("b", nixStatus="outdated", maintainers=[]),
+            row(
+                "b",
+                nixStatus="outdated",
+                maintainers=[],
+                platforms={"linux": True, "darwin": False, "systems": ["x86_64-linux"]},
+            ),
             row("c", updateFailure=True, maintainers=["iedame"]),
             row(
                 "haskellPackages.d",
@@ -345,6 +350,7 @@ class Data(unittest.TestCase):
         self.assertEqual(
             files,
             {
+                "facets.json",
                 "index.json",
                 "maintainers.json",
                 "names.json",
@@ -417,6 +423,17 @@ class Data(unittest.TestCase):
                 ["e", "uv"],
                 ["haskellPackages.d", "u", "haskellPackages"],
             ],
+        )
+        # Beside them, in their order: platforms' bits (1 x86_64-linux, 2
+        # aarch64-linux, 4 Darwin; 7 unrestricted), maintainers and teams by
+        # their place in the lists.
+        self.assertEqual(
+            self.read("facets.json"),
+            {
+                "handles": ["Iedame", "iedame", "someone"],
+                "teams": ["Gaming"],
+                "rows": [[7, [0], [0]], 1, [7, [1]], [7, [2]], 7],
+            },
         )
         # The rows in full, and loaded back as usual.
         self.assertEqual(

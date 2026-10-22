@@ -280,6 +280,13 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   page's dot: `f` failed, `m` outdated but merged on master, `o` outdated,
   `u` up to date, `n` can't be compared; then `v` when vulnerable (flagged
   by Repology, or marked insecure by nixpkgs).
+- `facets.json`: `{ "handles": [...], "teams": [...], "rows": [...] }`, one
+  entry in `rows` for each of `names.json`'s, in the same order: where it's
+  available as bits (1 x86_64-linux, 2 aarch64-linux, 4 aarch64-darwin; 7
+  when nixpkgs doesn't restrict it), alone when it has no maintainer or
+  team, else `[bits, [maintainers], [teams]?]` by their place in `handles`
+  (as nixpkgs writes them) and `teams`. The search's maintainer, team and
+  platform filters; about 120 KB compressed for all of nixpkgs.
 - `evaluations.json`: not for the page. nixpkgs' evaluations the sync
   made (`meta.broken` per platform, the sources the update checks are
   worked out from, patches named after a CVE), `{ "answers": {

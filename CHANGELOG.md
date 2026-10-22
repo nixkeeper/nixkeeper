@@ -20,7 +20,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   **in** a package set and **status** (failing, outdated, waiting for the
   channel, up to date, can't be compared, vulnerable: `?status=outdated`),
   each with its count, and show 200 more at a time instead of stopping at
-  50. **Clear filters** when they leave none.
+  50. **Clear filters** when they leave none. And by **maintainer**,
+  **team** (`?ofteam=`) and **platform**, from a new `facets.json` (every
+  package's maintainers, teams and platforms beside `names.json`, about
+  120 KB compressed), loaded on the first search.
 
 ## [0.21.0] - 2026-10-21
 
