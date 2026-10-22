@@ -73,7 +73,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   pythonImportsCheck = [ "nixkeeper" ];
 
   meta = {
-    description = "Health dashboard for the nixpkgs packages you maintain";
+    description = "Health dashboard for every nixpkgs package";
     longDescription = ''
       nixkeeper tracks the nixpkgs packages you maintain, and any others you
       list, and shows on one static page what needs attention: new releases

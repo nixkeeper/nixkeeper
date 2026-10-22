@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nixkeeper"
 version = "0.21.0"
-description = "Health dashboard for the nixpkgs packages you maintain: new releases, build and update failures, and vulnerabilities, in one place."
+description = "Health dashboard for every nixpkgs package: new releases, build and update failures, vulnerabilities and open PRs, by maintainer and team."
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"

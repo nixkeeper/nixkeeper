@@ -136,6 +136,9 @@ let shardCount = 1;
 // page shows one view of the data at a time (viewPath): `packages` is that
 // view's, `manifest` index.json, with the counts of all of nixpkgs.
 let community = false;
+// The line by the logo on an instance of its own lists (index.html's is
+// for every package).
+const OWN_TAG = 'your nixpkgs packages, at a glance';
 let manifest = null;
 let sources = null; // the daily sync's sources (index.json's "sources")
 let shownView = null; // the path of the view in `packages`
@@ -1761,6 +1764,11 @@ async function loadIndex() {
       loadMyCount();
     } else {
       packages = (await summaryOf()).map((p) => withRunStamps(p, checkedAt));
+      // An instance of its own lists, not every package: the line by the
+      // logo and the tab's title say so (index.html has nixkeeper.com's;
+      // link previews, which run no script, keep it).
+      document.querySelector('.wordmark .tag').textContent = OWN_TAG;
+      document.title = `nixkeeper — ${OWN_TAG}`;
     }
     // The nixkeeper that made the data, in the footer (older data has none).
     document.getElementById('version').textContent =
