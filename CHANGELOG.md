@@ -11,6 +11,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Init PRs for a package nixpkgs has now** (added another way while they
+  waited: 68 on 2026-10-23, `macshot: init at 4.0.4` with nixpkgs at
+  4.1.2) in "Can be closed", **PR to close**, the list of them all and
+  "nixpkgs in numbers", beside the update PRs nixpkgs is past; from
+  nixkeeper-prs' `alreadyIn`.
+
 - **Fixed in**: a CVE's version that fixes it, from its version ranges
   ("affected <3.20.1": fixed in 3.20.1), in the Vulnerabilities details;
   and under them, whether master, the open update PR or the newest release

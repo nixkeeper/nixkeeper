@@ -649,13 +649,33 @@ class MarkSuperseded(unittest.TestCase):
             self.pr(5, "wine", state="overtaken"),  # needs a rebase, not closing
             self.pr(6, "elsewhere"),
         ]
-        self.assertEqual(prs_digest.mark_superseded(prs, rows), {"prs": 3, "bot": 2})
+        self.assertEqual(
+            prs_digest.mark_superseded(prs, rows), {"prs": 3, "bot": 2, "init": 0}
+        )
         self.assertEqual([p["number"] for p in rows[0]["supersededPRs"]], [2, 3])
         self.assertEqual(rows[0]["supersededPRs"][1]["draft"], True)
         self.assertEqual(rows[0]["supersededPRs"][0]["now"], "0.12")
         self.assertEqual(rows[1]["supersededPRs"][0]["number"], 4)
         self.assertNotIn("supersededPRs", rows[2])
         self.assertIsNone(prs_digest.mark_superseded(None, rows))
+
+    def test_init_prs_for_a_package_nixpkgs_has(self):
+        # dcpomatic: init at 2.15.171, open since 2021; nixpkgs has 2.18.51.
+        rows = [{"name": "dcpomatic", "nixVersion": "2.18.51"}]
+        init = {
+            "n": 144680,
+            "title": "dcpomatic: init at 2.15.171",
+            "author": "lukegb",
+            "created": "2021-11-05T00:58:10Z",
+            "alreadyIn": {"attr": "dcpomatic", "version": "2.18.51"},
+        }
+        self.assertEqual(
+            prs_digest.mark_superseded([init], rows), {"prs": 0, "bot": 0, "init": 1}
+        )
+        found = rows[0]["supersededPRs"][0]
+        self.assertEqual(
+            (found["number"], found["now"], found["init"]), (144680, "2.18.51", True)
+        )
 
 
 class MergeSummary(unittest.TestCase):

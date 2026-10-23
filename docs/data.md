@@ -211,8 +211,8 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   sets too), `unbuilt.json` (listed for a platform Hydra doesn't build it
   on, not in such a set: `datastore.unbuilt_where`, the page's struck
   platform tags; its count in `index.json`'s `views.unbuilt`),
-  `superseded.json` (an open update PR nixpkgs is already past:
-  `supersededPRs`, in such sets too; its count in `views.superseded`),
+  `superseded.json` (an open update PR nixpkgs is already past, or an
+  init PR for a package it has: `supersededPRs`, in such sets too; its count in `views.superseded`),
   `maintainer/<handle>.json` (the handle in lowercase; `none.json`: no
   maintainer, not in such a set), `team/<slug>.json` and `list/<slug>.json` (the
   name in lowercase, each run of other characters than letters and digits
@@ -227,9 +227,9 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   timed out or aborted; together, the counts' `failingBuilds`),
   "behind" (update PRs behind upstream), "unmaintained" (packages outside
   the sets with no maintainer) }` (`datastore.numbers`).
-- `close` in `index.json` (with every package): `{ "prs", "bot" }`, the
-  open update PRs nixpkgs is already past and how many are r-ryantm's
-  (`prs_digest.mark_superseded`): "nixpkgs in numbers".
+- `close` in `index.json` (with every package): `{ "prs", "bot", "init" }`,
+  the open update PRs nixpkgs is already past, how many are r-ryantm's,
+  and the init PRs for a package it has (`prs_digest.mark_superseded`): "nixpkgs in numbers".
 - `views/merge.json`: the open PRs a maintainer can merge now with nixpkgs'
   merge bot, from nixkeeper-prs' digest (eligible by nixpkgs CI's label, CI
   green, no conflict, no changes requested, not a draft, touching tracked
@@ -439,8 +439,10 @@ badge is only for a removal without `proposed`.
 `supersededPRs` (in the list too): its open update PRs nixpkgs is already
 past, as nixkeeper-prs' digest finds them (state `superseded`: nixpkgs,
 master's version else the channel's, has the PR's version or a newer one;
-snapshots by their dates), oldest first: `[{"number", "title", "author",
-"created", "now": nixpkgs' version, "draft"?}]`. A maintainer's and a
+snapshots by their dates); and init PRs for it, nixpkgs having it already
+(the digest's `alreadyIn`, added another way while they waited), with
+`"init": true`. Oldest first: `[{"number", "title", "author", "created",
+"now": nixpkgs' version, "draft"?, "init"?}]`. A maintainer's and a
 team's "Can be closed", the list's **PR to close**, `views/superseded.json`.
 
 `recentFixes` (the full row only): its fixes of the last 30 days, newest

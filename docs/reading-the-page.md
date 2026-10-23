@@ -127,7 +127,7 @@ A list says what it is under "Showing" (✕ goes back to the overview):
 | one package alone, its details open | `?pkg=firefox` |
 | marked broken, blocked by a dependency | |
 | fixes to backport: a CVE fixed on nixpkgs master but still affected on the newest release branch (on the overview, a note under Vulnerable, as unstable has the fix; the details say which) | `?view=backport` |
-| update PRs to close: every package with an open update PR nixpkgs is already past (it has the PR's version or a newer one), up to date or not, sets too (linked from "Can be closed", from **PR to close** in another list, and from "nixpkgs in numbers") | `?view=superseded` |
+| PRs to close: every package with an open update PR nixpkgs is already past (it has the PR's version or a newer one), or an init PR for it while nixpkgs has it already, up to date or not, sets too (linked from "Can be closed", from **PR to close** in another list, and from "nixpkgs in numbers") | `?view=superseded` |
 | one of the instance's lists | `?list=` (by address only) |
 
 **Counts and tiles.** On a page tracking its own lists, the counts at the
@@ -214,7 +214,7 @@ what's left.
 | **not built where listed** | packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there: usually a dependency isn't available there, or `meta.platforms` promises too much); with a platform picked, that platform's only. Packages Hydra builds nowhere (unfree, kept off it) aren't. For all of nixpkgs at once, its own list: **Not built where listed** (`?view=unbuilt`, linked from Marked broken), where a platform picked keeps those not built there (`?view=unbuilt&platform=darwin`, `aarch64-linux`) | `?refine=unbuilt` |
 | **open PR**: with one, or without | with one: packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) Without one: those no open PR touches, nobody on them yet | `?refine=withpr`, `?refine=nopr` |
 | **newer version**: known, or none known | whether a newer version than nixpkgs' is known (outdated, merged or not); with Build failures, none known means an update won't fix it, the build does (`?filter=builds&newer=no`), known with **Open PR: without** that nobody has opened the update that might | `?newer=yes`, `?newer=no` |
-| **PR to close** | packages with an open update PR nixpkgs is already past (see [Can be closed](#maintainers-and-teams)); in any list, with a link to all of nixpkgs' | `?refine=superseded` |
+| **PR to close** | packages with an open update PR nixpkgs is already past, or an init PR for a package it has (see [Can be closed](#maintainers-and-teams)); in any list, with a link to all of nixpkgs' | `?refine=superseded` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
 | **build failed because** | build failures for one reason, as the build's log on Hydra says (read by nixkeeper-hydra): compile error, tests, link error, missing header, CMake 4 (it refuses projects asking for CMake older than 3.5), CMake, Python import, dependencies, build or metadata, writes to `$HOME`, hash, patch, download, out of disk (Hydra's side), other, and more; "not read yet" while nixkeeper-hydra catches up. Each with how many there are in the list, on the platform picked | `?buildFailed=cmake4` |
@@ -339,8 +339,10 @@ nixkeeper-prs' digest, as of the last sync.
 update PRs on their packages that nixpkgs is already past: it has the
 PR's version or a newer one (`ocamlPackages.trace: 0.5 -> 0.12` with
 nixpkgs at 0.12), so the PR can be closed, with a word on why, or updated
-to the newest. Each says who opened it, how long it's been open, what
-nixpkgs has now, and when it's a draft; oldest first, with **Hide** as
+to the newest. And the init PRs for a package nixpkgs has now, added
+another way while they waited (`macshot: init at 4.0.4` with nixpkgs at
+4.1.2): "nixpkgs has it now". Each says who opened it, how long it's been
+open, what nixpkgs has now, and when it's a draft; oldest first, with **Hide** as
 above, and a link to all of nixpkgs' (`?view=superseded`). Snapshots are
 compared by their dates: a snapshot nixpkgs only renamed
 (`unstable-2023-12-06` to `0.18.1-unstable-2023-12-06`) doesn't count as

@@ -314,8 +314,10 @@ def mark_superseded(prs, rows):
     2026-10-23, most of them r-ryantm's), as "supersededPRs" ([{"number",
     "title", "author", "created", "now": nixpkgs' version, "draft"?}],
     oldest first), for a maintainer's and a team's "Can be closed" and the
-    list's filter. Returns {"prs", "bot": r-ryantm's of them} for the
-    overview, or None without the digest's list."""
+    list's filter. And init PRs for an attribute nixpkgs has now (added
+    another way while they waited: the digest's "alreadyIn", 68 on
+    2026-10-23), with "init": true. Returns {"prs", "bot": r-ryantm's of
+    them, "init"} for the overview, or None without the digest's list."""
     if prs is None:
         return None
     by_key = {package_key(r["name"]): r for r in rows}
@@ -323,12 +325,17 @@ def mark_superseded(prs, rows):
         row.pop("supersededPRs", None)
         for attr in row.get("attrs") or []:
             by_key.setdefault(package_key(attr), row)
-    found = {"prs": 0, "bot": 0}
+    found = {"prs": 0, "bot": 0, "init": 0}
     for pr in prs:
         update = pr.get("update") or {}
-        if pr.get("state") != "superseded":
+        added = pr.get("alreadyIn") or {}
+        if pr.get("state") == "superseded":
+            attr, now = update.get("attr"), update.get("now")
+        elif added.get("attr"):
+            attr, now = added["attr"], added.get("version")
+        else:
             continue
-        row = by_key.get(package_key(update.get("attr") or ""))
+        row = by_key.get(package_key(attr or ""))
         if row is None:
             continue
         item = {
@@ -336,13 +343,17 @@ def mark_superseded(prs, rows):
             "title": pr["title"],
             "author": pr.get("author") or "",
             "created": pr.get("created") or "",
-            "now": update.get("now") or row.get("nixVersion") or "",
+            "now": now or row.get("nixVersion") or "",
         }
         if pr.get("draft"):
             item["draft"] = True
         row.setdefault("supersededPRs", []).append(item)
-        found["prs"] += 1
-        found["bot"] += item["author"] == BOT
+        if pr.get("state") == "superseded":
+            found["prs"] += 1
+            found["bot"] += item["author"] == BOT
+        else:
+            item["init"] = True
+            found["init"] += 1
     for row in rows:
         if row.get("supersededPRs"):
             row["supersededPRs"].sort(key=lambda p: (p["created"], p["number"]))

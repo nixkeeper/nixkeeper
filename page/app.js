@@ -449,7 +449,7 @@ const REFINES = {
   superseded: {
     label: 'PR to close',
     title:
-      'Only packages with an open update PR nixpkgs is already past: it has the PR’s version or a newer one, so the PR can be closed',
+      'Only packages with an open PR nixpkgs is already past: an update PR to its version or an older one, or an init PR for a package it has now, so the PR can be closed',
     test: (p) => (p.supersededPRs || []).length > 0,
   },
   nobot: {
@@ -1851,22 +1851,38 @@ function closeHtml(path, handle) {
     const facts = [
       own ? html`<b>your own PR</b>` : `by @${p.author}`,
       html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">open ${fmt(days(p.created))} days</span>`,
-      html`nixpkgs has <span class="mono">${p.now}</span>`,
+      p.init
+        ? html`nixpkgs has it now (<span class="mono">${p.now}</span>), added another way`
+        : html`nixpkgs has <span class="mono">${p.now}</span>`,
       p.draft && 'a draft',
     ].filter(Boolean);
     const hidden = isPrHidden(p);
     return html`<li${hidden ? raw(' class="is-hidden"') : ''}><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><button type="button" class="merge-hide" data-pr="${p.number}" title="${hidden ? 'Shown again here' : 'Leave it out of this list, in this browser only, until it changes'}">${hidden ? 'Show it again' : 'Hide'}</button><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
   };
   const n = listed.length;
+  // Init PRs for a package nixpkgs has now among them (prs_digest.mark_superseded).
+  const inits = listed.filter((p) => p.init).length;
+  const kind = !inits ? 'update PR' : inits === n ? 'init PR' : 'PR';
+  const why = !inits
+    ? 'nixpkgs already has their version or a newer one'
+    : inits === n
+      ? 'nixpkgs has the package they add now'
+      : 'nixpkgs already has their version or a newer one, or the package they add';
   const more =
     listed.length > CLOSE_SHOWN
       ? html`<button type="button" class="merge-more" data-close-more>${closeAll ? 'Show fewer' : `Show all ${fmt(listed.length)}`}</button>`
       : '';
   return html`<section class="merge-block close-block" aria-labelledby="closeHead">
-    <h3 id="closeHead">${n === 1 ? 'This update PR can' : html`These ${fmt(n)} update PRs can`} be closed <span class="scope-hint">nixpkgs already has their version or a newer one${hiddenN && !showHiddenPrs ? html` · ${fmt(hiddenN)} hidden` : ''}</span></h3>
+    <h3 id="closeHead">${n === 1 ? `This ${kind} can` : html`These ${fmt(n)} ${kind}s can`} be closed <span class="scope-hint">${why}${hiddenN && !showHiddenPrs ? html` · ${fmt(hiddenN)} hidden` : ''}</span></h3>
     <ul class="merge-list">${shown.map(line)}</ul>
     ${more}
-    <p class="merge-how">Close it with a word on why (nixpkgs has a newer version), or update it to the newest.${
+    <p class="merge-how">${
+      !inits
+        ? 'Close it with a word on why (nixpkgs has a newer version), or update it to the newest.'
+        : inits === n
+          ? "Close it with a word on why (nixpkgs has the package now), or turn it into an update of nixpkgs' package."
+          : 'Close it with a word on why (nixpkgs has a newer version, or has the package now), or update it to the newest.'
+    }${
       community && manifest.views?.superseded
         ? html` <a class="files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded">All ${fmt(manifest.views.superseded)} packages with one, in all of nixpkgs →</a>`
         : ''
@@ -2890,7 +2906,7 @@ function numbersHtml() {
     manifest.close?.prs != null && [
       fmt(manifest.close.prs),
       'update PRs nixpkgs is past',
-      html`it already has their version or a newer one: they can be closed (${fmt(manifest.close.bot)} of them the update bot's). Yours: "Can be closed", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>${link(scopeHref({ view: 'superseded' }), 'all of them')}`,
+      html`it already has their version or a newer one: they can be closed (${fmt(manifest.close.bot)} of them the update bot's)${manifest.close.init ? `, and ${fmt(manifest.close.init)} init PRs for a package it has now` : ''}. Yours: "Can be closed", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>${link(scopeHref({ view: 'superseded' }), 'all of them')}`,
     ],
     [
       fmt(n.behind),
@@ -4415,9 +4431,22 @@ function githubSection(pkg) {
       lines.push(html`<li>Update PR ${link(pr)} <span class="mono">${pr.to}</span>: ${said}</li>`);
   }
   // Open update PRs nixpkgs is already past (prs_digest.mark_superseded).
+  // And init PRs for it, added another way while they waited.
   for (const sp of pkg.supersededPRs || [])
     lines.push(
-      html`<li>${link({ ...sp, url: `https://github.com/NixOS/nixpkgs/pull/${sp.number}` })} ${sp.title} ${fact('warn', `can be closed (${sp.now})`, `nixpkgs has ${sp.now}, this version or a newer one: the PR can be closed, or updated to the newest`)}</li>`,
+      html`<li>${link({ ...sp, url: `https://github.com/NixOS/nixpkgs/pull/${sp.number}` })} ${sp.title} ${
+        sp.init
+          ? fact(
+              'warn',
+              'can be closed (in nixpkgs)',
+              `nixpkgs has it now (${sp.now}), added another way while this PR waited: the PR can be closed`,
+            )
+          : fact(
+              'warn',
+              `can be closed (${sp.now})`,
+              `nixpkgs has ${sp.now}, this version or a newer one: the PR can be closed, or updated to the newest`,
+            )
+      }</li>`,
     );
   // Its other open PRs, a removal first (prs_digest.add_facts).
   const KIND = {
@@ -4437,7 +4466,8 @@ function githubSection(pkg) {
     init: () => fact('', 'adds it'),
     update: () => fact('', 'an update'),
   };
-  for (const other of pkg.otherPRs || [])
+  const closing = new Set((pkg.supersededPRs || []).map((sp) => sp.number));
+  for (const other of (pkg.otherPRs || []).filter((o) => !closing.has(o.number)))
     lines.push(
       html`<li>${link({ ...other, url: `https://github.com/NixOS/nixpkgs/pull/${other.number}` })} ${other.title} ${other.kind ? KIND[other.kind]?.(other) || '' : ''}${
         other.mergeBot === 'ready'
