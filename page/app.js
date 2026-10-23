@@ -21,6 +21,7 @@ import {
   fromMaster,
   homeHref,
   html,
+  inPickedSet,
   isVulnerable,
   maintainerMatches,
   maintainersKeep,
@@ -35,6 +36,7 @@ import {
   nameSet,
   neverBuiltOn,
   nixkeeperEntry,
+  nothingCompared,
   olderThan,
   olderVersionKept,
   onBranch,
@@ -44,6 +46,7 @@ import {
   pageLinks,
   parseMaintainers,
   parseTeams,
+  problemSince,
   prPrint,
   attentionRank as rankOn,
   raw,
@@ -66,6 +69,7 @@ import {
   VIEWS,
   VULN_COUNTED,
   versionDiff,
+  versionGap,
   viewPath,
   viewSlug,
   vulnSources,
@@ -188,7 +192,7 @@ let buildFailedFilter = null;
 // platforms, over the list's other filters (facetOptions).
 let inFilter = null;
 let byFilter = null;
-const inNameSet = (pkg) => !inFilter || nameSet(pkg.name) === inFilter;
+const inNameSet = (pkg) => !inFilter || inPickedSet(nameSet(pkg.name), inFilter);
 const byMaintainer = (pkg) =>
   !byFilter || (pkg.maintainers || []).some((m) => m.toLowerCase() === byFilter);
 // ?status=: the search's matches in all of nixpkgs of one status (a
@@ -206,7 +210,17 @@ let matchQuery = '';
 // What every filter but the facets kept, last time the list was worked out
 // (currentFiltered): the facets count over it, with no second pass.
 let facetBase = [];
-let sortAZ = false; // default order puts what needs attention first
+// The list's order (?sort=, SORTS key; the first, most pressing, is the
+// default) and whether it's reversed (?order=reverse).
+const SORTS = {
+  pressing: 'most pressing',
+  oldest: 'longest-standing',
+  newest: 'newest',
+  gap: 'biggest version gap',
+  az: 'name A–Z',
+};
+let sortMode = 'pressing';
+let sortReverse = false;
 // The table shows pageSize rows at a time: drawing stays fast whatever the
 // data's size, and the page keeps working with Ctrl+F and screen readers
 // (no virtual scrolling). ?page= in the address, past the first; ?per= for
@@ -377,10 +391,13 @@ const REFINES = {
     title: "Leave out what nixpkgs marks broken: failures nobody's marked yet",
     test: (p) => !FILTERS.broken.test(p),
   },
+  // Its update merged somewhere, on its way: master (waiting for
+  // nixos-unstable), staging or staging-next, a branch like haskell-updates.
   notonmaster: {
-    label: 'Not fixed on master yet',
-    title: 'Leave out outdated packages whose update is merged, waiting for nixos-unstable',
-    test: (p) => !waitingForChannel(p),
+    label: 'Not merged yet',
+    title:
+      'Leave out outdated packages whose update is already merged: on master (waiting for nixos-unstable), into staging or staging-next, or a branch like haskell-updates',
+    test: (p) => !waitingForChannel(p) && !p.stagingPR && !onBranch(p),
   },
   // A forecast (branches.apply_staging_next_breaks): builds on master,
   // fails its own build on staging-next at the same version.
@@ -391,11 +408,20 @@ const REFINES = {
     test: (p) => Boolean(p.stagingNextBreaks),
   },
   // Something open on GitHub about it: for a broken package, maybe its fix.
+  // Picked in the "Open PR" select (pick: 'pr'), not a chip: one or the
+  // other.
   withpr: {
-    label: 'With an open PR',
+    label: 'with one',
+    pick: 'pr',
     title:
       'Only packages an open PR touches: for one marked broken, maybe its fix (or moot: a person checks)',
     test: (p) => (p.openPRs || 0) > 0,
+  },
+  nopr: {
+    label: 'without',
+    pick: 'pr',
+    title: 'Only packages no open PR touches: nobody is on it yet',
+    test: (p) => !((p.openPRs || 0) > 0),
   },
   // Listed for a platform Hydra doesn't build it on (unbuiltWhere): a
   // dependency missing there, or meta.platforms promising too much. With a
@@ -495,6 +521,28 @@ function buildFailedPick() {
   )}</select></label>`;
 }
 
+// The order: a choice of SORTS, and ↓/↑ reversing it.
+function sortPick() {
+  return html`<label class="refine-age" title="The list's order">Sort <select data-sort>${Object.entries(
+    SORTS,
+  ).map(
+    ([key, label]) =>
+      html`<option value="${key}"${sortMode === key ? raw(' selected') : ''}>${label}</option>`,
+  )}</select></label><button type="button" class="refine-btn sort-dir" data-sort-dir aria-pressed="${sortReverse}" aria-label="Reverse the order" title="${sortReverse ? 'Reversed: click for the usual order' : 'Reverse the order'}">${sortReverse ? '↑' : '↓'}</button>`;
+}
+
+// "Open PR": any, with one (?refine=withpr), without (?refine=nopr).
+function prPick() {
+  const picked = ['withpr', 'nopr'].find((key) => refines.has(key)) || '';
+  return html`<label class="refine-age" title="Whether an open PR touches it: for one marked broken, maybe its fix; without one, nobody is on it yet">Open PR <select data-pr-pick><option value="">any</option>${[
+    'withpr',
+    'nopr',
+  ].map(
+    (key) =>
+      html`<option value="${key}"${picked === key ? raw(' selected') : ''}>${REFINES[key].label}</option>`,
+  )}</select></label>`;
+}
+
 // The facets' choices with how many each would show: each counted over
 // what the list's other filters keep (facetBase), its own left out (the
 // sets as with the maintainer and platform picked). The platforms: of
@@ -530,17 +578,21 @@ const facetOption = (value, label, count, picked) =>
 
 function refineHtml() {
   const facets = facetOptions();
-  const setCount = (v) => facets.sets.find(([s]) => s === v)?.[1] || 0;
+  // python3Packages (an alias, ?in=): its sets' counts together.
+  const setCount = (v) =>
+    facets.sets.filter(([s]) => inPickedSet(s, v)).reduce((n, [, c]) => n + c, 0);
   const sets =
     inFilter && !facets.sets.some(([s]) => s === inFilter)
       ? [...facets.sets, [inFilter, 0]]
       : facets.sets;
   return html`<div class="refine" role="group" aria-label="Narrow the list">${Object.entries(
     REFINES,
-  ).map(
-    ([key, r]) =>
-      html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}">${r.label}</button>`,
-  )}${
+  )
+    .filter(([, r]) => !r.pick)
+    .map(
+      ([key, r]) =>
+        html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}${refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
+    )}${prPick()}${sortPick()}${
     // On a maintainer's page: ?team=none.
     shownHandle()
       ? html`<button type="button" class="refine-btn" data-no-team aria-pressed="${noTeam}" title="Only packages that list this maintainer themselves: leave out those they maintain only as a member of the package's team (meta.teams)">Not via a team</button>`
@@ -867,7 +919,7 @@ function versionCell(pkg, st) {
   const failing = stale
     ? html`<span class="badge neutral" title="${staleText(stale, "nixkeeper's update check failing")}. ${communityCheck(pkg) ? "It's a community rule: report it to nixkeeper, or give the package a rule of your own." : 'Fix it in package-lists/update-checks.nix.'}">check failing</span>`
     : '';
-  const about = html`${pkg.set ? bulkBadge(pkg.set) : ''}${olderVersionKept(pkg) ? html`<span class="badge neutral" title="${keptText(pkg)}">older version</span>` : pkg.unversioned && st === 'neutral' ? html`<span class="badge neutral" title="${UNVERSIONED_TITLE}">not versioned</span>` : st === 'neutral' ? html`<span class="badge neutral"${pkg.nixStatus === 'unsupported' ? html` title="${UNSUPPORTED_TEXT}"` : ''}>${statusLabel(pkg.nixStatus)}</span>` : ''}${pkg.archived ? html`<span class="badge warn" title="${archivedText(pkg)}">archived</span>` : ''}${pkg.dropPR && !pkg.dropPR.proposed ? html`<span class="badge warn" title="An open PR removes it from nixpkgs: #${pkg.dropPR.number} (${pkg.dropPR.title})">being removed</span>` : ''}${pkg.feed?.heldBack && st === 'ok' ? html`<span class="badge neutral" title="nixpkgs pins it to ${pkg.feed.name}: Hackage has ${pkg.feed.heldBack}, which Stackage holds back until its next series">Stackage LTS</span>` : ''}${pkg.devel ? html`<span class="badge devel ${st}">devel</span>` : ''}${vulnBadge(pkg)}${pkg.staleSince ? html`<span class="badge neutral" title="Repology lookup failed on the last run; this is data from ${new Date(pkg.staleSince).toLocaleString()}">not refreshed</span>` : pkg.lookupFailed ? html`<span class="badge neutral" title="${LOOKUP_FAILED}">not looked up</span>` : ''}`;
+  const about = html`${pkg.set ? bulkBadge(pkg.set) : ''}${olderVersionKept(pkg) ? html`<span class="badge neutral" title="${keptText(pkg)}">older version</span>` : pkg.unversioned && st === 'neutral' ? html`<span class="badge neutral" title="${UNVERSIONED_TITLE}">not versioned</span>` : st === 'neutral' ? html`<span class="badge neutral"${pkg.nixStatus === 'unsupported' ? html` title="${UNSUPPORTED_TEXT}"` : nothingCompared(pkg) ? html` title="${ONLY_NIXPKGS_TEXT}"` : ''}>${statusLabel(pkg.nixStatus)}</span>` : ''}${pkg.archived ? html`<span class="badge warn" title="${archivedText(pkg)}">archived</span>` : ''}${pkg.dropPR && !pkg.dropPR.proposed ? html`<span class="badge warn" title="An open PR removes it from nixpkgs: #${pkg.dropPR.number} (${pkg.dropPR.title})">being removed</span>` : ''}${pkg.feed?.heldBack && st === 'ok' ? html`<span class="badge neutral" title="nixpkgs pins it to ${pkg.feed.name}: Hackage has ${pkg.feed.heldBack}, which Stackage holds back until its next series">Stackage LTS</span>` : ''}${pkg.devel ? html`<span class="badge devel ${st}">devel</span>` : ''}${vulnBadge(pkg)}${pkg.staleSince ? html`<span class="badge neutral" title="Repology lookup failed on the last run; this is data from ${new Date(pkg.staleSince).toLocaleString()}">not refreshed</span>` : pkg.lookupFailed ? html`<span class="badge neutral" title="${LOOKUP_FAILED}">not looked up</span>` : ''}`;
   if (st !== 'warn')
     return html`<div class="vcell"><span class="v-now"><span class="v">${now}</span></span><span class="v-tags top">${about}${failing}</span></div>`;
   const target = targetVersion(pkg);
@@ -981,7 +1033,8 @@ function readViewFromUrl() {
   document.getElementById('search').value = maintainers.handle
     ? `@${maintainers.handle}`
     : params.get('q') || '';
-  sortAZ = params.get('sort') === 'az';
+  sortMode = SORTS[params.get('sort')] ? params.get('sort') : 'pressing';
+  sortReverse = params.get('order') === 'reverse';
   platformFilter =
     Object.keys(PLATFORMS).find((k) =>
       [PLATFORMS[k].param, PLATFORMS[k].also].includes(params.get('platform')),
@@ -1017,7 +1070,6 @@ function readViewFromUrl() {
   pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
   const per = Number(params.get('per'));
   pageSize = PAGE_SIZES.includes(per) ? per : DEFAULT_PAGE_SIZE;
-  document.getElementById('sortBtn').setAttribute('aria-pressed', sortAZ);
 }
 
 // The address for the current view, on page `page`.
@@ -1030,7 +1082,8 @@ function viewQuery(page = pageNum) {
   const handle = q.startsWith('@') && q.length > 1 ? q.slice(1) : '';
   set('maintainer', maintainersParam({ handle, leftOut: maintainersLeftOut }));
   set('q', handle ? '' : q);
-  set('sort', sortAZ ? 'az' : '');
+  set('sort', sortMode === 'pressing' ? '' : sortMode);
+  set('order', sortReverse ? 'reverse' : '');
   set('platform', platformFilter && PLATFORMS[platformFilter].param);
   set('list', listFilter);
   set('team', teamsParam({ include: teamFilter, leftOut: teamsLeftOut, none: noTeam }));
@@ -1166,7 +1219,10 @@ function setSitePalette(palette) {
 // The row's dot, on hover (the legend popover lists them all).
 // Repology's statuses as the page says them, where the code isn't clear
 // ("unlisted": with every package, one Repology doesn't know).
-const STATUS_LABEL = { unlisted: 'not on Repology' };
+const STATUS_LABEL = { unlisted: 'not on Repology', unique: 'only in nixpkgs' };
+// Repology's unique with nothing to compare (nothingCompared).
+const ONLY_NIXPKGS_TEXT =
+  "Only nixpkgs packages it, and nixkeeper has no update check for it: there's nothing to compare its version with";
 // nixpkgs' 0-unsupported (rows.UNSUPPORTED): not built in its default
 // configuration, so no version to compare.
 const UNSUPPORTED_TEXT =
@@ -1980,10 +2036,19 @@ const CHEVRON = raw(
   '<svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
 );
 
+// What a row's dot means, in words: its colour's, or why it's grey when
+// only nixpkgs packages it.
+const dotTitle = (pkg, st) =>
+  waitingForChannel(pkg)
+    ? DOT_TITLE.merged
+    : nothingCompared(pkg)
+      ? `Not compared: ${ONLY_NIXPKGS_TEXT.charAt(0).toLowerCase()}${ONLY_NIXPKGS_TEXT.slice(1)}`
+      : DOT_TITLE[st];
+
 function rowHtml(pkg, i) {
   const st = computeStatus(pkg);
   return html`<tr class="row${isHidden(pkg) ? ' is-hidden' : ''}${inOpenFold.has(pkg.name) ? ' fold-member' : ''}" tabindex="0" data-i="${i}">
-      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}" title="${waitingForChannel(pkg) ? DOT_TITLE.merged : DOT_TITLE[st]}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}${foldButton(pkg)}</div></td>
+      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${dotTitle(pkg, st)}" title="${dotTitle(pkg, st)}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}${foldButton(pkg)}</div></td>
       <td class="c-ver ver mono">${versionCell(pkg, st)}</td>
       <td class="c-gh${pkg.openPRs || pkg.openIssues ? '' : ' quiet'}">${githubLinks(pkg)}</td>
       <td class="c-build">${buildCell(pkg)}</td>
@@ -2913,8 +2978,12 @@ function moreMatchesHtml() {
   );
   const shownHere = kept.slice(0, matchLimit);
   const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
+  // python3Packages (an alias, ?in=): offered with its sets' counts together.
+  const aliasCount = (v) => sets.filter(([s]) => inPickedSet(s, v)).reduce((n, [, c]) => n + c, 0);
   const setChoices =
-    inFilter && !sets.some(([v]) => v === inFilter) ? [...sets, [inFilter, 0]] : sets;
+    inFilter && !sets.some(([v]) => v === inFilter)
+      ? [...sets, [inFilter, aliasCount(inFilter)]]
+      : sets;
   const statusChoices =
     statusFilter && !statuses.some(([v]) => v === statusFilter)
       ? [...statuses, [statusFilter, 0]]
@@ -4087,6 +4156,8 @@ function fillDetail(pkg, el, entries) {
     : '';
   // What Repology said, where the update check decided otherwise
   // (repologySaid, upstream.apply in nixkeeper).
+  // Its update check decides too when only nixpkgs packages it: Repology
+  // compared it with nothing (nothingCompared without the check).
   const said = pkg.repologySaid;
   const repologyOutdated = (said?.status ?? pkg.nixStatus) === 'outdated';
   // A branch check (unstable versions): how many commits nixpkgs is behind,
@@ -4185,13 +4256,15 @@ function fillDetail(pkg, el, entries) {
                       : olderVersionKept(pkg)
                         ? html` — an older version nixpkgs keeps on purpose${pkg.keptBeside ? html`, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>` : ', beside a newer one'}: not outdated while nothing newer is out in its own series.`
                         : st === 'neutral'
-                          ? pkg.nixStatus === 'unsupported'
-                            ? ` — ${UNSUPPORTED_TEXT}.`
-                            : pkg.nixStatus === 'unlisted'
-                              ? pkg.lookupFailed
-                                ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
-                                : " — Repology doesn't list this package, so there's nothing to compare it with."
-                              : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
+                          ? nothingCompared(pkg)
+                            ? ` — ${ONLY_NIXPKGS_TEXT}.`
+                            : pkg.nixStatus === 'unsupported'
+                              ? ` — ${UNSUPPORTED_TEXT}.`
+                              : pkg.nixStatus === 'unlisted'
+                                ? pkg.lookupFailed
+                                  ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
+                                  : " — Repology doesn't list this package, so there's nothing to compare it with."
+                                : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
                           : said && up && !failing
                             ? ' — the newest version, by its update check.'
                             : loaded
@@ -4276,7 +4349,7 @@ function fillDetail(pkg, el, entries) {
                   `with ${up.follows}`,
                   `Updated together with ${up.follows} (${communityCheck(pkg) ? 'a community rule' : 'your update checks'}): its newest version counts for this package too`,
                 ]
-              : said || up?.newer
+              : said || up?.newer || (up && pkg.onlyNixpkgs && pkg.nixStatus === 'unique')
                 ? [
                     'ours',
                     up.commit ? 'git-branch' : up.repo ? 'tag' : 'world',
@@ -4469,27 +4542,57 @@ function currentFiltered() {
   const q = document.getElementById('search').value;
   facetBase = packages.filter((p) => passesOthers(p, q));
   const list = facetBase.filter((p) => inPlatform(p) && inNameSet(p) && byMaintainer(p));
-  if (sortAZ) return list;
-  // The vulnerable ones: worst severity first (in the order they had).
+  return sortedList(list, sortReverse ? -1 : 1);
+}
+
+// The list in the order picked (sortMode), reversed with dir -1; those with
+// nothing to sort by (no date, no newer version) last either way. Each
+// package's key worked out once, not at every comparison: sorting every
+// package compares about 170,000 pairs, and on a mid-range phone working
+// them out each time took half a second (Lighthouse, 2026-10-07). ISO dates
+// in UTC compare correctly as plain strings; undated ones last ("~").
+function sortedList(list, dir = 1) {
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  // The data arrives sorted by name, and Array.sort is stable.
+  if (sortMode === 'az') return dir > 0 ? list : [...list].reverse();
+  if (sortMode === 'oldest' || sortMode === 'newest') {
+    // How long its problem has lasted (the tile's kind, when one is picked).
+    const keyed = list.map((p) => ({ p, since: problemSince(p, activeFilter) || '' }));
+    const order = sortMode === 'oldest' ? dir : -dir;
+    keyed.sort((a, b) =>
+      !a.since || !b.since ? !a.since - !b.since : order * cmp(a.since, b.since),
+    );
+    return keyed.map((k) => k.p);
+  }
+  if (sortMode === 'gap') {
+    // The biggest update first (versionGap); numbering changes, then none
+    // (no newer version known), last either way.
+    const keyed = list.map((p) => ({
+      p,
+      gap: computeStatus(p) === 'warn' ? versionGap(p.nixVersion, targetVersion(p)) : null,
+    }));
+    keyed.sort((a, b) =>
+      !a.gap || !b.gap
+        ? !a.gap - !b.gap
+        : a.gap.scheme - b.gap.scheme ||
+          dir * (a.gap.level - b.gap.level || b.gap.step - a.gap.step),
+    );
+    return keyed.map((k) => k.p);
+  }
+  // Most pressing. The vulnerable ones: worst severity first (in the order
+  // they had).
   if (activeFilter === 'vuln') {
     const ranked = list.map((p) => ({ p, rank: severityRank(p) }));
-    ranked.sort((a, b) => a.rank - b.rank);
+    ranked.sort((a, b) => dir * (a.rank - b.rank));
     return ranked.map((k) => k.p);
   }
-  // Worst first, then longest first. Each package's rank and date worked
-  // out once, not at every comparison: sorting every package compares
-  // about 170,000 pairs, and on a mid-range phone working them out each
-  // time took half a second (Lighthouse, 2026-10-07). ISO dates in UTC
-  // compare correctly as plain strings; undated ones last ("~").
+  // Worst first, then longest first.
   const keyed = list.map((p) => {
     const rank = attentionRank(p);
     const since = rank === 1 ? p.outdatedSince : rank === 0 ? failingSince(p) : null;
     return { p, rank, since: since || '~' };
   });
-  keyed.sort(
-    (a, b) =>
-      a.rank - b.rank || (a.rank <= 1 ? (a.since < b.since ? -1 : a.since > b.since ? 1 : 0) : 0),
-  );
+  keyed.sort((a, b) => dir * (a.rank - b.rank || (a.rank <= 1 ? cmp(a.since, b.since) : 0)));
   return keyed.map((k) => k.p);
 }
 
@@ -4526,6 +4629,12 @@ document.addEventListener('click', (e) => {
   else return;
   update();
 });
+// ↓/↑: the list's order reversed, or back.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('button[data-sort-dir]')) return;
+  sortReverse = !sortReverse;
+  update();
+});
 // The search's matches in all of nixpkgs: the next ones, or every one again
 // (moreMatchesHtml).
 document.addEventListener('click', (e) => {
@@ -4557,7 +4666,12 @@ document.addEventListener('change', (e) => {
     buildFailedFilter = e.target.value || null;
   else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
   else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
-  else if (e.target.matches('select[data-status]')) statusFilter = e.target.value || null;
+  else if (e.target.matches('select[data-sort]')) sortMode = e.target.value || 'pressing';
+  else if (e.target.matches('select[data-pr-pick]')) {
+    refines.delete('withpr');
+    refines.delete('nopr');
+    if (e.target.value) refines.add(e.target.value);
+  } else if (e.target.matches('select[data-status]')) statusFilter = e.target.value || null;
   else if (e.target.matches('select[data-match-team]')) matchTeam = e.target.value || null;
   else if (e.target.matches('input[data-by]')) {
     const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
@@ -4650,12 +4764,6 @@ document.getElementById('search').addEventListener('input', () => {
   pkgParam = null; // a search leaves a package shown alone (?pkg=)
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => update(), 150);
-});
-document.getElementById('sortBtn').addEventListener('click', (e) => {
-  sortAZ = !sortAZ;
-  e.currentTarget.setAttribute('aria-pressed', sortAZ);
-  if (packages.length || community) update();
-  else writeViewToUrl();
 });
 // With every package: the links between views (a generated set, one
 // package, back to what needs attention) and the team picker. A click with
@@ -4785,6 +4893,23 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/' && !e.target.closest('input, textarea') && !search.disabled) {
     e.preventDefault();
     search.focus();
+  } else if (
+    // Typing with the list focused (a row): into the search, as it filters
+    // as you type. Only there, not anywhere on the page: a letter alone
+    // shortcuts only its own component (WCAG 2.1.4), and Ctrl+F stays the
+    // browser's.
+    e.target.matches?.('tr.row') &&
+    e.key.length === 1 &&
+    e.key !== ' ' &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    !search.disabled
+  ) {
+    e.preventDefault();
+    search.focus();
+    search.value += e.key;
+    search.dispatchEvent(new Event('input', { bubbles: true }));
   } else if (e.key === 'Escape' && e.target === search && search.value) {
     search.value = '';
     clearTimeout(searchTimer);

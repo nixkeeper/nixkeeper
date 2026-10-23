@@ -140,7 +140,10 @@ packages instead (their whole GitHub handle, as nixpkgs lists it in
 list, the search and order work on it too, and a search also lists the
 packages beyond it whose names match, closest first. The browser's find
 (Ctrl+F) only sees the page shown: the search box looks through every
-package.
+package. It filters as you type; `/` jumps to it, and so does typing with
+a row of the list focused (after clicking one, or tabbing to it). Python
+packages are found as nixpkgs titles write them too: `python3Packages.`
+finds `python313Packages.…`.
 
 Those matches in all of nixpkgs show 50 at a time ("Show 200 more" for the
 next), and narrow by **in** a package set (the same `?in=` as the list's,
@@ -154,8 +157,19 @@ opens a team's page). Each choice says how many match with the others
 picked; **Clear filters** goes back to every match. `?q=python&status=outdated` is
 every outdated package with "python" in its name.
 
-**Pages.** The list shows 200 packages at a time, most in need of attention
-first; the page links under it go through the rest (`?page=2`). "Per page"
+**Order.** **Sort** under the tiles picks it, and ↓/↑ beside it reverses
+it (`?sort=…&order=reverse`); packages with nothing to sort by stay last
+either way:
+
+| Sort | First |
+|---|---|
+| most pressing (the default) | failing, then outdated, the longest-standing of each first (vulnerable ones by severity, on Vulnerable) |
+| longest-standing | how long it's been failing or outdated, the tile's kind when one is picked (`?sort=oldest`); outdated dates only go back to when nixkeeper started following a package |
+| newest | the opposite (`?sort=newest`) |
+| biggest version gap | the biggest update: a new first part (2.8.2 → 3.2.4) before a new second (1.2 → 1.9), and so on; within those, the bigger step relative to the old number; a date as a version (20221026) by years. Numbering changes (2026-10 → 202610050438) after them (`?sort=gap`). Its top often shows Repology matching the wrong project |
+| name A–Z | by name (`?sort=az`) |
+
+**Pages.** The list shows 200 packages at a time, in that order; the page links under it go through the rest (`?page=2`). "Per page"
 beside them shows 50, 100, 200, 500 or 1,000 at a time instead (`?per=500`,
 kept when moving between views; the maintainers' list too), staying on the
 page that holds the first package you were looking at. Changing a filter,
@@ -184,10 +198,10 @@ what's left.
 |---|---|---|
 | **without maintainer** | packages with no maintainer | `?refine=unmaintained` |
 | **not marked broken** | failures nobody has marked yet | `?refine=notbroken` |
-| **not fixed on master yet** | outdated packages, leaving out those whose update is merged and waits for nixos-unstable | `?refine=notonmaster` |
+| **not merged yet** | outdated packages, leaving out those whose update is already merged: on master (waiting for nixos-unstable), into staging or staging-next, or a branch like haskell-updates | `?refine=notonmaster` |
 | **breaks on staging-next** | packages that build on master but fail their own build on staging-next, at the same version, in Hydra's newest evaluation of it (a day or two old): unless fixed, they fail on master when staging-next is merged into it. A forecast: no count includes it, and a fix may already be waiting on staging. The details link each failing build | `?refine=stagingnext` |
 | **not built where listed** | packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there: usually a dependency isn't available there, or `meta.platforms` promises too much); with a platform picked, that platform's only. Packages Hydra builds nowhere (unfree, kept off it) aren't. For all of nixpkgs at once, its own list: **Not built where listed** (`?view=unbuilt`, linked from Marked broken), where a platform picked keeps those not built there (`?view=unbuilt&platform=darwin`, `aarch64-linux`) | `?refine=unbuilt` |
-| **with an open PR** | packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) | `?refine=withpr` |
+| **open PR**: with one, or without | with one: packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) Without one: those no open PR touches, nobody on them yet | `?refine=withpr`, `?refine=nopr` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
 | **build failed because** | build failures for one reason, as the build's log on Hydra says (read by nixkeeper-hydra): compile error, tests, link error, missing header, CMake 4 (it refuses projects asking for CMake older than 3.5), CMake, Python import, dependencies, build or metadata, writes to `$HOME`, hash, patch, download, out of disk (Hydra's side), other, and more; "not read yet" while nixkeeper-hydra catches up. Each with how many there are in the list, on the platform picked | `?buildFailed=cmake4` |
@@ -195,7 +209,7 @@ what's left.
 | **older than** a month, 6 months, a year, 2 or 3 years | how long it's been failing or outdated (the counts' kind, when one is picked: failing for over 6 months, say) | `?age=1m`, `6m`, `1y`, `2y`, `3y` |
 | **never built** | a failing build that never succeeded on Hydra, which has no date. With **on**, only there: when it's all that fails, the list shows "n/a" instead of how long, and the build column "never: darwin", say | `?age=never` |
 | **on** Linux, Linux x86_64, Linux aarch64 or Darwin (macOS, as nixpkgs calls it) | the packages available there, and only their builds there (build failures on aarch64-linux, say), as clicking a row's platform tag does; not those listed there but not built there by Hydra (a struck tag), unless **not built where listed** is on | `?platform=linux`, `x86_64-linux`, `aarch64-linux`, `darwin` (`macos` still works) |
-| **in** a package set | one set, by the attribute's first part (`python313Packages` for `python313Packages.requests`, `vimPlugins`), or the top-level packages | `?in=python313Packages`, `?in=top-level` |
+| **in** a package set | one set, by the attribute's first part (`python313Packages` for `python313Packages.requests`, `vimPlugins`), or the top-level packages; `python3Packages`, as nixpkgs writes it, is every `python3…Packages` | `?in=python313Packages`, `?in=python3Packages`, `?in=top-level` |
 | **by** a maintainer | the packages a maintainer is listed for (`meta.maintainers`), within the list shown (needs attention, a team's...): type their GitHub handle; those with the most there are suggested. Not on a maintainer's own page, which is theirs already | `?by=fabaff` |
 
 **On**, **in** and **by** say how many each choice would show, counted
@@ -203,6 +217,9 @@ with every other filter (the tiles, the search, the others of the three):
 with `by` fabaff, `in` offers python313Packages with fabaff's count there.
 A set's count is in packages; the pages under the list count rows, where
 [one update moving many](#lists) is one.
+
+A chip that's on is tinted, with ✕ at its end, as the list's own chip
+("Needs attention ✕"): clicking it turns it off.
 
 The `?refine=` words combine (`?refine=unmaintained,notbroken`), so
 "failing for 6 months, with no maintainer" is a link. A build failure's date
@@ -324,11 +341,11 @@ to "checked" at the top for all of them):
 
 | Dot | Means |
 |---|---|
-| green | up to date: nixpkgs has the newest version (for a devel package, the newest devel one), or is the only one packaging it, or an [up-to-date rule](community.md#up-to-date-rules-until-something-changes) says Repology gets its version wrong (the details say why). Also when the newer version is only another spelling of the same snapshot: `unstable-2022-10-20` against nixpkgs' older channels' `2022-10-20`; or only nixpkgs' own earlier version: one only its old release channels have (no longer updated: a numbering nixpkgs has since changed), or one only its release channels have while PyPI, CRAN or another upstream index has unstable's (azure's 39.0.0, a mistake since reverted); or only another commit on a nixpkgs channel (tree-sitter grammars' `0.0.0+rev=e45dbac` against 26.05's `rev=9566ca7`: commits have no order) |
+| green | up to date: nixpkgs has the newest version (for a devel package, the newest devel one), or is the only one packaging it and nixkeeper's update check (GitHub's releases, a package archive) confirms its version, or an [up-to-date rule](community.md#up-to-date-rules-until-something-changes) says Repology gets its version wrong (the details say why). Also when the newer version is only another spelling of the same snapshot: `unstable-2022-10-20` against nixpkgs' older channels' `2022-10-20`; or only nixpkgs' own earlier version: one only its old release channels have (no longer updated: a numbering nixpkgs has since changed), or one only its release channels have while PyPI, CRAN or another upstream index has unstable's (azure's 39.0.0, a mistake since reverted); or only another commit on a nixpkgs channel (tree-sitter grammars' `0.0.0+rev=e45dbac` against 26.05's `rev=9566ca7`: commits have no order) |
 | orange | outdated: Repology or nixkeeper's own update check knows a newer version |
 | violet | outdated, but the update is already merged on master, waiting for nixos-unstable (usually a few days). Master having a newer version than the channel counts too, even before Repology or an update check knows of it |
 | pink | not in nixpkgs unstable (counted as failed) |
-| grey | Repology can't compare the version: `untrusted`, `rolling`, `noscheme`, `incorrect` (shown as a badge); **unsupported**: nixpkgs' version is `0-unsupported`, as it doesn't build the package in its default configuration (CUDA packages for another CUDA); or an **older version** nixpkgs keeps on purpose beside a newer one (`tracy_0_11` beside `tracy`, `php82Extensions` beside PHP 8.4's): not outdated while nothing newer is out in its own series, and the details name the newer one |
+| grey | Repology can't compare the version: `untrusted`, `rolling`, `noscheme`, `incorrect` (shown as a badge); **only in nixpkgs**: no other repository packages it and no update check of nixkeeper's knows its releases, so nothing compared it; **unsupported**: nixpkgs' version is `0-unsupported`, as it doesn't build the package in its default configuration (CUDA packages for another CUDA); or an **older version** nixpkgs keeps on purpose beside a newer one (`tracy_0_11` beside `tracy`, `php82Extensions` beside PHP 8.4's): not outdated while nothing newer is out in its own series, and the details name the newer one |
 
 ## The version
 

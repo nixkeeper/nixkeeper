@@ -278,7 +278,8 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 - `names.json`: `{ "names": [ [name, status], ... ] }` for every row, with
   its set as a third element when it's in a set updated in bulk. `status` is a letter as the
   page's dot: `f` failed, `m` outdated but merged on master, `o` outdated,
-  `u` up to date, `n` can't be compared; then `v` when vulnerable (flagged
+  `u` up to date, `n` can't be compared (or compared with nothing:
+  `onlyNixpkgs`); then `v` when vulnerable (flagged
   by Repology, or marked insecure by nixpkgs).
 - `facets.json`: `{ "handles": [...], "teams": [...], "rows": [...] }`, one
   entry in `rows` for each of `names.json`'s, in the same order: where it's
@@ -331,6 +332,7 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 | `refVersion` | the newest version seen elsewhere (for a devel row, the newest devel one), or what nixkeeper's update check found, or what master has (`master`), whichever is newest |
 | `refFromMaster` | `true` when `refVersion` is master's: newer than anything Repology or an update check knows of |
 | `repoCount` | how many other repositories Repology compares it with (each counted once) |
+| `onlyNixpkgs` | `true` when no repository outside nixpkgs has it (nixpkgs' release channels aren't another). With `nixStatus` `unique` and no `upstream` or `feed`, its version was compared with nothing: the page shows it grey ("only in nixpkgs"), its status letter is `n`. Packages it's true for get the GitHub releases digest's result even when it only confirms their version |
 | `devel` | a development variant of a split project: newer than its stable one, or named for one (`wesnoth-devel`, `_1password-gui-beta`); or a version Repology calls devel |
 | `keptBeside` | for an older version nixpkgs keeps on purpose (Repology's `legacy`: `tracy_0_11`, `gnumake42`, `php82Extensions.zip`), the newer one beside it: `{ "attr", "version" }` |
 | `feed` | when its versions are compared with its own source instead of Repology: `{ "name", "version", "released"?, "dated"?, "url" }`, its newest version there, the day it was published (when the source says), and `dated` when versions are a build's date and time (MELPA's `20251005.508`). `nixStatus` and `refVersion` are then from it. Typst packages, with Typst Universe: `outdated` or `newest` for a package's latest attribute (`typstPackages.cetz`), `legacy` for its other versions (`typstPackages.cetz_0_3_0`). Emacs packages, with the archive each comes from (`MELPA` for a MELPA version, else the first of `MELPA Stable`, `NonGNU ELPA` and `GNU ELPA` that has it, in nixpkgs' order); not the hand-written ones, the devel archives' versions or packages no archive has. Haskell packages nixpkgs pins to Stackage LTS, with that series' newest snapshot (`Stackage LTS 24`): also `snapshot` (`lts-24.62`), `followed` (the one nixpkgs follows, `lts-24.38`) and `heldBack` (Hackage's newer version, which Stackage holds back until its next series); the rest of `haskellPackages` keep Repology's verdict. R packages, with `CRAN` or the Bioconductor release nixpkgs pins (`Bioconductor 3.23`) |

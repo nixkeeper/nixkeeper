@@ -83,9 +83,12 @@ def result(entry):
 def apply(rows, digest, rules, now):
     """Give rows without a rule (rules: {name: check}) the digest's result as
     their worked-out check (upstream.apply, inferred: it only adds a newer
-    version). Rows not on the lists get it only when it's newer, or tagged
-    (the rest add nothing to them). Returns the names answered: those
-    the sync's own worked-out checks needn't run for."""
+    version). Rows not on the lists get it only when it's newer, or tagged,
+    or when only nixpkgs packages them (onlyNixpkgs: then it's the one
+    thing their version is compared with, else nothing would be: 3,320
+    rows on 2026-10-23, python313Packages.pbar2); the rest add nothing to
+    them. Returns the names answered: those the sync's own worked-out
+    checks needn't run for."""
     if not digest:
         return set()
     today = datetime.fromisoformat(now).date()
@@ -109,7 +112,12 @@ def apply(rows, digest, rules, now):
         ):
             continue
         newer = is_newer(found["version"], nix)
-        if not listed and not newer and not found.get("tagged"):
+        if (
+            not listed
+            and not newer
+            and not found.get("tagged")
+            and not row.get("onlyNixpkgs")
+        ):
             continue
         upstream.apply(row, found)
         answered.add(row["name"])

@@ -520,6 +520,20 @@ def highlights(found):
     }
 
 
+def nothing_compared(row):
+    """Whether row's "newest" was compared with nothing: Repology's unique
+    (no other repository has a newer version) when no repository outside
+    nixpkgs has it at all, and no update check or feed of nixkeeper's own
+    knows its releases (python313Packages.pbar2, ~21,300 rows on
+    2026-10-23). Not up to date then: not compared (computeStatus)."""
+    return (
+        row.get("nixStatus") == "unique"
+        and bool(row.get("onlyNixpkgs"))
+        and not row.get("upstream")
+        and not row.get("feed")
+    )
+
+
 def status(row):
     """A row's status as the page's dot shows it (computeStatus and
     hasFailure in page/logic.js), in a letter: f failed, m outdated but
@@ -532,7 +546,9 @@ def status(row):
         letter = "m"
     elif is_outdated(row):
         letter = "o"
-    elif row.get("nixStatus") in ("newest", "unique", "devel"):
+    elif row.get("nixStatus") in ("newest", "unique", "devel") and not nothing_compared(
+        row
+    ):
         letter = "u"
     else:
         letter = "n"

@@ -156,6 +156,19 @@ class Rows(unittest.TestCase):
             row(old, current, other("aur", "39.0.0", "newest")), ("outdated", "39.0.0")
         )
 
+    def test_only_nixpkgs(self):
+        """python313Packages.pbar2, 2026-10-23: unique, as no repository
+        outside nixpkgs has it (its release channels aren't another)."""
+        entries = [
+            nix("p", "2.2.1", "unique"),
+            other("nix_stable_26_05", "2.2.1", "unique"),
+        ]
+        (row,) = self.rows(project("p", ["p"], entries, "p"))
+        self.assertTrue(row.get("onlyNixpkgs"))
+        entries.append(other("aur", "2.2.1", "newest"))
+        (row,) = self.rows(project("p", ["p"], entries, "p"))
+        self.assertNotIn("onlyNixpkgs", row)
+
     def test_behind_only_another_commit(self):
         """vimPlugins.nvim-treesitter-parsers.liquid, 2026-10-20:
         0.0.0+rev=e45dbac, 26.05's 0.0.0+rev=9566ca7, ranked as letters."""

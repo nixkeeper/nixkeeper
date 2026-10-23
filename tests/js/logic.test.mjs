@@ -33,6 +33,7 @@ import {
   hasFailure,
   homeHref,
   html,
+  inPickedSet,
   isVulnerable,
   maintainerMatches,
   maintainersKeep,
@@ -71,6 +72,7 @@ import {
   unbuiltWhere,
   updateTitle,
   versionDiff,
+  versionGap,
   viewPath,
   viewSlug,
   vulnSources,
@@ -1357,5 +1359,63 @@ describe('decodeFacets and matchFacets with facets', () => {
   });
   test('while facets.json loads, its filters keep everything', () => {
     assert.equal(matchFacets(names, { by: 'iedame' }).kept.length, 3);
+  });
+});
+
+describe('searching by the name nixpkgs titles use', () => {
+  test('python3Packages. finds python313Packages.', () => {
+    const pkg = { name: 'python313Packages.requests', searchTerm: 'python3Packages.requests' };
+    assert.equal(matchesSearch(pkg, 'python3Packages.'), true);
+    assert.equal(matchesSearch(pkg, 'python313Packages.req'), true);
+    const names = [
+      ['python313Packages.requests', 'u'],
+      ['requests-oauthlib', 'u'],
+    ];
+    const { found } = nameMatches(names, 'python3Packages.req', new Set());
+    assert.deepEqual(
+      found.map(([n]) => n),
+      ['python313Packages.requests'],
+    );
+  });
+});
+
+describe('inPickedSet', () => {
+  test('python3Packages picks any python3xPackages', () => {
+    assert.equal(inPickedSet('python313Packages', 'python3Packages'), true);
+    assert.equal(inPickedSet('python314Packages', 'python3Packages'), true);
+    assert.equal(inPickedSet('python313Packages', 'python313Packages'), true);
+    assert.equal(inPickedSet('python313Packages', 'perl5Packages'), false);
+    assert.equal(inPickedSet('pythonPackages', 'python3Packages'), false);
+  });
+});
+
+describe('versionGap', () => {
+  test('a major update before a minor, a minor before a patch, bigger steps first', () => {
+    assert.deepEqual(versionGap('2.8.2', '3.2.4'), { level: 0, step: 0.5, scheme: false });
+    assert.deepEqual(versionGap('5.0.0', '5.0.1'), { level: 2, step: 1, scheme: false });
+    assert.deepEqual(versionGap('1.2.0', '1.9.0'), { level: 1, step: 3.5, scheme: false });
+    assert.deepEqual(versionGap('1.0', '1.0-rc2'), { level: 2, step: 1, scheme: false });
+    assert.equal(versionGap('1.0', '1.0'), null);
+    assert.equal(versionGap('1.0', null), null);
+  });
+  test('relative steps: a build number moves less than a major version', () => {
+    assert.ok(versionGap('10798', '11832').step < versionGap('2.0', '3.0').step);
+  });
+  test('a numbering change has no size; dates count in years', () => {
+    assert.equal(versionGap('2026-10', '202610050438').scheme, true);
+    assert.equal(versionGap('0-unstable-2021-04-19', '2021041900').scheme, true);
+    assert.equal(versionGap('9', '10').scheme, false); // a digit more is fine
+    assert.equal(versionGap('20261009101206', '20261021011254').step, 0);
+    assert.equal(versionGap('20060219', '20221026').step, 16);
+  });
+});
+
+describe('nothingCompared', () => {
+  test("unique with no other repository and no check of nixkeeper's own: grey", () => {
+    const alone = { nixStatus: 'unique', onlyNixpkgs: true };
+    assert.equal(computeStatus(alone), 'neutral');
+    assert.equal(computeStatus({ ...alone, upstream: { version: '1' } }), 'ok');
+    assert.equal(computeStatus({ ...alone, feed: { name: 'CRAN' } }), 'ok');
+    assert.equal(computeStatus({ nixStatus: 'unique' }), 'ok');
   });
 });

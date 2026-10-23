@@ -306,6 +306,15 @@ class Data(unittest.TestCase):
         self.assertEqual(datastore.status(row("a", nixVulnerable=True)), "uv")
         insecure = row("a", markedInsecure=["CVE-2020-25031"])
         self.assertEqual(datastore.status(insecure), "uv")  # nixpkgs' own say
+        # Unique with nothing compared: not up to date (pbar2); with a check
+        # of nixkeeper's own, it is.
+        alone = row("a", nixStatus="unique", onlyNixpkgs=True)
+        self.assertEqual(datastore.status(alone), "n")
+        checked = row(
+            "a", nixStatus="unique", onlyNixpkgs=True, upstream={"version": "1"}
+        )
+        self.assertEqual(datastore.status(checked), "u")
+        self.assertEqual(datastore.status(row("a", nixStatus="unique")), "u")
         waiting = row("a", nixStatus="outdated", refVersion="2", master="2")
         self.assertEqual(datastore.status(waiting), "m")
 

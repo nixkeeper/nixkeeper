@@ -431,8 +431,11 @@ a:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
-.refine-btn[aria-pressed="true"]::before {
-  content: "✓ ";
+/* On: ✕ at its end, as the view's chip has (click to remove). */
+.refine-btn[aria-pressed="true"]::after {
+  content: "✕";
+  margin-left: 6px;
+  font-size: 0.85em;
 }
 .refine-btn:focus-visible,
 .refine-age select:focus-visible,
@@ -3137,3 +3140,10 @@ a.page-btn:focus-visible {
   }
 }
 /* biome-ignore-end lint/complexity/noImportantStyles: - */
+/* ↓/↑ (sortPick): pressed means reversed, not a filter on: no ✕. */
+.refine-btn.sort-dir {
+  min-width: 2.2em;
+}
+.refine-btn.sort-dir[aria-pressed="true"]::after {
+  content: none;
+}

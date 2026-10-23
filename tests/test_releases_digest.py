@@ -82,6 +82,15 @@ class Apply(unittest.TestCase):
         self.assertFalse(rows[0]["upstream"]["newer"])
         self.assertNotIn("upstream", rows[1])  # it adds nothing there
 
+    def test_up_to_date_when_only_nixpkgs_packages_it(self):
+        """python313Packages.pbar2, 2026-10-23: Repology's "unique", no other
+        repository; GitHub's release is the one thing to compare with."""
+        digest = {"pbar2": entry("2.2.1", tag="2.2.1", release="2.2.1")}
+        rows = [row("pbar2", "2.2.1", status="unique")]
+        rows[0]["onlyNixpkgs"] = True
+        self.assertEqual(releases_digest.apply(rows, digest, {}, NOW), {"pbar2"})
+        self.assertFalse(rows[0]["upstream"]["newer"])
+
     def test_not_trusted_or_not_its_own(self):
         digest = {
             # Bumped since the digest's evaluation: another tag scheme maybe.

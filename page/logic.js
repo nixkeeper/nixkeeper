@@ -170,8 +170,16 @@ export function nameMatches(names, query, shown, limit = 50) {
     const n = name.toLowerCase();
     return (n === q ? 0 : 4) + (n.startsWith(q) ? 0 : 2) + (n.includes('.') ? 1 : 0);
   };
+  // python3Packages.x, as nixpkgs titles write python313Packages.x
+  // (config.SEARCH_ALIASES): tried only when the search asks for it.
+  const alias = q.includes('python3packages')
+    ? (n) => n.replace(/^python3\d+packages\./, 'python3packages.')
+    : (n) => n;
   const all = names
-    .filter(([name]) => name.toLowerCase().includes(q) && !shown.has(name))
+    .filter(([name]) => {
+      const n = name.toLowerCase();
+      return (n.includes(q) || alias(n).includes(q)) && !shown.has(name);
+    })
     .sort((a, b) => rank(a[0]) - rank(b[0]) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { found: all.slice(0, limit), total: all.length };
 }
@@ -260,6 +268,13 @@ export function unbuiltWhere(pkg) {
 // check), or, for a devel variant (a beta), a newer devel version elsewhere
 // (config.KEPT in nixkeeper). Whether a row is a devel variant comes
 // separately from pkg.devel and only shades its "devel" badge.
+// Repology's "unique" with nothing to compare: no repository outside
+// nixpkgs has it, and no update check or feed of nixkeeper's own knows its
+// releases (python313Packages.pbar2): not up to date, not compared
+// (datastore.nothing_compared).
+export const nothingCompared = (pkg) =>
+  pkg.nixStatus === 'unique' && Boolean(pkg.onlyNixpkgs) && !pkg.upstream && !pkg.feed;
+
 export function computeStatus(pkg) {
   if (pkg.nixStatus === 'missing') return 'missing';
   if (pkg.nixStatus === 'outdated') return 'warn';
@@ -275,6 +290,7 @@ export function computeStatus(pkg) {
   if (pkg.upstream?.newer) return 'warn';
   // Or master already has a newer version than the channel.
   if (aheadOnMaster(pkg)) return 'warn';
+  if (nothingCompared(pkg)) return 'neutral';
   if (pkg.nixStatus === 'newest' || pkg.nixStatus === 'unique' || pkg.nixStatus === 'devel')
     return 'ok';
   return 'neutral';
@@ -584,7 +600,11 @@ export function matchesSearch(pkg, query) {
     if (handle === 'none') return Array.isArray(pkg.maintainers) && pkg.maintainers.length === 0;
     return (pkg.maintainers || []).some((m) => m.toLowerCase() === handle);
   }
-  return [pkg.name, pkg.project, ...(pkg.attrs || [])].some((n) => n?.toLowerCase().includes(q));
+  // searchTerm: the name as nixpkgs titles write it (python3Packages.x for
+  // python313Packages.x), which is what people type.
+  return [pkg.name, pkg.project, pkg.searchTerm, ...(pkg.attrs || [])].some((n) =>
+    n?.toLowerCase().includes(q),
+  );
 }
 
 // The version an update would bring.
@@ -1002,6 +1022,12 @@ export function nameSet(name) {
   return dot < 0 ? TOP_LEVEL : name.slice(0, dot);
 }
 
+// Whether a package set (nameSet's) is the one picked (?in=): itself, or
+// for python3Packages, as nixpkgs writes it, any python3xPackages
+// (config.SEARCH_ALIASES).
+export const inPickedSet = (set, picked) =>
+  set === picked || (picked === 'python3Packages' && /^python3\d+Packages$/.test(set));
+
 // How many of list have each value of key(pkg) (one or several values):
 // [[value, count]], the most first, ties by name (any case). A list's
 // filter counts. Names compared as plain lowercase strings: localeCompare
@@ -1074,7 +1100,7 @@ export function matchFacets(matches, picked = {}, facetsOf = null) {
   const { set = null, status = null, by = null, team = null, platform = null } = picked;
   const of = (e) => (facetsOf && facetsOf(e)) || null;
   const tests = {
-    set: ([name]) => !set || nameSet(name) === set,
+    set: ([name]) => !set || inPickedSet(nameSet(name), set),
     status: ([, letter]) => !status || nameStatusIs(letter, status),
     by: (e) => !by || !facetsOf || (of(e)?.handles || []).includes(by),
     team: (e) => !team || !facetsOf || (of(e)?.teams || []).includes(team),
@@ -1100,4 +1126,35 @@ export function matchFacets(matches, picked = {}, facetsOf = null) {
     );
   }
   return found;
+}
+
+// How big an update from → to is, to sort by: {level, step, scheme},
+// level the number of version parts that stay (0: the first part changes,
+// a major update), step the change in the first differing part, relative to
+// where it was, when both are numbers (2.8.2 → 3.2.4: level 0, step 0.5;
+// 5.0.0 → 5.0.1: level 2, step 1; a build number 10798 → 11832: 0.1), so
+// numbering styles compare; for dates as versions (20221026), the years
+// apart; else 1. scheme: the numbering changed rather than the version
+// (2026-10 → 202610050438, 0-unstable-2021-04-19 → 2021041900: parts more
+// than a digit apart in length), no real size; sorted after the rest. null
+// without a newer version. Bigger first: scheme last, then level
+// ascending, then step descending.
+export function versionGap(from, to) {
+  if (!from || !to || from === to) return null;
+  const parts = (v) => v.split(/[.\-_+~]/);
+  const [a, b] = [parts(from), parts(to)];
+  let level = 0;
+  while (level < a.length && level < b.length && a[level] === b[level]) level++;
+  const [pa, pb] = [a[level] ?? '', b[level] ?? ''];
+  const [x, y] = [Number(pa), Number(pb)];
+  const numbers = pa !== '' && pb !== '' && Number.isFinite(x) && Number.isFinite(y);
+  const scheme = numbers && Math.abs(pa.length - pb.length) > 1;
+  const dated = (p) => p.length >= 8 && /^(19|20)/.test(p);
+  const years = (p) => Number(p.slice(0, 4));
+  let step = 1;
+  if (numbers && !scheme && y !== x) {
+    step =
+      dated(pa) && dated(pb) ? Math.abs(years(pb) - years(pa)) : Math.abs(y - x) / Math.max(x, 1);
+  }
+  return { level, step, scheme };
 }

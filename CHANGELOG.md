@@ -11,6 +11,16 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- Sorting the list: **Sort** (most pressing, longest-standing, newest,
+  biggest version gap, name A–Z: `?sort=`) and ↓/↑ reversing it
+  (`?order=reverse`), under the tiles. The A–Z button in the header goes:
+  name A–Z is one of the orders (`?sort=az` links still work).
+- **Open PR: with one / without** (`?refine=nopr` for packages no PR
+  touches), instead of the one-sided "With an open PR" chip.
+- Typing with a row of the list focused goes into the search, which filters
+  as you type. `python3Packages.` finds `python313Packages.…` (as nixpkgs
+  titles write it), in the list and in all of nixpkgs, and
+  `?in=python3Packages` is every `python3…Packages` set.
 - Facets in the list's filters: **in** a package set (`?in=python313Packages`,
   `?in=top-level`) and **by** a maintainer within the list shown
   (`?by=fabaff`, typed or picked from the 300 with the most there), and
@@ -27,6 +37,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- "Not fixed on master yet" is **Not merged yet**: it also leaves out
+  updates merged into staging, staging-next or a branch like
+  haskell-updates (`?refine=notonmaster` unchanged).
+- A filter chip that's on ends in ✕, as the list's chip does, instead of
+  starting with ✓.
 - The line by the logo and the tab's title: "health of every nixpkgs
   package", as nixkeeper.com covers all of nixpkgs now; and the
   description (page, flake, package), in nixpkgs' style (no article, no
@@ -39,6 +54,16 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   and the release notes' card show the overview's social preview
   ("Health dashboard for every nixpkgs package"); the list's says
   "Health dashboard for your nixpkgs packages".
+
+### Fixed
+
+- A package only nixpkgs packages, whose version nothing compared, is grey
+  ("only in nixpkgs"), not green: Repology's "unique" with no other
+  repository and no update check of nixkeeper's (17,988 packages on
+  2026-10-23). The rows say `onlyNixpkgs`; its status letter is `n`.
+  Those GitHub's releases confirm stay green: the GitHub releases digest's
+  result is now used for them even when it only confirms the version
+  (3,488, python313Packages.pbar2).
 
 ## [0.21.0] - 2026-10-21
 

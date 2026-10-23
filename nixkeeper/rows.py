@@ -399,6 +399,14 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         or newest("unique"),
         # Repositories, not entries: one can list a package several times.
         "repoCount": len({e.get("repo") for e in others}),
+        # No repository outside nixpkgs has it (nixpkgs' release channels
+        # aren't another): Repology's "unique" then compared it with
+        # nothing (datastore.nothing_compared).
+        **(
+            {"onlyNixpkgs": True}
+            if not any(not e.get("repo", "").startswith("nix_") for e in others)
+            else {}
+        ),
         # A devel variant of a split project, or a version Repology itself
         # classifies as devel (lincity).
         "devel": devel or (nix or {}).get("status") == "devel",
