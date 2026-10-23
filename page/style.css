@@ -276,13 +276,15 @@ header.top {
   display: grid;
   gap: 6px;
 }
+/* Headings (here, the popovers' titles, the details' facts and sections):
+   the size of what they head, in sentence case, set apart by weight and
+   colour; small capitals were a size and a half smaller than their
+   content (2026-10-23). */
 .theme-panel legend {
   padding: 0 0 6px;
-  color: var(--ink-faint);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 .theme-panel .choices {
   display: flex;
@@ -605,11 +607,9 @@ button.checked:focus-visible {
 }
 .legend-panel .pop-title {
   margin: 0 0 8px;
-  color: var(--ink-faint);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 .legend-panel ul {
   list-style: none;
@@ -2066,48 +2066,10 @@ a.badge:hover {
   border-color: var(--hairline-strong);
   color: var(--ink);
 }
-/* The update cell's status joined to the robot (nixpkgs-update will try
-   it, from its queue): kept together on one line, two buttons with a dot
-   between, each opening the update panel; no pill behind them, so a row
-   with the robot doesn't stand out from those without. The robot green
-   when it's to the newest version and the last attempt didn't fail, amber
-   when the bot will try but it's unsure (queuedTag). */
-.upd-pair {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-.upd-pair .failure-btn {
-  padding-right: 4px;
-}
-.queued-tag {
-  font: inherit;
-  font-size: 12.5px;
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 9px 4px 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--caution);
-  cursor: pointer;
-}
-.queued-tag::before {
-  content: "·";
-  padding-right: 5px;
-  color: var(--ink-faint);
-}
 /* The update cell's "auto update in 4 days" (botDueText): the robot's green. */
 .bot-due {
   color: var(--ok-devel);
   font-weight: 500;
-}
-.queued-tag.match {
-  color: var(--ok-devel);
-  font-weight: 500;
-}
-.queued-tag:hover {
-  filter: brightness(1.15);
 }
 .bot-icon {
   display: block;
@@ -2123,10 +2085,6 @@ a.badge:hover {
 }
 .bot-mark.match {
   color: var(--ok-devel);
-}
-.queued-tag:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .failure-na {
   color: var(--ink-faint);
@@ -2203,14 +2161,30 @@ a.badge:hover {
   font-weight: 600;
   color: var(--ink);
 }
-/* None open: still a link, but out of the way. */
-.gh-btn[data-zero] {
-  color: var(--ink-faint);
-  border-color: transparent;
+/* GitHub's icons (GH_ICONS): in the text's colour, beside their count in
+   the list; before each PR and issue in the details, a merged PR in the
+   violet of "merged" and a draft fainter. */
+.gh-btn {
+  align-items: center;
 }
-.gh-btn[data-zero] b {
-  color: inherit;
-  font-weight: 500;
+.gh-icon {
+  display: block;
+  flex: none;
+}
+.gh-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: bottom;
+}
+.gh-item .gh-icon {
+  color: var(--ink-soft);
+}
+.gh-item.merged .gh-icon {
+  color: var(--merged-dot);
+}
+.gh-item.draft .gh-icon {
+  color: var(--ink-faint);
 }
 /* The expand chevron: a round target that lights up with the row, and
    turns down when the row is open. */
@@ -2316,10 +2290,12 @@ tbody tr.row.open td {
   margin: 0;
 }
 .pd-facts dt {
-  color: var(--ink-faint);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+}
+/* Written in lower case ("outdated since"): a sentence's capital. */
+.pd-facts dt::first-letter {
   text-transform: uppercase;
 }
 .pd-facts dd {
@@ -2737,17 +2713,16 @@ button.cause-more {
 /* A panel's small headings ("Compared against"): like the popovers'. */
 .other-label {
   margin: 10px 0 8px;
-  color: var(--ink-faint);
-  font-size: 11px;
+  color: var(--ink-soft);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+}
+.other-label::first-letter {
   text-transform: uppercase;
 }
 /* How old the comparison is, when Repology wasn't asked today. */
 .other-label .since {
   font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
 }
 .repo-chips {
   display: flex;
@@ -3336,7 +3311,6 @@ a.page-btn:focus-visible {
   .checked,
   .hl-mode,
   .hl-all,
-  .queued-tag,
   .refine-btn,
   .refine-age select,
   .refine-age input {

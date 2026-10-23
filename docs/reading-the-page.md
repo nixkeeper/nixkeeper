@@ -99,7 +99,9 @@ the top, split: their own failure, a dependency's, unfinished), packages not bui
 
 Each row is a package. Clicking it opens [its details](#a-packages-details);
 clicking its build or update cell opens that panel instead. One package is
-open at a time, so opening another closes it.
+open at a time, so opening another closes it. Its **Open on GitHub** cell
+counts the open nixpkgs PRs and issues with its name in the title, each
+with GitHub's icon and a link to that search ("—" when there are none).
 
 **Opening a list.** At the top of every page:
 
@@ -137,7 +139,9 @@ marked broken, blocked).
 
 **Searching.** The search box matches names; `@handle` lists a maintainer's
 packages instead (their whole GitHub handle, as nixpkgs lists it in
-`meta.maintainers`), and `@none` the packages with no maintainer. Within a
+`meta.maintainers`), and `@none` the packages with no maintainer (a
+package's panel links them too, when it has none: "see all packages without
+one"). Within a
 list, the search and order work on it too, and a search also lists the
 packages beyond it whose names match, closest first. The browser's find
 (Ctrl+F) only sees the page shown: the search box looks through every
@@ -246,7 +250,9 @@ Job, "full log"); actions are outlined buttons (Hide).
 3 w), in #N, by @alice, merged by @bob", and, while its build fails, a PR
 merged since that likely fixes it, waiting for Hydra.
 
-**On GitHub**: what nixkeeper-prs found of the package's PRs and issues:
+**On GitHub**: what nixkeeper-prs found of the package's PRs and issues,
+each with GitHub's icon for it (an open PR, a draft, a merged one in violet,
+an issue):
 
 - its update PR ready for the merge bot, superseded or overtaken, blocking
   the update bot, or duplicated; **behind** when upstream has a newer

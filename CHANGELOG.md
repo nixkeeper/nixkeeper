@@ -52,6 +52,18 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- **Open on GitHub**: GitHub's icons and the counts above 0 ("PRs 2" is
+  the PR icon and 2), and "—" when there are none (two thirds of the
+  attention list showed "PRs 0 issues 0": two links to an empty search).
+  In a package's details, each PR and issue has GitHub's icon too: open,
+  draft, merged (in violet), issue.
+- Headings in the details, the popovers and the Theme menu ("Maintainers",
+  "Outdated since") the size of what they head, in sentence case, instead
+  of small capitals a size and a half smaller.
+- A package with no maintainer says "none in nixpkgs · see all packages
+  without one" instead of "(@none)", which read like a GitHub mention.
+- The robot of a "—" the bot is queued for anyway is inside its button
+  too, as in every other update cell (the separate robot button is gone).
 - The build and update columns: a **hard hat** (Hydra's builders) and a
   **robot** (nixpkgs-update) in place of the dot, then only why ("compile
   error", "patch"; "failure" when the logs don't say), without "failed:"

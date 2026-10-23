@@ -886,22 +886,37 @@ const HAT_ICON = raw(
   '<svg class="bot-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 11V9.6a4.8 4.8 0 0 1 9.6 0V11"/><path d="M6.6 5.1v3M9.4 5.1v3"/><rect x="1.5" y="11" width="13" height="2.4" rx="1.2"/></svg>',
 );
 
-// The robot, joined to the update cell's button: nixpkgs-update will try the
-// package (it's in the bot's queue). Green when to the newest version shown
-// and its last attempt didn't fail, so its PR should follow; amber when it
-// will try but it's unsure: its last attempt didn't work, it would update
-// to another version, or only the package's updateScript runs (an outdated
-// package's: the script decides the version). Not with an update PR open or
-// merged already (its badge says it). Like the cell's button, it opens the
-// update panel, which says when.
-function queuedTag(pkg) {
-  const q = queuedState(pkg);
-  return q
-    ? html`<button type="button" class="queued-tag${q.match ? ' match' : ''}" data-kind="update" aria-expanded="false" aria-label="Queued: ${q.title}" title="${q.title}">${BOT_ICON}</button>`
-    : '';
-}
+// GitHub's own icons (Octicons, (c) GitHub, MIT licence), 14px, in the
+// text's colour: an open PR, a draft, a merged one, an open issue. In the
+// list's GitHub cell and before each PR and issue in a package's details.
+const octicon = (d) =>
+  raw(
+    `<svg class="gh-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">${d
+      .map((p) => `<path d="${p}"/>`)
+      .join('')}</svg>`,
+  );
+const GH_ICONS = {
+  pr: octicon([
+    'M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z',
+  ]),
+  draft: octicon([
+    'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 14a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM14 7.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Zm0-4.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z',
+  ]),
+  merged: octicon([
+    'M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM5 3.25a.75.75 0 1 0 0 .005V3.25Z',
+  ]),
+  issue: octicon([
+    'M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
+    'M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z',
+  ]),
+};
 
-// Whether nixpkgs-update is set to try the package (queuedTag's robot):
+// The robot in place of a cell's dot (updateCell): red, or "queued" amber
+// and "match" green, the queue's colours (queuedState).
+const botMark = (colour) =>
+  html`<span class="bot-mark${colour ? ` ${colour}` : ''}" aria-hidden="true">${BOT_ICON}</span>`;
+
+// Whether nixpkgs-update is set to try the package (the update cell's robot):
 // { match: to the newest version, its last attempt fine, so its PR should
 // follow; title }, or null.
 function queuedState(pkg) {
@@ -3256,7 +3271,7 @@ function closeOthers(tr) {
       detail.classList.remove('open');
       detail.dataset.mode = '';
     }
-    for (const btn of other.querySelectorAll('.failure-btn, .queued-tag')) {
+    for (const btn of other.querySelectorAll('.failure-btn')) {
       btn.setAttribute('aria-expanded', 'false');
     }
   }
@@ -3280,7 +3295,7 @@ async function toggle(tr, mode) {
   tr.classList.toggle('open', !closing);
   detail.classList.toggle('open', !closing);
   detail.dataset.mode = closing ? '' : mode;
-  for (const btn of tr.querySelectorAll('.failure-btn, .queued-tag')) {
+  for (const btn of tr.querySelectorAll('.failure-btn')) {
     btn.setAttribute('aria-expanded', !closing && btn.dataset.kind === mode);
   }
   if (closing) return;
@@ -3563,27 +3578,21 @@ function buildCell(pkg) {
 
 // nixpkgs-update's latest attempt. `update` is null when the bot never tried
 // and missing for packages not in nixpkgs. When the bot is set to update it
-// (its queue), the robot is in front, in place of the dot, coloured as
-// queuedTag's: green when its PR should follow, amber when unsure; its hover
-// says which. Without the queue, a failure's robot is red and "can't
+// (its queue), the robot is in front, in place of the dot: green when to
+// the newest version and its last attempt didn't fail, so its PR should
+// follow; amber when it will try but it's unsure (queuedState); its hover
+// says which, and the update panel when. Without the queue, a failure's robot is red and "can't
 // update"'s gold; the rest have no mark.
 function updateCell(pkg) {
   // A set's, the bot never tried: its set's tooling updates it.
   if (pkg.set && !pkg.update)
-    return queuedBeside(
-      pkg,
-      html`<span class="failure-na" title="${bulkText(pkg.set)}: nixpkgs-update hasn't tried it">—</span>`,
-    );
+    return queuedOrDash(pkg, `${bulkText(pkg.set)}: nixpkgs-update hasn't tried it`);
   if (pkg.update === undefined)
     return html`<span class="failure-na" title="Not in nixpkgs">—</span>`;
   if (pkg.update === null && pkg.unversioned && !pkg.unread?.includes('update'))
-    return queuedBeside(
-      pkg,
-      html`<span class="failure-na" title="${UNVERSIONED_TITLE}: nothing for nixpkgs-update to update">—</span>`,
-    );
+    return queuedOrDash(pkg, `${UNVERSIONED_TITLE}: nothing for nixpkgs-update to update`);
   const q = queuedState(pkg);
-  const robot = (colour) =>
-    html`<span class="bot-mark${colour ? ` ${colour}` : ''}" aria-hidden="true">${BOT_ICON}</span>`;
+  const robot = botMark;
   const button = (dot, text, quiet = false, unqueued = null) =>
     failureButton(
       'update',
@@ -3634,11 +3643,22 @@ function updateCell(pkg) {
   return button('ok', 'none reported', true);
 }
 
-// A "—" with nothing to open: the queue's robot beside it, as its own
-// button, when the bot is set to update it anyway.
-function queuedBeside(pkg, dash) {
-  const queued = queuedTag(pkg);
-  return queued ? html`<span class="upd-pair">${dash}${queued}</span>` : dash;
+// A "—" with nothing to open, saying why on hover; unless the bot is set
+// to update it anyway: then the robot and "—", one button opening the
+// update panel, as the other cells.
+function queuedOrDash(pkg, why) {
+  const q = queuedState(pkg);
+  if (!q) return html`<span class="failure-na" title="${why}">—</span>`;
+  return failureButton(
+    'update',
+    'neutral',
+    'none reported',
+    `${why}. ${q.title.replace(/\. When: the update panel$/, '')}`,
+    notRefreshed(pkg, 'update'),
+    true,
+    botMark(q.match ? 'match' : 'queued'),
+    'queued for an update',
+  );
 }
 
 // Why the bot's attempt failed ("failedBecause"), as the log says: short in
@@ -4124,19 +4144,28 @@ function platformTags(pkg) {
   return tags.length ? html`<span class="plats">${tags}</span>` : '';
 }
 
-// Open nixpkgs PRs / issues with the package's attribute name in the title. Counts come from
-// the fetch script's GitHub search; without them the buttons are plain links.
+// Open nixpkgs PRs / issues with the package's attribute name in the title:
+// a link to GitHub's search for each kind that has some, with its count.
+// None of either: a faint "—", as the other columns say nothing to report
+// (two thirds of the attention list had "PRs 0 issues 0", two links to an
+// empty search, 2026-10-23). Not counted (an instance whose sync doesn't
+// ask GitHub): both, as plain links.
 function githubLinks(pkg) {
   const term = pkg.searchTerm || pkg.name;
   // Packages with none open are counted every few days, not daily
   // (nixkeeper/sources/github.py): when, if it wasn't today.
   const age = pkg.countedAt && daysText(pkg.countedAt);
   const counted = age && age !== 'today' ? ` (counted ${age} ago)` : '';
+  // GitHub's icon and the count ("2 open PRs" said); without a count, the
+  // word instead.
   const link = (kind, path, label, count) => {
+    if (count === 0) return '';
     const q = encodeURIComponent(`is:${kind} state:open in:title ${term}`);
     return html`<a class="gh-btn" href="https://github.com/NixOS/nixpkgs/${path}?q=${q}" target="_blank" rel="noopener"
-      title="Open nixpkgs ${label} with ${term} in the title${counted}"${count === 0 ? raw(' data-zero') : ''}>${label}${count != null ? html` <b>${count}</b>` : ''}</a>`;
+      title="Open nixpkgs ${label} with ${term} in the title${counted}"${count != null ? html` aria-label="${count} open ${label}"` : ''}>${GH_ICONS[kind]}${count != null ? html`<b>${count}</b>` : label}</a>`;
   };
+  if (pkg.openPRs === 0 && pkg.openIssues === 0)
+    return html`<span class="failure-na" title="No open nixpkgs PRs or issues with ${term} in the title${counted}">—</span>`;
   return html`<span class="gh-links">${link('pr', 'pulls', 'PRs', pkg.openPRs)}${link('issue', 'issues', 'issues', pkg.openIssues)}</span>`;
 }
 
@@ -4160,8 +4189,9 @@ const PR_STATES = {
   preRelease: () => 'to a pre-release, by its suffix',
 };
 function githubSection(pkg) {
-  const link = (item) =>
-    html`<a class="files-link" href="${safeUrl(item.url)}" target="_blank" rel="noopener">#${item.number} ↗</a>`;
+  // Each PR and issue with GitHub's icon for it: open, draft, merged, issue.
+  const link = (item, kind = item.draft ? 'draft' : 'pr') =>
+    html`<a class="files-link gh-item ${kind}" href="${safeUrl(item.url)}" target="_blank" rel="noopener">${GH_ICONS[kind]}<span class="sr-only">${kind === 'issue' ? 'issue' : kind === 'merged' ? 'merged PR' : kind === 'draft' ? 'draft PR' : 'PR'} </span>#${item.number} ↗</a>`;
   const fact = (kind, text, title) =>
     html`<span class="gh-fact ${kind}"${title ? html` title="${title}"` : ''}>${text}</span>`;
   const lines = [];
@@ -4255,7 +4285,7 @@ function githubSection(pkg) {
   const bf = pkg.buildFixPR;
   if (bf)
     lines.push(
-      html`<li>${link(bf)} ${bf.title} ${fact('ok', 'merged since its build began failing: likely its fix', "Hydra hasn't built it yet, or the failure was elsewhere")}${bf.author ? html` by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.author)}" target="_blank" rel="noopener">@${bf.author}</a>` : ''}${bf.mergedBy ? html`, merged by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.mergedBy)}" target="_blank" rel="noopener">@${bf.mergedBy}</a>` : ''}</li>`,
+      html`<li>${link(bf, 'merged')} ${bf.title} ${fact('ok', 'merged since its build began failing: likely its fix', "Hydra hasn't built it yet, or the failure was elsewhere")}${bf.author ? html` by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.author)}" target="_blank" rel="noopener">@${bf.author}</a>` : ''}${bf.mergedBy ? html`, merged by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.mergedBy)}" target="_blank" rel="noopener">@${bf.mergedBy}</a>` : ''}</li>`,
     );
   for (const fix of pkg.fixPRs || [])
     lines.push(
@@ -4278,7 +4308,9 @@ function githubSection(pkg) {
       ),
   };
   for (const c of pkg.issueChecks || [])
-    lines.push(html`<li>${link(c)} ${c.title} ${(ISSUE[c.verdict] || (() => c.verdict))(c)}</li>`);
+    lines.push(
+      html`<li>${link(c, 'issue')} ${c.title} ${(ISSUE[c.verdict] || (() => c.verdict))(c)}</li>`,
+    );
   return lines.length
     ? html`<section class="pd-sec"><h4 class="other-label">On GitHub</h4><ul class="gh-checks">${lines}</ul></section>`
     : '';
@@ -4686,7 +4718,7 @@ function fillDetail(pkg, el, entries) {
               (m) =>
                 html`<span class="pd-pill maintainer"><button type="button" class="maint-btn" data-handle="${m}" title="Their packages here"><img class="avatar" src="https://github.com/${encodeURIComponent(m)}.png?size=40" alt="" width="18" height="18" loading="lazy" referrerpolicy="no-referrer">${m}</button><a class="pd-pill-go" href="https://github.com/${encodeURIComponent(m)}" target="_blank" rel="noopener" aria-label="${m} on GitHub" title="${m} on GitHub">↗</a></span>`,
             )
-          : html`<span class="none-note">none in nixpkgs (<button type="button" class="maint-btn" data-handle="none" title="Packages with no maintainer">@none</button>)</span>`
+          : html`<span class="none-note">none in nixpkgs · <button type="button" class="maint-btn" data-handle="none" title="Every package with no maintainer">see all packages without one</button></span>`
       }</div></section>`,
     pkg.teams?.length &&
       html`<section class="pd-sec"><h4 class="other-label">Teams</h4><div class="pd-pills">${pkg.teams.map(
