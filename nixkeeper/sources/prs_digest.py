@@ -680,6 +680,14 @@ def add_staging_prs(rows, staging):
 FIX_MAX_TOUCHED = 3
 # Marking a package broken stops Hydra building it: not a fix to credit.
 MARKS_BROKEN = re.compile(r"\bmark\w*\b.*\bbroken\b", re.IGNORECASE)
+# An update's title: "tgrep: 1.1.0 -> 1.2.4", the version it goes to.
+UPDATE_TO = re.compile(r"^[\w.+-]+:\s*\S+\s*(?:->|→)\s*(\S+)")
+
+
+def in_failed(pr, versions):
+    """Whether PR is an update to one of versions, its failed builds'."""
+    to = UPDATE_TO.match(pr.get("title") or "")
+    return bool(to) and to.group(1).removeprefix("v") in versions
 
 
 def build_fix_prs(rows, merged, previous):
@@ -692,7 +700,10 @@ def build_fix_prs(rows, merged, previous):
     Hydra builds it (history.fixes credits a build fix to it). merged: the
     digest's merged PRs (those since the channel's commit); a row still
     failing keeps the one the last sync found, which a channel move may
-    have taken off that list. previous: the last run's data."""
+    have taken off that list. previous: the last run's data.
+    An update PR to the version a failed build is at is in that build: not
+    its fix but likely what broke it ("buildCausePR", the same fields:
+    tgrep's #575734, 1.1.0 -> 1.2.4, failing at 1.2.4 since)."""
     before = {row["name"]: row for row in previous.get("packages") or []}
     touching = {}
     for pr in merged or []:
@@ -708,26 +719,50 @@ def build_fix_prs(rows, merged, previous):
             keys.add(package_key(named.group(1)))
         for key in keys:
             touching.setdefault(key, []).append(pr)
+
+    def entry(pr):
+        return {
+            "number": pr["number"],
+            "title": pr["title"],
+            "url": pr["url"],
+            **{k: pr[k] for k in ("author", "mergedBy", "merged") if pr.get(k)},
+        }
+
     for row in rows:
         old = row.pop("buildFixPR", None)  # this run's data: worked out below
-        failing = any(b["status"] == "failed" for b in row.get("builds") or [])
-        if not failing:
+        old_cause = row.pop("buildCausePR", None)
+        failed = [b for b in row.get("builds") or [] if b["status"] == "failed"]
+        if not failed:
             continue
+        # The versions its failed builds are at, when they last built at
+        # another: they began failing with that update.
+        broke_at = {
+            b["version"]
+            for b in failed
+            if b.get("version")
+            and b.get("lastSuccessVersion")
+            and b["version"] != b["lastSuccessVersion"]
+        }
         since = row.get("failingSince") or ""
         keys = {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
-        found = [
-            pr
-            for key in keys
-            for pr in touching.get(key, [])
-            if (pr.get("merged") or "") >= since
-        ]
+        found, causes = [], []
+        for key in keys:
+            for pr in touching.get(key, []):
+                if in_failed(pr, broke_at):
+                    causes.append(pr)
+                elif (pr.get("merged") or "") >= since:
+                    found.append(pr)
         if found:
-            pr = max(found, key=lambda p: p.get("merged") or "")
-            row["buildFixPR"] = {
-                "number": pr["number"],
-                "title": pr["title"],
-                "url": pr["url"],
-                **{k: pr[k] for k in ("author", "mergedBy", "merged") if pr.get(k)},
-            }
-        elif kept := (before.get(row["name"]) or {}).get("buildFixPR") or old:
+            row["buildFixPR"] = entry(max(found, key=lambda p: p.get("merged") or ""))
+        elif (
+            kept := (before.get(row["name"]) or {}).get("buildFixPR") or old
+        ) and not in_failed(kept, broke_at):
             row["buildFixPR"] = kept
+        if causes:
+            row["buildCausePR"] = entry(
+                max(causes, key=lambda p: p.get("merged") or "")
+            )
+        elif broke_at and (
+            kept := (before.get(row["name"]) or {}).get("buildCausePR") or old_cause
+        ):
+            row["buildCausePR"] = kept

@@ -45,6 +45,7 @@ PANEL_ONLY = (
     "dataFile",
     "feed",
     "buildFixPR",
+    "buildCausePR",
     "recentFixes",
     "fixPRs",
     "issueChecks",

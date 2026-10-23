@@ -258,7 +258,8 @@ merged since that likely fixes it, waiting for Hydra.
 
 **On GitHub**: what nixkeeper-prs found of the package's PRs and issues,
 each with GitHub's icon for it (an open PR, a draft, a merged one in violet,
-an issue), and a short label ("merge-bot ready", "likely fix", "builds now ·
+an issue), and a short label ("merge-bot ready", "likely fix", "likely
+broke the build" (the update it's failed at since), "builds now ·
 can close"), the sentence behind it on hover:
 
 - its update PR ready for the merge bot, superseded or overtaken, blocking
@@ -470,7 +471,10 @@ From Hydra, which builds nixpkgs master. The cell opens the
 builds panel: a line per system with how it stands there (why it failed,
 "missing file", from its log; "not built"; blocked by which dependency),
 when it last built (the date on hover), its Hydra build and job (or source)
-to open, and for a failure the log's lines that say why, with the **full
+to open; a failure at another version than it last built at says it's
+failed since that update: "at 1.2.4, since its update (#575734) · last
+built at 1.1.0", or "(its PR ↗)", a search of nixpkgs' merged PRs, when
+nixkeeper doesn't know which; and for a failure the log's lines that say why, with the **full
 log ↗**; "checked on Hydra N days ago" under them when it wasn't today.
 Builds failing alike (the same reason and log lines, a test run's timing
 aside: python313Packages and python314Packages on two platforms) are

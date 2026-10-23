@@ -4181,8 +4181,18 @@ function buildLine(pkg, b, alike = { n: 1, shows: true }) {
   // The versions only when they differ: the same version means something else
   // broke it (a dependency, the toolchain), not the update.
   const versionsDiffer = b.version && b.lastSuccessVersion && b.version !== b.lastSuccessVersion;
+  // Failing at another version than it last built at: since that update.
+  // Its PR when nixkeeper knows it (prs_digest.build_fix_prs), else a
+  // search for it.
+  const cause = pkg.buildCausePR;
+  const updatePR =
+    cause && cause.title.endsWith(b.version)
+      ? html` (<a class="files-link gh-item merged" href="${safeUrl(cause.url)}" target="_blank" rel="noopener" title="${cause.title}">${GH_ICONS.merged}<span class="sr-only">PR </span>#${cause.number} ↗</a>)`
+      : html` (<a class="files-link" href="https://github.com/NixOS/nixpkgs/pulls?q=${encodeURIComponent(`is:pr is:merged in:title "${(b.attr || pkg.name).split('.').pop()}" "${b.version}"`)}" target="_blank" rel="noopener" title="Search nixpkgs' merged PRs for this update">its PR ↗</a>)`;
   const at =
-    versionsDiffer && b.status === 'failed' ? html` at <span class="mono">${b.version}</span>` : '';
+    versionsDiffer && b.status === 'failed'
+      ? html` at <span class="mono">${b.version}</span>, since its update${updatePR}`
+      : '';
   let lastGood = '';
   if (versionsDiffer) {
     const v = b.lastSuccessVersion;
@@ -4506,6 +4516,12 @@ function githubSection(pkg) {
             ? fact('', 'merge-bot eligible')
             : ''
       }</li>`,
+    );
+  // The update its build began failing with (prs_digest.build_fix_prs).
+  const bc = pkg.buildCausePR;
+  if (bc)
+    lines.push(
+      html`<li>${link(bc, 'merged', [bc.author && `by @${bc.author}`, bc.mergedBy && `merged by @${bc.mergedBy}`].filter(Boolean).join(', '))} ${bc.title} ${fact('warn', 'likely broke the build', 'Its build has failed since this update, at the version it updated to: likely what broke it')}</li>`,
     );
   // A PR merged since its build began failing that touched it: likely the
   // fix, once Hydra builds it (prs_digest.build_fix_prs).

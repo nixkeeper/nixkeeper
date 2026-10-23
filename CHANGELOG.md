@@ -11,18 +11,22 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **The update a build has failed since**: a failure at another version
+  than it last built at says so in the builds panel, "at 1.2.4, since its
+  update (#575734) · last built at 1.1.0", with the PR when nixkeeper-prs'
+  merged PRs have it (else a search for it), and "likely broke the build"
+  on it under On GitHub. 448 packages fail at a version they never built
+  at (2026-10-23).
 - **Patched by**: the open PRs patching a CVE still affecting a package
   (their diff adds its id, mostly a patch named after it), on its line in
   the Vulnerabilities details: "patched by #578062, #578074 (into
   release-26.05)" on libsidplayfp. From nixkeeper-prs' `diffFacts.cves`; 6
   packages on 2026-10-23.
-
 - **Init PRs for a package nixpkgs has now** (added another way while they
   waited: 68 on 2026-10-23, `macshot: init at 4.0.4` with nixpkgs at
   4.1.2) in "Can be closed", **PR to close**, the list of them all and
   "nixpkgs in numbers", beside the update PRs nixpkgs is past; from
   nixkeeper-prs' `alreadyIn`.
-
 - **Fixed in**: a CVE's version that fixes it, from its version ranges
   ("affected <3.20.1": fixed in 3.20.1), in the Vulnerabilities details;
   and under them, whether master, the open update PR or the newest release
@@ -31,6 +35,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   the 1,063 CVEs affecting a package get one (123 packages, 2026-10-23); a
   fix only in a newer series than nixpkgs' says to check for a backport,
   and an older series kept beside a newer one (firefox-esr) gets none.
+
+### Fixed
+
+- An update PR to the version a build fails at isn't its "likely fix": it's
+  in the failing build (tgrep's #575734 was).
 
 ## [0.22.0] - 2026-10-23
 

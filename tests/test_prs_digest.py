@@ -379,6 +379,41 @@ class BuildFixPRs(unittest.TestCase):
         prs_digest.build_fix_prs(rows, [], previous)
         self.assertEqual(rows[0]["buildFixPR"], kept)
 
+    def test_the_update_it_fails_at_is_the_cause(self):
+        # tgrep: last built at 1.1.0, failing at 1.2.4 since #575734 updated
+        # it (2026-10-23): in the failing build, so not its fix.
+        row = {
+            "name": "tgrep",
+            "failingSince": "2026-10-22T15:30:00Z",
+            "builds": [
+                {"status": "failed", "version": "1.2.4", "lastSuccessVersion": "1.1.0"}
+            ],
+        }
+        update = {
+            "number": 575734,
+            "title": "tgrep: 1.1.0 -> 1.2.4",
+            "url": "u",
+            "merged": "2026-10-23T10:34:15Z",
+        }
+        fix = {
+            **update,
+            "number": 1,
+            "title": "tgrep: fix the build",
+            "merged": "2026-10-23T12:00:00Z",
+        }
+        prs_digest.build_fix_prs([row], [update], {"packages": []})
+        self.assertNotIn("buildFixPR", row)
+        self.assertEqual(row["buildCausePR"]["number"], 575734)
+        # A fix merged after it is still one; the cause kept as the list moves.
+        prs_digest.build_fix_prs([row], [fix], {"packages": []})
+        self.assertEqual(row["buildFixPR"]["number"], 1)
+        self.assertEqual(row["buildCausePR"]["number"], 575734)
+        # An earlier sync's "fix" that is the cause is dropped.
+        previous = {"packages": [{"name": "tgrep", "buildFixPR": update}]}
+        del row["buildFixPR"], row["buildCausePR"]
+        prs_digest.build_fix_prs([row], [], previous)
+        self.assertNotIn("buildFixPR", row)
+
 
 if __name__ == "__main__":
     unittest.main()

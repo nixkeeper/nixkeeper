@@ -454,7 +454,13 @@ for its panel.
 master since it began failing that touched it (by its title's package, or
 its `pkgs/by-name` directory, of a PR touching at most 3; not one marking
 packages broken): `{"number", "title", "url", "author"?, "mergedBy"?,
-"merged"?}`, likely the fix, kept while it still fails.
+"merged"?}`, likely the fix, kept while it still fails. Not an update to
+the version a failed build is at: that one is in the failing build.
+
+`buildCausePR` (the full row only): while a build fails at another version
+than it last built at, the merged update PR to that version (its title
+`attr: 1.1.0 -> 1.2.4`), likely what broke it; the same fields, kept while
+it still fails that way (`prs_digest.build_fix_prs`).
 
 From nixkeeper-prs too, the full row only, at most 5 of each:
 
