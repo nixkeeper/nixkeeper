@@ -231,9 +231,16 @@ following a package, so "older than" finds more of them as time goes on.
 
 ## A package's details
 
-Its panel lists every repository Repology compares it with (after
-`nixkeeper` first when an update check found a version: hover it for
-where), and links to its homepage and nixpkgs source.
+Its panel starts with where its newest version is from, a badge linking
+there: the release on GitHub, the package archive, the update merged on
+master, a community rule, or Repology's project. Then only what the badge
+doesn't say: another source's newest version when it differs, newer
+commits, or how many repositories it was compared with. While it isn't up
+to date, the repositories Repology compares it with follow (`nixkeeper`
+first when an update check found a version: hover it for where).
+
+Links are text ending in ↗ (Homepage, package.nix, a build's Build and
+Job, "full log"); actions are outlined buttons (Hide).
 
 **Its fixes of the last month**: "Updated 1.9.0 → 1.10.0 on Oct 9 (after
 3 w), in #N, by @alice, merged by @bob", and, while its build fails, a PR
@@ -265,8 +272,9 @@ closes or merges anything in nixpkgs.
 
 ### Maintainers and teams
 
-The panel lists the package's maintainers: clicking one searches for
-theirs, and the address becomes `?maintainer=yourhandle`, a link to your own
+The panel lists the package's maintainers, each with their GitHub avatar
+(loaded from github.com only while a panel is open, without saying which
+page asked: no referrer): clicking one searches for theirs, and the address becomes `?maintainer=yourhandle`, a link to your own
 (`?q=@yourhandle`, as it was first written, still opens it and becomes
 that). Its teams (nixpkgs' `meta.teams`), when it has any, are listed too:
 clicking one shows only that team's packages, as `?team=` does in the
@@ -333,9 +341,11 @@ Leaving packages out, each a chip to undo it:
 
 ## Where the data is from
 
-"checked … ago", at the top, opens when each source's data is from: the
-sync, the nixpkgs commit, then each of nixkeeper's digests with what the
-sync read from it:
+"checked … ago", at the top, opens when the last sync ran and the nixpkgs
+commit it read. On nixkeeper.com, every source and how fresh it is is on
+[status.nixkeeper.com](https://status.nixkeeper.com), each digest's row
+with what the sync read from it; an instance of its own lists the sources
+in the panel instead:
 
 | Digest | Read |
 |---|---|
@@ -346,7 +356,9 @@ sync read from it:
 | [digest-prs](https://github.com/nixkeeper/digest-prs) | nixpkgs' open PRs and issues, the PRs merged since the channel's commit, and those merged into staging or staging-next |
 
 A source the sync didn't use (too old, or it couldn't be read) says so in
-yellow: its packages were then asked about one by one instead.
+yellow: its packages were then asked about one by one instead. Why
+staging-next wasn't used (its cycle already merged into master) is on the
+**breaks on staging-next** chip's hover.
 
 ## The dot
 

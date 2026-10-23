@@ -564,6 +564,14 @@ function sortPick() {
   )}</select></label><button type="button" class="refine-btn sort-dir" data-sort-dir aria-pressed="${sortReverse}" aria-label="Reverse the order" title="${sortReverse ? 'Reversed: click for the usual order' : 'Reverse the order'}">${sortReverse ? '↑' : '↓'}</button>`;
 }
 
+// Why "Breaks on staging-next" finds nothing now, when the sync didn't use
+// staging-next's evaluation (its sources: "of the cycle merged into
+// master..."), or null.
+const stagingNextWhy = () => {
+  const s = sources?.['branch:staging-next'];
+  return s && !s.used && s.why ? s.why : null;
+};
+
 // "Open PR": any, with one (?refine=withpr), without (?refine=nopr).
 function prPick() {
   const picked = ['withpr', 'nopr'].find((key) => refines.has(key)) || '';
@@ -624,7 +632,7 @@ function refineHtml() {
     .filter(([, r]) => !r.pick)
     .map(
       ([key, r]) =>
-        html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}${refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
+        html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}${key === 'stagingnext' && stagingNextWhy() ? `. Now: ${stagingNextWhy()}` : ''}${refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
     )}${prPick()}${newerPick()}${sortPick()}${errorsPick()}${
     // On a maintainer's page: ?team=none.
     shownHandle()
@@ -1495,6 +1503,20 @@ function sourcesHtml() {
       ? html`<li class="src-digest"><a class="files-link" href="${url}" target="_blank" rel="noopener">${url.split('/').pop()}</a></li>${mine.map(row)}`
       : '';
   });
+  // nixkeeper.com: every source, and whether each is on time, is the status
+  // page's (it was a screenful here, too long for a phone). Elsewhere (an
+  // instance of its own, a preview), the list as before: the status page
+  // isn't about its runs.
+  if (location.hostname === 'nixkeeper.com') {
+    const nix = noted('nixpkgs');
+    return html`<p class="pop-title">Where the data is from</p>
+    <ul>
+      <li><b>Last sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
+      ${nix?.used ? html`<li><b>nixpkgs</b><span>${SOURCES[0].says(nix)}</span></li>` : ''}
+    </ul>
+    <a class="files-link" href="https://status.nixkeeper.com/" target="_blank" rel="noopener">Every source, and how fresh it is ↗</a>
+    <a class="files-link" href="https://github.com/nixkeeper/nixkeeper/blob/main/docs/how-it-works.md" target="_blank" rel="noopener">How nixkeeper gathers it ↗</a>`;
+  }
   return html`<p class="pop-title">Where the data is from</p>
     <ul>
       <li><b>Last sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
@@ -4226,17 +4248,6 @@ const icon = (name) =>
   raw(
     `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`,
   );
-// Whether the package panel shows its explanation ("Why?"): remembered in
-// this browser, closed by default.
-const WHY_KEY = 'nixkeeper.panelWhy';
-function whyOpen() {
-  try {
-    return localStorage.getItem(WHY_KEY) === 'open';
-  } catch {
-    return false;
-  }
-}
-
 // entries: the row's Repology entries, or null if they couldn't be loaded
 // (its shard).
 function fillDetail(pkg, el, entries) {
@@ -4257,6 +4268,25 @@ function fillDetail(pkg, el, entries) {
     repologyDays && repologyDays !== 'today'
       ? html` <span class="since" title="${new Date(pkg.repologyCheckedAt).toLocaleString()}">· ${repologyDays} ago</span>`
       : '';
+  // Repology's page of the package, and how old its data is, in the
+  // sentence: "compared with 14 other repositories (5 days ago)".
+  const repologyUrl = pkg.project
+    ? `https://repology.org/project/${encodeURIComponent(pkg.project)}/versions`
+    : null;
+  const repologyLink = (text) =>
+    repologyUrl
+      ? html`<a class="files-link" href="${repologyUrl}" target="_blank" rel="noopener">${text}</a>`
+      : text;
+  const repologyWhen =
+    repologyDays && repologyDays !== 'today'
+      ? html` <span title="${new Date(pkg.repologyCheckedAt).toLocaleString()}">(${repologyDays} ago)</span>`
+      : '';
+  // The sentence after the verdict, without "nixpkgs unstable has 1.3.5"
+  // (the row says the version): what came after it, as a sentence of its own.
+  const opening = (tail) => {
+    const text = String(tail).replace(/^\s*(—|,|;)\s*/, '');
+    return raw(/^[a-z]/.test(text) ? text.charAt(0).toUpperCase() + text.slice(1) : text);
+  };
   const homepage = safeUrl(pkg.homepage);
 
   const st = computeStatus(pkg);
@@ -4321,18 +4351,24 @@ function fillDetail(pkg, el, entries) {
     : '';
   // When the update check is what makes it outdated, say where the newer
   // version came from, and how it compares with Repology.
-  const upstreamLine = () =>
+  // Outdated by nixkeeper's update check (the head says what it found, its
+  // badge links where): how Repology differs, or what it is when it follows
+  // another package.
+  // Only nixpkgs packages it: its update check is what decided (the source
+  // badge), nothing else for it to agree with.
+  const nothingElse = pkg.onlyNixpkgs && pkg.nixStatus === 'unique';
+  const upstreamExtra = () =>
     follows
-      ? html`nixpkgs unstable has <span class="mono" style="font-weight:600">${pkg.nixVersion}</span>, behind <span class="mono" style="font-weight:600;color:var(--warn)">${up.version}</span>: it's ${follows}${since}.`
-      : html`nixpkgs unstable has <span class="mono" style="font-weight:600">${pkg.nixVersion}</span>; ${communityCheck(pkg) ? 'a community update check' : ours} found <span class="mono" style="font-weight:600;color:var(--warn)">${up.version}</span> ${upLink}${
-          pkg.refVersion !== up.version
-            ? html`; Repology's newest is <span class="mono">${pkg.refVersion}</span>`
-            : repologyOutdated
-              ? ''
-              : up.commit
-                ? ` (${behind || 'newer commits'}; Repology only tracks releases, so it can't tell)`
-                : ", which Repology doesn't count as newest yet"
-        }${since}`;
+      ? html`It's ${follows}.`
+      : pkg.refVersion && pkg.refVersion !== up.version
+        ? targetVersion(pkg) && targetVersion(pkg) !== up.version
+          ? html`The newest above is Repology's; ${ours} found <span class="mono">${up.version}</span>.`
+          : html`Repology's newest is <span class="mono">${pkg.refVersion}</span>.`
+        : repologyOutdated
+          ? ''
+          : up.commit
+            ? `${behind ? `${behind.charAt(0).toUpperCase()}${behind.slice(1)}` : 'Newer commits'}: Repology only tracks releases, so it can't tell.`
+            : "Repology doesn't count it as the newest yet.";
   // A check that can't refresh needs fixing in nixkeeper, so the details say
   // so plainly, with the last result it's still using.
   const failing = notRefreshed(pkg, 'upstream');
@@ -4377,52 +4413,56 @@ function fillDetail(pkg, el, entries) {
       : feed?.dated && builtOn(feed.version)
         ? ` (a build from ${builtOn(feed.version)}${st === 'warn' && builtOn(pkg.nixVersion) ? `; nixpkgs' is from ${builtOn(pkg.nixVersion)}` : ''})`
         : '';
+  // What the head (verdict, newest, since when, the linked source) doesn't
+  // say already: how Repology differs from the check that decided, why a
+  // version isn't compared, a rule's reason; nothing when the head says it
+  // all (outdated by Repology: its newest and since when).
   const nixLine =
     up?.newer && !fromMaster(pkg)
-      ? upstreamLine()
+      ? upstreamExtra()
       : st === 'missing'
-        ? html`Not found in <span class="mono">nix_unstable</span> — nixpkgs doesn't currently package this.`
-        : html`nixpkgs unstable has <span class="mono" style="font-weight:600">${pkg.nixVersion}</span>${
-            rule
-              ? ruleText
-              : feed && st === 'warn' && !fromMaster(pkg)
-                ? html`, the newest on ${feedLink} is <span class="mono" style="font-weight:600;color:var(--warn)">${pkg.refVersion}</span>${feedDay}${since}`
-                : feed && st === 'ok'
-                  ? html` — the newest on ${feedLink}${feedDay}.${feed.heldBack ? html` Hackage has <span class="mono">${feed.heldBack}</span>, which Stackage holds back until its next series.` : ''}`
-                  : st === 'warn' && fromMaster(pkg)
-                    ? ` — the newest Repology and the update checks know of, but master already has a newer one${since.replace(' — ', '; ')}:`
-                    : st === 'warn'
-                      ? pkg.refFromPR
-                        ? html`; Repology names no newer version, but an update PR brings <span class="mono" style="font-weight:600;color:var(--warn)">${pkg.refVersion}</span>${since}`
-                        : html`, the newest seen elsewhere is <span class="mono" style="font-weight:600;color:var(--warn)">${pkg.refVersion || '?'}</span>${since}`
-                      : olderVersionKept(pkg)
-                        ? html` — an older version nixpkgs keeps on purpose${pkg.keptBeside ? html`, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>` : ', beside a newer one'}: not outdated while nothing newer is out in its own series.`
-                        : st === 'neutral'
-                          ? nothingCompared(pkg)
-                            ? ` — ${ONLY_NIXPKGS_TEXT}.`
-                            : pkg.nixStatus === 'unsupported'
-                              ? ` — ${UNSUPPORTED_TEXT}.`
-                              : pkg.nixStatus === 'unlisted'
-                                ? pkg.lookupFailed
-                                  ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
-                                  : " — Repology doesn't list this package, so there's nothing to compare it with."
-                                : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
-                          : said && up && !failing
-                            ? ' — the newest version, by its update check.'
-                            : loaded
-                              ? ` — the newest ${pkg.devel ? 'devel ' : ''}version, compared with ${compared} other ${compared === 1 ? 'repository' : 'repositories'}.`
-                              : ` — the newest ${pkg.devel ? 'devel ' : ''}version.`
-          }${
-            up && !up.newer && !failing
-              ? follows
-                ? html` It's ${follows}.`
-                : up.behind
-                  ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits}.`
-                  : said
-                    ? html` ${communityCheck(pkg) ? 'A community update check' : ours.replace(/^n/, 'N')} found <span class="mono">${up.version}</span> ${upLink}. Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : ''}: the update check decides, being this package's own source.`
-                    : html` ${ours} ${st === 'warn' ? 'found nothing newer' : 'agrees'}: the latest version ${upLink} is <span class="mono">${up.version}</span>.`
-              : ''
-          }`;
+        ? html`Not found in <span class="mono">nix_unstable</span>: nixpkgs doesn't currently package this.`
+        : opening(
+            html`${
+              rule
+                ? ruleText
+                : feed && st === 'ok' && feed.heldBack
+                  ? html` Hackage has <span class="mono">${feed.heldBack}</span>, which Stackage holds back until its next series.`
+                  : st === 'warn'
+                    ? pkg.refFromPR && !fromMaster(pkg)
+                      ? ' — Repology names no newer version: the newest comes from an update PR.'
+                      : ''
+                    : olderVersionKept(pkg)
+                      ? html` — an older version nixpkgs keeps on purpose${pkg.keptBeside ? html`, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>` : ', beside a newer one'}: not outdated while nothing newer is out in its own series.`
+                      : st === 'neutral'
+                        ? nothingCompared(pkg)
+                          ? ` — ${ONLY_NIXPKGS_TEXT}.`
+                          : pkg.nixStatus === 'unsupported'
+                            ? ` — ${UNSUPPORTED_TEXT}.`
+                            : pkg.nixStatus === 'unlisted'
+                              ? pkg.lookupFailed
+                                ? ` — ${LOOKUP_FAILED}, so there's nothing to compare it with yet.`
+                                : " — Repology doesn't list this package, so there's nothing to compare it with."
+                              : html` — Repology classifies this version as <span class="mono">${pkg.nixStatus}</span>.`
+                        : feed || (said && up && !failing)
+                          ? ''
+                          : loaded && compared
+                            ? html` — compared with ${repologyLink(`${compared} other ${compared === 1 ? 'repository' : 'repositories'}`)}${repologyWhen}.`
+                            : ''
+            }${
+              up && !up.newer && !failing
+                ? follows
+                  ? html` It's ${follows}.`
+                  : up.behind
+                    ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits}.`
+                    : said
+                      ? html` Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : ''}: the update check decides, being this package's own source.`
+                      : !feed && !rule && !fromMaster(pkg) && !nothingElse
+                        ? html` ${ours} ${st === 'warn' ? 'found nothing newer' : 'agrees'}: the latest version ${upLink} is <span class="mono">${up.version}</span>.`
+                        : ''
+                : ''
+            }`,
+          );
   // Where master is: the PR that brought it, and whether Hydra built it.
   const masterSaid = [
     pkg.masterPR &&
@@ -4469,13 +4509,22 @@ function fillDetail(pkg, el, entries) {
     st === 'missing' || verdict[1] === 'Not compared'
       ? null
       : fromMaster(pkg)
-        ? ['merged', 'git-merge', 'master', "master's version, built by Hydra or merged"]
+        ? [
+            'merged',
+            'git-merge',
+            'master',
+            "master's version, built by Hydra or merged",
+            safeUrl(pkg.masterPR?.url),
+          ]
         : rule
           ? [
               'ours',
               'list-check',
               'up-to-date rule',
               `${rule.community ? 'A community' : 'Your'} up-to-date rule: ${rule.reason || ''}`,
+              rule.community
+                ? 'https://github.com/nixkeeper/nixkeeper/blob/main/community/up-to-date.nix'
+                : null,
             ]
           : feed
             ? [
@@ -4483,6 +4532,7 @@ function fillDetail(pkg, el, entries) {
                 'package',
                 feed.name,
                 `Compared with ${feed.name}, this package's own source`,
+                safeUrl(feed.url),
               ]
             : (said || up?.newer) && up.follows
               ? [
@@ -4497,15 +4547,16 @@ function fillDetail(pkg, el, entries) {
                     up.commit ? 'git-branch' : up.repo ? 'tag' : 'world',
                     upLabel,
                     `${checkKind.replace(/^[ay]/, (c) => c.toUpperCase())}: ${upLabel}`,
+                    safeUrl(up.url),
                   ]
                 : [
                     'repology',
                     'chart-dots-3',
                     'Repology',
                     'Repology: the repositories it compares',
+                    repologyUrl,
                   ];
   const facts = [
-    pkg.nixVersion && ['nixpkgs unstable', html`<span class="mono">${pkg.nixVersion}</span>`],
     st === 'warn' && target && ['newest', html`<span class="mono pd-newer">${target}</span>`],
     st === 'warn' &&
       pkg.outdatedSince && [
@@ -4513,8 +4564,7 @@ function fillDetail(pkg, el, entries) {
         html`${longDate(pkg.outdatedSince)} <span class="pd-ago">(${daysText(pkg.outdatedSince)})</span>`,
       ],
   ].filter(Boolean);
-  // Notes that call for something stay in view; the rest are context, with
-  // the explanation behind "Why?".
+  // Notes that call for something first; then the rest, the context.
   const urgent = html`${unloaded}${archived}${checkNote}${insecureNote(pkg)}${backportNote(pkg)}${
     pkg.nixVulnerable
       ? html`<div class="vuln-note">⚠ Repology flags nixpkgs' version <span class="mono">${pkg.nixVersion}</span> as vulnerable.${
@@ -4554,7 +4604,7 @@ function fillDetail(pkg, el, entries) {
         pkg.maintainers.length
           ? pkg.maintainers.map(
               (m) =>
-                html`<span class="pd-pill maintainer"><button type="button" class="maint-btn" data-handle="${m}" title="Their packages here">@${m}</button><a class="pd-pill-go" href="https://github.com/${encodeURIComponent(m)}" target="_blank" rel="noopener" aria-label="${m} on GitHub" title="${m} on GitHub">↗</a></span>`,
+                html`<span class="pd-pill maintainer"><button type="button" class="maint-btn" data-handle="${m}" title="Their packages here"><img class="avatar" src="https://github.com/${encodeURIComponent(m)}.png?size=40" alt="" width="18" height="18" loading="lazy" referrerpolicy="no-referrer">${m}</button><a class="pd-pill-go" href="https://github.com/${encodeURIComponent(m)}" target="_blank" rel="noopener" aria-label="${m} on GitHub" title="${m} on GitHub">↗</a></span>`,
             )
           : html`<span class="none-note">none in nixpkgs (<button type="button" class="maint-btn" data-handle="none" title="Packages with no maintainer">@none</button>)</span>`
       }</div></section>`,
@@ -4573,36 +4623,37 @@ function fillDetail(pkg, el, entries) {
       html`<a class="pd-link" href="${homepage}" target="_blank" rel="noopener">${icon('home')}Homepage</a>`,
     safeUrl(pkg.source) &&
       html`<a class="pd-link" href="${safeUrl(pkg.source)}" target="_blank" rel="noopener" title="Where nixpkgs defines this package">${icon('file-code')}${sourceFileName(pkg.source)}</a>`,
-    pkg.project &&
-      html`<a class="pd-link" href="https://repology.org/project/${encodeURIComponent(pkg.project)}/versions" target="_blank" rel="noopener">${icon('chart-dots-3')}Repology</a>`,
   ].filter(Boolean);
-  const open = whyOpen();
   el.innerHTML = html`<div class="pd">
     <div class="pd-head">
       <span class="pd-verdict ${verdict[0]}">${verdict[1]}</span>
       <dl class="pd-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
-      ${source ? html`<span class="pd-source ${source[0]}" title="${source[3]}">${icon(source[1])}<span class="pd-source-text">${source[2]}</span></span>` : ''}
+      ${
+        source
+          ? source[4]
+            ? html`<a class="pd-source ${source[0]}" href="${source[4]}" target="_blank" rel="noopener" title="${source[3]}">${icon(source[1])}<span class="pd-source-text">${source[2]}</span> <span aria-hidden="true">↗</span></a>`
+            : html`<span class="pd-source ${source[0]}" title="${source[3]}">${icon(source[1])}<span class="pd-source-text">${source[2]}</span></span>`
+          : ''
+      }
     </div>
     ${String(urgent).trim() ? html`<div class="pd-notes">${urgent}</div>` : ''}
     ${vulnSection(pkg)}
-    <div class="pd-why-body"${open ? '' : raw(' hidden')}>
-      <p class="pd-text">${nixLine}${
+    <div class="pd-why-body">
+      ${String(nixLine).trim() ? html`<p class="pd-text">${nixLine}</p>` : ''}${
         up?.tagged
-          ? html` <span title="nixkeeper prefers a release, when the project makes them: a tag alone may not be published yet">Tagged <span class="mono">${up.tagged}</span> on GitHub, not released yet.</span>`
+          ? html`<p class="pd-text" title="nixkeeper prefers a release, when the project makes them: a tag alone may not be published yet">Tagged <span class="mono">${up.tagged}</span> on GitHub, not released yet.</p>`
           : ''
-      }</p>
+      }
       ${String(context).trim() ? html`<div class="pd-notes">${context}</div>` : ''}
     </div>
     ${
-      chips.length
+      // Up to date, they'd all say the same version: the sentence's link
+      // has them. Outdated or not compared, they show who has what.
+      chips.length && st !== 'ok'
         ? html`<section class="pd-sec"><h4 class="other-label">Compared against${repologyAge}</h4><div class="repo-chips">
       ${chips.map((e, i) => html`<span class="repo-chip ${e.ahead ? 'ahead' : ''}"${e.title ? html` title="${e.title}"` : ''}${i >= COMPARED_SHOWN ? raw(' hidden') : ''}>${e.repo} <span class="v mono">${e.version || '?'}</span></span>`)}${
         chips.length > COMPARED_SHOWN
           ? html`<button type="button" class="more-btn" aria-expanded="false">Show all ${chips.length}</button>`
-          : ''
-      }${
-        notKept && pkg.project
-          ? html` <a class="files-link" href="https://repology.org/project/${encodeURIComponent(pkg.project)}/versions" target="_blank" rel="noopener">${notKept} more on Repology ↗</a>`
           : ''
       }
     </div></section>`
@@ -4610,20 +4661,9 @@ function fillDetail(pkg, el, entries) {
     }
     ${githubSection(pkg)}
     ${people.length ? html`<div class="pd-people">${people}</div>` : ''}
-    <div class="pd-links">${links}<button type="button" class="pd-why" aria-expanded="${open}">${icon('chevron-down')}Why?</button>${hideButton(pkg)}</div>
+    <div class="pd-links">${links}<span class="pd-links-end">${hideButton(pkg)}</span></div>
   </div>`;
   el.querySelector('.pd-hide')?.addEventListener('click', () => setHidden(pkg, !isHidden(pkg)));
-  const why = el.querySelector('.pd-why');
-  why.addEventListener('click', () => {
-    const body = el.querySelector('.pd-why-body');
-    body.hidden = !body.hidden;
-    why.setAttribute('aria-expanded', !body.hidden);
-    try {
-      localStorage.setItem(WHY_KEY, body.hidden ? 'closed' : 'open');
-    } catch {
-      // not remembered: private browsing, or storage blocked
-    }
-  });
   // A maintainer's packages: searches for them (the search box, so the
   // address can be shared).
   // A team's packages: the team filter (?team=, shareable too).

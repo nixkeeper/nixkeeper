@@ -60,6 +60,21 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   x86_64-darwin isn't built any more.
 - The update panel leaves out the sentence when its outcome already says
   it ("Failed: build", "Failed: updateScript").
+- A package's panel says each thing once: the badge naming where its
+  newest version is from links there (the release, the archive, the PR
+  merged on master, Repology's project), and the text below only adds what
+  it doesn't say. No **Why?** button (that text is always shown), no
+  "nixpkgs unstable" line, no Repology button; its repositories only while
+  it isn't up to date. Maintainers have their GitHub avatar (loaded only
+  while a panel is open, no referrer).
+- Links and actions look different: links are text ending in ↗ (Homepage,
+  package.nix, Build, Job, "full log"); **Hide** is a small outlined
+  button, like the maintainer page's PRs' Hide.
+- "Where the data is from" on nixkeeper.com is three lines (the last sync,
+  the nixpkgs commit, a link to status.nixkeeper.com, where each digest's
+  row now says what the sync read from it); instances of their own keep
+  the full list. Why staging-next wasn't used is on the **breaks on
+  staging-next** chip's hover.
 - "Not fixed on master yet" is **Not merged yet**: it also leaves out
   updates merged into staging, staging-next or a branch like
   haskell-updates (`?refine=notonmaster` unchanged).

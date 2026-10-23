@@ -1265,16 +1265,17 @@ button.checked:focus-visible {
   margin-left: 6px;
   font: inherit;
   font-size: 12px;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
   background: none;
-  border: 0;
-  padding: 2px 4px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 2px 8px;
   min-height: 24px;
   cursor: pointer;
-  text-decoration: underline dotted;
 }
 .merge-hide:hover {
   color: var(--ink);
+  border-color: var(--accent);
 }
 .merge-hidden-toggle {
   font: inherit;
@@ -2366,10 +2367,7 @@ tbody tr.row.open td {
   justify-self: end;
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
-}
-.br-acts .pd-link {
-  padding: 3px 9px;
+  gap: 12px;
 }
 @media (max-width: 640px) {
   .br-list {
@@ -2393,17 +2391,15 @@ tbody tr.row.open td {
 .pd-why-body[hidden] {
   display: none;
 }
-/* "Why?": the explanation's toggle, at the end of the links. */
 /* "Hide until it changes" (hideButton), after "Why?". */
 .pd-hide {
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 12px;
   color: var(--ink-soft);
   background: none;
   border: 1px solid var(--hairline-strong);
   border-radius: 6px;
-  padding: 3px 9px;
+  padding: 2px 8px;
   min-height: 24px;
   cursor: pointer;
 }
@@ -2430,25 +2426,21 @@ tbody tr.row.open td {
 tr.row.is-hidden {
   opacity: 0.5;
 }
-.pd-why {
+/* The panel's last buttons ("Hide until it changes"), at the line's end. */
+.pd-links-end {
   margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--accent);
-  background: none;
-  border: 0;
-  padding: 5px 4px;
-  cursor: pointer;
 }
-.pd-why .ic {
-  transition: transform 0.15s;
+/* A maintainer's GitHub picture, before their handle. */
+.maint-btn .avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -4px;
+  background: var(--stale-soft);
 }
-.pd-why[aria-expanded="true"] .ic {
-  transform: rotate(180deg);
+a.pd-source {
+  text-decoration: none;
 }
 /* The explanation: readable lines, quieter than the facts. */
 .pd-text {
@@ -2614,25 +2606,33 @@ button.cause-more {
 .pd-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
+  align-items: center;
   border-top: 1px solid var(--hairline);
   padding-top: 12px;
 }
+/* Links that leave nixkeeper (Homepage, package.nix; a build's Build and
+   Job): text with ↗, in the accent's colour, no box. What acts on the page
+   is a button (outlined, .pd-hide). Same height as a button, to tap. */
 .pd-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  min-height: 24px;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--accent);
   text-decoration: none;
-  padding: 5px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--hairline-strong);
-  background: var(--surface);
+}
+.pd-link .ic {
+  display: none;
+}
+.pd-link::after {
+  content: "↗";
 }
 .pd-link:hover {
-  background: var(--bg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 /* A panel's small headings ("Compared against"): like the popovers'. */
 .other-label {
