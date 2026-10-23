@@ -146,6 +146,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- thunderbird-153 (153.4.0) wasn't outdated in its own series though
+  153.5.1 was out: nixpkgs' own thunderbird-esr-bin at 153.5.0 made its
+  series 153.4. The next series is now one whose first number differs,
+  when nixpkgs has one. And a kept series behind in its own (39, glibmm_2_4
+  to go) says so in its details, without the newer series' repositories
+  (glibmm 2.90.0 beside glibmm_2_4's newest, 2.66.10).
 - firefox-esr read as outdated against Firefox's 158.0.1 and "on master":
   master's `153.5.1esr` was compared with the channel's `153.5.1`, which
   Repology writes without the suffix. A version that only adds a suffix

@@ -361,7 +361,12 @@ A row counts as outdated when `nixStatus` is `outdated`, `upstream.newer`
 is `true` (a newer release, for a versioned attribute in its own series),
 or master has a newer version. `legacy` (an older version kept beside a
 newer one, `keptBeside`) isn't outdated by itself, except for a devel row
-behind the newest devel version elsewhere (`refVersion`).
+behind the newest devel version elsewhere (`refVersion`), or one behind in
+its own series: `nixStatus` is then `outdated` and `refVersion` its
+series' newest, from releases in two distributions or more. The series is
+told by nixpkgs' next newer version, preferably one whose first part
+differs (thunderbird 158.0 for thunderbird-153's 153.4.0, not nixpkgs' own
+thunderbird-esr-bin at 153.5.0, which would make it 153.4).
 
 `upstream`:
 

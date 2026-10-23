@@ -4673,7 +4673,9 @@ function fillDetail(pkg, el, entries) {
                   : st === 'warn'
                     ? pkg.refFromPR && !fromMaster(pkg)
                       ? ' — Repology names no newer version: the newest comes from an update PR.'
-                      : ''
+                      : pkg.keptBeside
+                        ? html` — an older series nixpkgs keeps on purpose, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>; behind in its own: the newest above is its series'.`
+                        : ''
                     : olderVersionKept(pkg)
                       ? html` — an older version nixpkgs keeps on purpose${pkg.keptBeside ? html`, beside <b class="mono">${pkg.keptBeside.attr}</b> <span class="mono">${pkg.keptBeside.version}</span>` : ', beside a newer one'}: not outdated while nothing newer is out in its own series.`
                       : st === 'neutral'
@@ -4891,9 +4893,11 @@ function fillDetail(pkg, el, entries) {
     ${
       // Up to date, they'd all say the same version: the sentence's link
       // has them. Outdated or not compared, they show who has what. Not for
-      // an older version kept on purpose: they're the newer series' (and
-      // its betas: firefox 159.0b5 beside firefox-esr 153.5.1).
-      chips.length && st !== 'ok' && !olderVersionKept(pkg)
+      // an older version kept on purpose, behind in its own series or not:
+      // they're the newer series' (and its betas: firefox 159.0b5 beside
+      // firefox-esr 153.5.1; glibmm 2.90.0 beside glibmm_2_4, outdated
+      // against its 2.66.10).
+      chips.length && st !== 'ok' && !olderVersionKept(pkg) && !pkg.keptBeside
         ? html`<section class="pd-sec"><h4 class="other-label">Compared against${repologyAge}</h4><div class="repo-chips">
       ${chips.map((e, i) => html`<span class="repo-chip ${e.ahead ? 'ahead' : ''}"${e.title ? html` title="${e.title}"` : ''}${i >= COMPARED_SHOWN ? raw(' hidden') : ''}>${e.repo} <span class="v mono">${e.version || '?'}</span></span>`)}${
         chips.length > COMPARED_SHOWN

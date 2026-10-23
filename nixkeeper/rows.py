@@ -302,7 +302,13 @@ def series_ref(name, version, entries, others, kept=False):
     if not newer:
         return None
     mine = plain_version(version)
-    sibling = VERSION_PART.findall(min(newer, key=version_key))
+    # The next series: of nixpkgs' newer versions, preferably one whose first
+    # part differs, not a newer release of version's own series packaged
+    # another way (thunderbird-esr-bin's 153.5.0 beside thunderbird-153's
+    # 153.4.0 made its series 153.4, missing 153.5.1, 2026-10-23); else the
+    # nearest (python313 beside python314).
+    apart = [v for v in newer if VERSION_PART.findall(v)[:1] != mine[:1]]
+    sibling = VERSION_PART.findall(min(apart or newer, key=version_key))
     at = next(
         (i for i, (a, b) in enumerate(zip(mine, sibling, strict=False)) if a != b), None
     )

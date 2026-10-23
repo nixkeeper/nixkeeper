@@ -356,6 +356,23 @@ class Rows(unittest.TestCase):
         channel_versions([row], {"glibmm_2_4": pkg("glibmm_2_4", version="2.66.10")})
         self.assertEqual(row["nixStatus"], "legacy")
 
+    def test_a_kept_series_beside_its_own_binary(self):
+        # thunderbird-153 153.4.0 beside thunderbird 158.0, 2026-10-23:
+        # nixpkgs' thunderbird-esr-bin had 153.5.0, which made its series
+        # 153.4; 153.5.1 was out.
+        row = self.kept(
+            "thunderbird-153",
+            "153.4.0",
+            "158.0",
+            nix("thunderbird-esr-bin", "153.5.0", "outdated"),
+            other("freebsd", "153.5.1", "legacy"),
+            other("gentoo", "153.5.1", "legacy"),
+        )
+        self.assertEqual(
+            (row["nixStatus"], row["refVersion"], row["keptBeside"]["version"]),
+            ("outdated", "153.5.1", "158.0"),
+        )
+
     def test_a_kept_series_not_by_its_packaging(self):
         # ruby 3.4.9, 2026-10-15: 3.4.11 in five distributions, Chocolatey's
         # and Liguros' 3.4.11.1 in two.
