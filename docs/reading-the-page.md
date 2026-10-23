@@ -104,7 +104,7 @@ beside the list's count, or Esc, closes them. A package's name is a link to
 it alone (`?pkg=`): Ctrl/Cmd-click or middle-click opens it in a tab of its
 own. Its **Open on GitHub** cell counts the open nixpkgs PRs about it
 (titled with its name, as nixpkgs' convention has it: "pkg: 2.7.5 ->
-2.8.2") and the issues with its name in their title, each with GitHub's
+2.8.2", after any tags: "[26.05] pkg: ...") and the issues with its name in their title, each with GitHub's
 icon and a link to GitHub's search ("—" when there are none). The search
 matches words, so for a name that's also a word (pkg, linux) it shows more,
 as its hover says.

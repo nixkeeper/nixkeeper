@@ -170,6 +170,14 @@ class UpdatePRs(unittest.TestCase):
         self.assertEqual(
             github.title_packages(nodes[0]["title"]), {"minimage", "d-seams"}
         )
+        # After its tags: a backport, a work in progress (libsidplayfp's,
+        # 2026-10-23, counted 1 of its 2 PRs).
+        for title in (
+            "[26.05] libsidplayfp: Apply fix for CVE-2026-111148",
+            "[Backport release-26.05] libsidplayfp: Apply fix",
+            "[WIP] (Part 2) libsidplayfp: tidy",
+        ):
+            self.assertEqual(github.title_packages(title), {"libsidplayfp"})
 
     def test_titled_with_another_of_its_attributes(self):
         """heroic, 2026-10-15: its update was titled "heroic-unwrapped: ...",

@@ -166,11 +166,17 @@ def title_updates(title):
     return found
 
 
+# Tags before a title's package: "[Backport release-26.05] ", "[26.05] ",
+# "[WIP] " (232 of 12,554 open PRs, 2026-10-23).
+TITLE_TAGS = re.compile(r"^\s*(?:(?:\[[^\]]*\]|\([^)]*\))\s*)+")
+
+
 def title_packages(title):
     """The names a PR's title is about, to find it by: each update's, and
-    what comes before its first ":" (an update or not)."""
+    what comes before its first ":" (an update or not), after any tags
+    ("[26.05] libsidplayfp: Apply fix for CVE-2026-111148")."""
     names = {n for found, _, _ in title_updates(title) for n in found}
-    return names | {(title or "").split(":", 1)[0]}
+    return names | {TITLE_TAGS.sub("", title or "").split(":", 1)[0]}
 
 
 def update_prs(nodes, names):

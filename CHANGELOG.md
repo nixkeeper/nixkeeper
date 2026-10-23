@@ -38,6 +38,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- PRs titled with tags before the package ("[26.05] libsidplayfp: ...",
+  "[Backport release-26.05] ...", "[WIP] ...": 232 open) count for it, in
+  **Open on GitHub** and for staging: 139 packages counted too few.
 - An update PR to the version a build fails at isn't its "likely fix": it's
   in the failing build (tgrep's #575734 was).
 
