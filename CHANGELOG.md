@@ -9,6 +9,20 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-23
+
+A page that's quieter and stays put, from a round of feedback: each
+failing build and update marked by a **hard hat** or a **robot** with
+only why ("compile error", "patch"), GitHub's icons and only the counts
+above 0, the list's columns and rows the same on every list, and grey
+shapes while it loads. Finding things: **sort** the list, narrow it **in**
+a package set or **by** a maintainer, search all of nixpkgs with filters,
+**several packages open** at once. New lists: update PRs nixpkgs is past
+(**can be closed**), build failures **no newer version** would fix. And
+fewer wrong counts: PRs and issues counted when they're about the package
+("pkg" from 120 PRs to 2), firefox-esr and thunderbird-153 judged by their
+own ESR series.
+
 ### Added
 
 - **Newer version: known / none known** (`?newer=yes`, `?newer=no`), with
@@ -2300,7 +2314,8 @@ to its restructuring into a Python package.
   packages removed from the lists don't leave files behind.
 - The sync script is a Python package (`nixkeeper/`) with tests in `tests/`.
 
-[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.21.0...HEAD
+[unreleased]: https://github.com/nixkeeper/nixkeeper/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/nixkeeper/nixkeeper/compare/v0.18.0...v0.19.0
