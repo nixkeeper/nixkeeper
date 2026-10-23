@@ -119,6 +119,7 @@ A list says what it is under "Showing" (✕ goes back to the overview):
 | one package alone, its details open | `?pkg=firefox` |
 | marked broken, blocked by a dependency | |
 | fixes to backport: a CVE fixed on nixpkgs master but still affected on the newest release branch (on the overview, a note under Vulnerable, as unstable has the fix; the details say which) | `?view=backport` |
+| update PRs to close: every package with an open update PR nixpkgs is already past (it has the PR's version or a newer one), up to date or not, sets too (linked from "Can be closed", from **PR to close** in another list, and from "nixpkgs in numbers") | `?view=superseded` |
 | one of the instance's lists | `?list=` (by address only) |
 
 **Counts and tiles.** On a page tracking its own lists, the counts at the
@@ -202,6 +203,7 @@ what's left.
 | **breaks on staging-next** | packages that build on master but fail their own build on staging-next, at the same version, in Hydra's newest evaluation of it (a day or two old): unless fixed, they fail on master when staging-next is merged into it. A forecast: no count includes it, and a fix may already be waiting on staging. The details link each failing build | `?refine=stagingnext` |
 | **not built where listed** | packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there: usually a dependency isn't available there, or `meta.platforms` promises too much); with a platform picked, that platform's only. Packages Hydra builds nowhere (unfree, kept off it) aren't. For all of nixpkgs at once, its own list: **Not built where listed** (`?view=unbuilt`, linked from Marked broken), where a platform picked keeps those not built there (`?view=unbuilt&platform=darwin`, `aarch64-linux`) | `?refine=unbuilt` |
 | **open PR**: with one, or without | with one: packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) Without one: those no open PR touches, nobody on them yet | `?refine=withpr`, `?refine=nopr` |
+| **PR to close** | packages with an open update PR nixpkgs is already past (see [Can be closed](#maintainers-and-teams)); in any list, with a link to all of nixpkgs' | `?refine=superseded` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
 | **build failed because** | build failures for one reason, as the build's log on Hydra says (read by nixkeeper-hydra): compile error, tests, link error, missing header, CMake 4 (it refuses projects asking for CMake older than 3.5), CMake, Python import, dependencies, build or metadata, writes to `$HOME`, hash, patch, download, out of disk (Hydra's side), other, and more; "not read yet" while nixkeeper-hydra catches up. Each with how many there are in the list, on the platform picked | `?buildFailed=cmake4` |
@@ -290,6 +292,17 @@ changes (a newer version in its title, or a CVE; not upstream moving on,
 so an update held back on purpose stays hidden), with "N hidden · show
 them" to see them again, greyed. From
 nixkeeper-prs' digest, as of the last sync.
+
+**Can be closed:** below it, on a maintainer's or a team's page, the open
+update PRs on their packages that nixpkgs is already past: it has the
+PR's version or a newer one (`ocamlPackages.trace: 0.5 -> 0.12` with
+nixpkgs at 0.12), so the PR can be closed, with a word on why, or updated
+to the newest. Each says who opened it, how long it's been open, what
+nixpkgs has now, and when it's a draft; oldest first, with **Hide** as
+above, and a link to all of nixpkgs' (`?view=superseded`). Snapshots are
+compared by their dates: a snapshot nixpkgs only renamed
+(`unstable-2023-12-06` to `0.18.1-unstable-2023-12-06`) doesn't count as
+past a PR's newer one. A package's details say it too, under On GitHub.
 
 **Hide until it changes:** a package that needs attention has this button
 in its panel, for what you've looked at and decided to leave (an update

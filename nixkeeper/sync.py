@@ -345,6 +345,12 @@ def main():
     )
     if merge is not None:
         index["merge"] = prs_digest.merge_summary(merge, now)
+    # Update PRs nixpkgs is already past: "Can be closed" and the list's
+    # filter (on the rows), and the overview's count.
+    if everything and (
+        close := prs_digest.mark_superseded(digest.get("raw"), index_rows)
+    ):
+        index["close"] = close
     if everything:
         # The overview's "nixpkgs in numbers".
         index["numbers"] = datastore.numbers(index_rows)

@@ -620,6 +620,44 @@ class CveIssues(unittest.TestCase):
         self.assertEqual(rows[0]["issueChecks"], [{"number": 9, "kind": "build"}])
 
 
+class MarkSuperseded(unittest.TestCase):
+    """Update PRs nixpkgs is already past (2026-10-23: 255, ocamlPackages.trace:
+    0.5 -> 0.12 open since 2024 with nixpkgs at 0.12)."""
+
+    def pr(self, n, attr, state="superseded", **kw):
+        found = {
+            "n": n,
+            "title": f"{attr}: 0.5 -> 0.12",
+            "author": "r-ryantm",
+            "created": f"2026-0{n}-01T00:00:00Z",
+            "state": state,
+            "update": {"attr": attr, "from": "0.5", "to": "0.12", "now": "0.12"},
+        }
+        found.update(kw)
+        return found
+
+    def test_on_the_rows(self):
+        rows = [
+            {"name": "ocamlPackages.trace", "attrs": ["ocamlPackages.trace"]},
+            {"name": "python313Packages.rq", "attrs": ["python313Packages.rq"]},
+            {"name": "wine", "supersededPRs": [{"number": 1}]},  # an earlier sync's
+        ]
+        prs = [
+            self.pr(3, "ocamlPackages.trace", author="someone", draft=True),
+            self.pr(2, "ocamlPackages.trace"),
+            self.pr(4, "python3Packages.rq"),  # the alias: python313Packages
+            self.pr(5, "wine", state="overtaken"),  # needs a rebase, not closing
+            self.pr(6, "elsewhere"),
+        ]
+        self.assertEqual(prs_digest.mark_superseded(prs, rows), {"prs": 3, "bot": 2})
+        self.assertEqual([p["number"] for p in rows[0]["supersededPRs"]], [2, 3])
+        self.assertEqual(rows[0]["supersededPRs"][1]["draft"], True)
+        self.assertEqual(rows[0]["supersededPRs"][0]["now"], "0.12")
+        self.assertEqual(rows[1]["supersededPRs"][0]["number"], 4)
+        self.assertNotIn("supersededPRs", rows[2])
+        self.assertIsNone(prs_digest.mark_superseded(None, rows))
+
+
 class MergeSummary(unittest.TestCase):
     def test_counts(self):
         prs = [

@@ -11,6 +11,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Can be closed**, on a maintainer's and a team's page: their open update
+  PRs nixpkgs is already past (it has the PR's version or a newer one), each
+  with what nixpkgs has now, Hide, and a link to all of them. Also a
+  **PR to close** filter (`?refine=superseded`), a view of every package
+  with one (**Update PRs to close**, `?view=superseded`), the PR in a
+  package's details, and its count in "nixpkgs in numbers" (253 PRs on
+  2026-10-23, 203 of them the update bot's). Rows have `supersededPRs`;
+  `index.json` has `close`.
 - Sorting the list: **Sort** (most pressing, longest-standing, newest,
   biggest version gap, name A–Z: `?sort=`) and ↓/↑ reversing it
   (`?order=reverse`), under the tiles. The A–Z button in the header goes:

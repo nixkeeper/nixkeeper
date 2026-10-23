@@ -436,6 +436,13 @@ const REFINES = {
         : unbuiltWhere(p).length > 0,
   },
   // Where a person is needed: nixpkgs-update won't open the PR.
+  // An open update PR nixpkgs is already past (prs_digest.mark_superseded).
+  superseded: {
+    label: 'PR to close',
+    title:
+      'Only packages with an open update PR nixpkgs is already past: it has the PR’s version or a newer one, so the PR can be closed',
+    test: (p) => (p.supersededPRs || []).length > 0,
+  },
   nobot: {
     label: "Bot won't update it",
     title:
@@ -1719,6 +1726,57 @@ function mergeHtml(path, handle) {
   </section>`;
 }
 
+// On a maintainer's or a team's page: the open update PRs nixpkgs is
+// already past, on its packages (the rows' supersededPRs): "Can be closed".
+// Hide as for "You can merge these" (in this browser, until it changes).
+const CLOSE_SHOWN = 5;
+let closeAll = false;
+function closeHtml(path, handle) {
+  const mine = path.startsWith('views/maintainer/') && handle && handle !== 'none';
+  const team = path.startsWith('views/team/');
+  if (!mine && !team) return '';
+  const who = (handle || '').toLowerCase();
+  const theirs = team && teamName();
+  const seen = new Set();
+  const prs = packages
+    .filter((p) => !team || !p.teamsByList?.includes(theirs))
+    .flatMap((p) => (p.supersededPRs || []).map((pr) => ({ ...pr, pkg: p.name })))
+    .filter((pr) => !seen.has(pr.number) && seen.add(pr.number))
+    .sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : 0));
+  if (!prs.length) return '';
+  const hiddenN = prs.filter(isPrHidden).length;
+  const listed = showHiddenPrs ? prs : prs.filter((p) => !isPrHidden(p));
+  if (!listed.length) return '';
+  const shown = closeAll ? listed : listed.slice(0, CLOSE_SHOWN);
+  const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
+  const line = (p) => {
+    const own = mine && p.author.toLowerCase() === who;
+    const facts = [
+      own ? html`<b>your own PR</b>` : `by @${p.author}`,
+      html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">open ${fmt(days(p.created))} days</span>`,
+      html`nixpkgs has <span class="mono">${p.now}</span>`,
+      p.draft && 'a draft',
+    ].filter(Boolean);
+    const hidden = isPrHidden(p);
+    return html`<li${hidden ? raw(' class="is-hidden"') : ''}><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><button type="button" class="merge-hide" data-pr="${p.number}" title="${hidden ? 'Shown again here' : 'Leave it out of this list, in this browser only, until it changes'}">${hidden ? 'Show it again' : 'Hide'}</button><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
+  };
+  const n = listed.length;
+  const more =
+    listed.length > CLOSE_SHOWN
+      ? html`<button type="button" class="merge-more" data-close-more>${closeAll ? 'Show fewer' : `Show all ${fmt(listed.length)}`}</button>`
+      : '';
+  return html`<section class="merge-block close-block" aria-labelledby="closeHead">
+    <h3 id="closeHead">${n === 1 ? 'This update PR can' : html`These ${fmt(n)} update PRs can`} be closed <span class="scope-hint">nixpkgs already has their version or a newer one${hiddenN && !showHiddenPrs ? html` · ${fmt(hiddenN)} hidden` : ''}</span></h3>
+    <ul class="merge-list">${shown.map(line)}</ul>
+    ${more}
+    <p class="merge-how">Close it with a word on why (nixpkgs has a newer version), or update it to the newest.${
+      community && manifest.views?.superseded
+        ? html` <a class="files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded">All ${fmt(manifest.views.superseded)} packages with one, in all of nixpkgs →</a>`
+        : ''
+    }</p>
+  </section>`;
+}
+
 function loadNames() {
   if (namesLoading) return;
   namesLoading = fetch(dataUrl('names.json'), { cache: 'no-store' })
@@ -2689,6 +2747,11 @@ function numbersHtml() {
       'ready for the merge bot',
       html`PRs waiting for their own maintainers (${fmt(m.maintainers)} people could each merge one), ${fmt(m.over90)} for over three months. Yours: "You can merge these", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>`,
     ],
+    manifest.close?.prs != null && [
+      fmt(manifest.close.prs),
+      'update PRs nixpkgs is past',
+      html`it already has their version or a newer one: they can be closed (${fmt(manifest.close.bot)} of them the update bot's). Yours: "Can be closed", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>${link(scopeHref({ view: 'superseded' }), 'all of them')}`,
+    ],
     [
       fmt(n.behind),
       'update PRs behind upstream',
@@ -2799,9 +2862,11 @@ function listHeaderHtml() {
                   ? 'Blocked by a dependency'
                   : path === 'views/unbuilt.json'
                     ? 'Not built where listed'
-                    : path === 'views/backport.json'
-                      ? 'Fixes to backport'
-                      : 'Needs attention';
+                    : path === 'views/superseded.json'
+                      ? 'Update PRs to close'
+                      : path === 'views/backport.json'
+                        ? 'Fixes to backport'
+                        : 'Needs attention';
   return html`<h2 class="sr-only">${what}</h2>
     <div class="scope-view">
       <span class="scope-label">Showing</span>
@@ -2816,14 +2881,23 @@ function listHeaderHtml() {
         // Marked broken's neighbour: listed for a platform, never built there.
         path === 'views/broken.json' && manifest.views?.unbuilt
           ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'unbuilt' })}" title="Packages nixpkgs lists for a platform Hydra doesn't build them on: usually a dependency isn't available there">also: ${fmt(manifest.views.unbuilt)} not built where listed →</a>`
-          : path === 'views/unbuilt.json'
-            ? html`<span class="scope-hint">listed for a platform Hydra doesn't build them on (struck tags); pick a platform to see its own</span>`
-            : ''
+          : path === 'views/superseded.json'
+            ? html`<span class="scope-hint">an open update PR nixpkgs is already past (it has the PR’s version or a newer one): each package’s details link it</span>`
+            : path === 'views/unbuilt.json'
+              ? html`<span class="scope-hint">listed for a platform Hydra doesn't build them on (struck tags); pick a platform to see its own</span>`
+              : ''
+      }
+      ${
+        // "PR to close" on in another list: the whole of nixpkgs' are a view.
+        refines.has('superseded') && path !== 'views/superseded.json' && manifest.views?.superseded
+          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded" title="Every package with an open update PR nixpkgs is already past, up to date or not">also: ${fmt(manifest.views.superseded)} in all of nixpkgs →</a>`
+          : ''
       }
       ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(setFilter)}${profileOf(setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
       ${teamPicker('Any team')}${teamOutChips()}
     </div>
     ${mergeHtml(path, handle)}
+    ${closeHtml(path, handle)}
     ${
       // One package: its row says it all, the tiles would only count to 1.
       path.startsWith('pkg:') ? '' : html`<div class="tiles">${tiles}</div>${refineHtml()}`
@@ -3978,6 +4052,11 @@ function githubSection(pkg) {
     if (said.length)
       lines.push(html`<li>Update PR ${link(pr)} <span class="mono">${pr.to}</span>: ${said}</li>`);
   }
+  // Open update PRs nixpkgs is already past (prs_digest.mark_superseded).
+  for (const sp of pkg.supersededPRs || [])
+    lines.push(
+      html`<li>${link({ ...sp, url: `https://github.com/NixOS/nixpkgs/pull/${sp.number}` })} ${sp.title} ${fact('warn', `can be closed: nixpkgs has ${sp.now}`, 'nixpkgs already has this version or a newer one: the PR can be closed, or updated to the newest')}${sp.draft ? fact('', 'a draft') : ''}</li>`,
+    );
   // Its other open PRs, a removal first (prs_digest.add_facts).
   const KIND = {
     drop: (other) => {
@@ -4715,6 +4794,11 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   }
   if (e.target.closest('button.merge-hidden-toggle')) {
     showHiddenPrs = !showHiddenPrs;
+    renderScope();
+    return;
+  }
+  if (e.target.closest('button[data-close-more]')) {
+    closeAll = !closeAll;
     renderScope();
     return;
   }

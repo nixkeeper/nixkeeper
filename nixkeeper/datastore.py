@@ -675,6 +675,8 @@ def views(rows, out):
         (in such sets too, as the overview's blockers count them)
       views/unbuilt.json: listed for a platform Hydra doesn't build it on
         (unbuilt_where; not in such a set)
+      views/superseded.json: an open update PR nixpkgs is already past
+        (supersededPRs: prs_digest.mark_superseded), in such sets too
       views/maintainer/<handle>.json: a maintainer's (lowercase handle),
         and none.json those with no maintainer (not in such a set)
       views/team/<slug>.json, views/list/<slug>.json, views/set/<name>.json
@@ -772,6 +774,10 @@ def views(rows, out):
         for name in row.get("lists") or []:
             put(f"views/list/{slug(name)}.json", row)
             lists[name] = lists.get(name, 0) + 1
+        # An open update PR nixpkgs is already past (prs_digest
+        # .mark_superseded): every one, in sets too, up to date or not.
+        if row.get("supersededPRs"):
+            put("views/superseded.json", row)
         if row.get("set"):
             put(f"views/set/{row['set']}.json", row)
             found_set = sets.setdefault(
@@ -946,6 +952,7 @@ def views(rows, out):
             "blocked": len(found.get("views/blocked.json", [])),
             "backport": len(found.get("views/backport.json", [])),
             "unbuilt": len(found.get("views/unbuilt.json", [])),
+            "superseded": len(found.get("views/superseded.json", [])),
             # (In the file, by name with capitals first, as its keys sort: the
             # page sorts them its way.)
             "teams": dict(sorted(teams.items())),

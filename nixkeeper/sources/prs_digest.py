@@ -29,6 +29,8 @@ from ..versions import is_newer, version_key
 from . import about, github, http
 
 FORMAT = 1
+# The update bot (nixpkgs-update), as GitHub names it.
+BOT = "r-ryantm"
 PR_URL = "https://github.com/NixOS/nixpkgs/pull/"
 ISSUE_URL = "https://github.com/NixOS/nixpkgs/issues/"
 # At most so many PRs and issues of a package in its panel (the rest are a
@@ -303,6 +305,47 @@ def mergeable(prs, rows):
                 item["vulnerable"] = True
         found.append(item)
     found.sort(key=lambda p: (p["created"], p["number"]))
+    return found
+
+
+def mark_superseded(prs, rows):
+    """Mark each row's open update PRs nixpkgs is already past: the digest's
+    state "superseded" (nixpkgs has the PR's version, or a newer one: 255 on
+    2026-10-23, most of them r-ryantm's), as "supersededPRs" ([{"number",
+    "title", "author", "created", "now": nixpkgs' version, "draft"?}],
+    oldest first), for a maintainer's and a team's "Can be closed" and the
+    list's filter. Returns {"prs", "bot": r-ryantm's of them} for the
+    overview, or None without the digest's list."""
+    if prs is None:
+        return None
+    by_key = {package_key(r["name"]): r for r in rows}
+    for row in rows:
+        row.pop("supersededPRs", None)
+        for attr in row.get("attrs") or []:
+            by_key.setdefault(package_key(attr), row)
+    found = {"prs": 0, "bot": 0}
+    for pr in prs:
+        update = pr.get("update") or {}
+        if pr.get("state") != "superseded":
+            continue
+        row = by_key.get(package_key(update.get("attr") or ""))
+        if row is None:
+            continue
+        item = {
+            "number": pr["n"],
+            "title": pr["title"],
+            "author": pr.get("author") or "",
+            "created": pr.get("created") or "",
+            "now": update.get("now") or row.get("nixVersion") or "",
+        }
+        if pr.get("draft"):
+            item["draft"] = True
+        row.setdefault("supersededPRs", []).append(item)
+        found["prs"] += 1
+        found["bot"] += item["author"] == BOT
+    for row in rows:
+        if row.get("supersededPRs"):
+            row["supersededPRs"].sort(key=lambda p: (p["created"], p["number"]))
     return found
 
 
