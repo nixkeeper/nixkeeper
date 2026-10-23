@@ -203,6 +203,7 @@ what's left.
 | **breaks on staging-next** | packages that build on master but fail their own build on staging-next, at the same version, in Hydra's newest evaluation of it (a day or two old): unless fixed, they fail on master when staging-next is merged into it. A forecast: no count includes it, and a fix may already be waiting on staging. The details link each failing build | `?refine=stagingnext` |
 | **not built where listed** | packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there: usually a dependency isn't available there, or `meta.platforms` promises too much); with a platform picked, that platform's only. Packages Hydra builds nowhere (unfree, kept off it) aren't. For all of nixpkgs at once, its own list: **Not built where listed** (`?view=unbuilt`, linked from Marked broken), where a platform picked keeps those not built there (`?view=unbuilt&platform=darwin`, `aarch64-linux`) | `?refine=unbuilt` |
 | **open PR**: with one, or without | with one: packages an open PR touches; with **Marked broken**, those a PR may fix (or that it's moot for, while it stays broken: a person checks; the panel says so too) Without one: those no open PR touches, nobody on them yet | `?refine=withpr`, `?refine=nopr` |
+| **newer version**: known, or none known | whether a newer version than nixpkgs' is known (outdated, merged or not); with Build failures, none known means an update won't fix it, the build does (`?filter=builds&newer=no`), known with **Open PR: without** that nobody has opened the update that might | `?newer=yes`, `?newer=no` |
 | **PR to close** | packages with an open update PR nixpkgs is already past (see [Can be closed](#maintainers-and-teams)); in any list, with a link to all of nixpkgs' | `?refine=superseded` |
 | **bot won't update it** | outdated packages nixpkgs-update won't update by itself, so it takes someone: it can't, skips them on purpose, or has never tried them and they aren't in its queue; none with an update PR open or merged | `?refine=nobot` |
 | **not via a team** (on a maintainer's page) | see [teams](#maintainers-and-teams) | `?team=none` |
@@ -417,9 +418,16 @@ PR and issue counts:
 ## Build failures
 
 From Hydra, which builds nixpkgs master. The cell opens the
-builds panel: how it stands ("Failing on 2 of 3", "Blocked on 1 of 3",
-"Building on all 3"), then a row per system with its status, when it last
-built, and its log, Hydra job, build or source to open:
+builds panel: a line per system with how it stands there (why it failed,
+"missing file", from its log; "not built"; blocked by which dependency),
+when it last built (the date on hover), its Hydra build and job (or source)
+to open, and for a failure the log's lines that say why, with the **full
+log ↗**; "checked on Hydra N days ago" under them when it wasn't today.
+
+**Show errors** (with the Build failures or Failed tile: `?errors=1`)
+opens every failing package's builds under its row, loaded as they scroll
+into view: a page of errors to read through, with **build failed because**
+to keep one kind.
 
 | Shows | Means |
 |---|---|
@@ -433,7 +441,7 @@ built, and its log, Hydra job, build or source to open:
 
 From the nixpkgs-update bot (r-ryantm): its latest attempt. The cell opens the update panel: the outcome ("Failed: patch", "PR opened",
 "Can't update"...), when it was attempted and from which version to which,
-why, the log's last lines, the next attempt from the bot's queue (when, and
+why (unless the outcome already says it all: "Failed: build"), the log's last lines, the next attempt from the bot's queue (when, and
 what it would update to), and the log and every attempt to open:
 
 | Shows | Means |

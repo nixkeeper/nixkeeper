@@ -2286,10 +2286,9 @@ tbody tr.row.open td {
    what to open, in columns where there's room. */
 .br-list {
   display: grid;
-  /* Columns sized to what's in them and shared by every row (subgrid), so
-     the buttons line up right after the longest detail, not at the far
-     edge; the last, empty one takes the rest, for the rows' dividers. */
-  grid-template-columns: max-content max-content minmax(0, max-content) max-content 1fr;
+  /* Columns sized to what's in them and shared by every row (subgrid); the
+     detail takes the rest, so the buttons line up at the far edge. */
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
   column-gap: 20px;
   border-top: 1px solid var(--hairline);
 }
@@ -2336,13 +2335,19 @@ tbody tr.row.open td {
   color: var(--ink-soft);
   background: var(--stale-soft);
 }
-/* Why a build failed (from its log), and the lines that say so, under the
-   row across its columns. */
-.br-why {
-  font-weight: 500;
+/* The lines from a failed build's log that say why, under the row across
+   its columns. */
+/* The log's lines and their link to the whole log on Hydra. */
+.br-log-wrap {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+.br-full-log {
+  justify-self: start;
+  font-size: 12px;
 }
 .br-log {
-  grid-column: 1 / -1;
   margin: 0;
   padding: 6px 10px;
   overflow-x: auto;
@@ -2358,6 +2363,7 @@ tbody tr.row.open td {
   min-width: 0;
 }
 .br-acts {
+  justify-self: end;
   display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -2375,6 +2381,9 @@ tbody tr.row.open td {
   .br-what,
   .br-acts {
     grid-column: 1 / -1;
+  }
+  .br-acts {
+    justify-self: start;
   }
 }
 .pd-why-body {

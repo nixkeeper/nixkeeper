@@ -11,6 +11,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Newer version: known / none known** (`?newer=yes`, `?newer=no`), with
+  any tile: build failures an update won't fix (`?filter=builds&newer=no`,
+  852 rows on 2026-10-23), or that one might and nobody has opened
+  (`?newer=yes&refine=nopr`).
+- **Show errors** with Build failures or Failed (`?errors=1`): every failing
+  package's builds open under its row, with its log's lines, loaded as they
+  scroll into view.
 - **Can be closed**, on a maintainer's and a team's page: their open update
   PRs nixpkgs is already past (it has the PR's version or a newer one), each
   with what nixpkgs has now, Hide, and a link to all of them. Also a
@@ -45,6 +52,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- The builds panel says each platform once: one badge with why it failed
+  ("missing file"; "failed: missing file" for screen readers), "last built
+  1 y ago" (the date on hover), its Build and Job at the line's end, and
+  "full log ↗" under the log's lines instead of a Log button. No dot, no
+  "Failing on 2 of 2" or jobset above the lines, no note that
+  x86_64-darwin isn't built any more.
+- The update panel leaves out the sentence when its outcome already says
+  it ("Failed: build", "Failed: updateScript").
 - "Not fixed on master yet" is **Not merged yet**: it also leaves out
   updates merged into staging, staging-next or a branch like
   haskell-updates (`?refine=notonmaster` unchanged).

@@ -186,6 +186,14 @@ let ageFilter = null;
 let becauseFilter = null;
 // ?buildFailed=: build failures for one reason (a BUILD_FAILED key).
 let buildFailedFilter = null;
+// ?newer=: whether a newer version is known ("yes": outdated, merged or
+// not; "no": not outdated), with any tile: build failures an update won't
+// fix (?filter=builds&newer=no), say.
+let newerFilter = null;
+// ?errors=1: with Build failures (or Failed), every failing row's build
+// panel open under it, loaded as it scrolls into view (watchErrors).
+let showErrors = false;
+const errorsHere = () => showErrors && (activeFilter === 'builds' || activeFilter === 'failed');
 // ?in=: one package set, by the attribute's first part (logic.js nameSet:
 // python313Packages, vimPlugins, top-level); ?by=: one maintainer's
 // packages within the list shown (a handle, lowercase). Counted, with the
@@ -461,6 +469,7 @@ const AGES = {
 // kind: whose age counts (a FILTERS key): the list's, or a count's own.
 const refined = (p, kind = activeFilter) =>
   [...refines].every((key) => REFINES[key].test(p)) &&
+  (!newerFilter || (newerFilter === 'yes') === (computeStatus(p) === 'warn')) &&
   (!becauseFilter || failedBecause(p) === becauseFilter) &&
   (!buildFailedFilter || buildFailedBecause(p, platformFilter).includes(buildFailedFilter)) &&
   olderThan(p, ageFilter, kind, Date.now(), platformFilter);
@@ -525,6 +534,23 @@ function buildFailedPick() {
   return html`<label class="refine-age" title="Build failures for one reason, as the build's log on Hydra says. The counts are of this list, with its other filters">Build failed because <select data-build-failed><option value="">any reason</option>${keys.map(
     (key) =>
       html`<option value="${key}"${buildFailedFilter === key ? raw(' selected') : ''}>${BUILD_FAILED[key]?.short || key} (${fmt(counts[key] || 0)})</option>`,
+  )}</select></label>`;
+}
+
+// With Build failures or Failed picked: every failing row's errors at once.
+function errorsPick() {
+  if (activeFilter !== 'builds' && activeFilter !== 'failed') return '';
+  return html`<button type="button" class="refine-btn" data-show-errors aria-pressed="${showErrors}" title="${showErrors ? 'On: click to close them' : 'Open every failing package’s builds under it, with the lines from each log: loaded as they scroll into view'}">Show errors</button>`;
+}
+
+// "Newer version": any, known (?newer=yes), none known (?newer=no).
+function newerPick() {
+  return html`<label class="refine-age" title="Whether a newer version than nixpkgs' is known: with Build failures, none known means an update won't fix it, the build needs fixing">Newer version <select data-newer><option value="">any</option>${[
+    ['yes', 'known'],
+    ['no', 'none known'],
+  ].map(
+    ([key, label]) =>
+      html`<option value="${key}"${newerFilter === key ? raw(' selected') : ''}>${label}</option>`,
   )}</select></label>`;
 }
 
@@ -599,7 +625,7 @@ function refineHtml() {
     .map(
       ([key, r]) =>
         html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}${refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
-    )}${prPick()}${sortPick()}${
+    )}${prPick()}${newerPick()}${sortPick()}${errorsPick()}${
     // On a maintainer's page: ?team=none.
     shownHandle()
       ? html`<button type="button" class="refine-btn" data-no-team aria-pressed="${noTeam}" title="Only packages that list this maintainer themselves: leave out those they maintain only as a member of the package's team (meta.teams)">Not via a team</button>`
@@ -1072,6 +1098,8 @@ function readViewFromUrl() {
   const by = (params.get('by') || '').replace(/^@/, '').toLowerCase();
   byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
   statusFilter = NAME_STATUSES[params.get('status')] ? params.get('status') : null;
+  newerFilter = ['yes', 'no'].includes(params.get('newer')) ? params.get('newer') : null;
+  showErrors = params.get('errors') === '1';
   const ofTeam = params.get('ofteam') || '';
   matchTeam = /^[\w .+-]{1,60}$/.test(ofTeam) ? ofTeam : null;
   pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
@@ -1105,6 +1133,8 @@ function viewQuery(page = pageNum) {
   set('in', inFilter);
   set('by', byFilter);
   set('status', statusFilter);
+  set('newer', newerFilter);
+  set('errors', showErrors ? '1' : '');
   set('ofteam', matchTeam);
   params.delete('because'); // the old name, written as the new one
   set('page', page > 1 ? page : '');
@@ -2213,6 +2243,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     </tr></thead>
     <tbody id="rows">${shown.slice(0, FIRST_ROWS).map(rowHtml)}</tbody>
   </table></div>${pagerHtml(list.length, pages)}${moreMatchesHtml()}`;
+  watchErrors();
   // One package shown by its link (?pkg=): its details open at once, the
   // reason the link was followed.
   if (pkgParam && list.length === 1 && pkgOpenedFor !== pkgParam) {
@@ -2230,6 +2261,47 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
       'beforeend',
       String(html`${shown.slice(FIRST_ROWS).map((pkg, i) => rowHtml(pkg, FIRST_ROWS + i))}`),
     );
+  watchErrors();
+}
+
+// Show errors (errorsHere): each failing row's build panel, opened under it
+// as it comes near the screen, so a page of 200 loads only what's looked
+// at. Beside the panel a click opens: that one closes the others, these
+// stay; a click on one of these works as on any panel.
+let errorsObserver = null;
+function watchErrors() {
+  errorsObserver?.disconnect();
+  errorsObserver = null;
+  if (!errorsHere()) return;
+  errorsObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        errorsObserver?.unobserve(entry.target);
+        openErrors(entry.target);
+      }
+    },
+    { rootMargin: '600px 0px' },
+  );
+  for (const tr of document.querySelectorAll('#rows tr.row')) {
+    const pkg = shown[tr.dataset.i];
+    if (pkg && failedBuilds(pkg).length) errorsObserver.observe(tr);
+  }
+}
+async function openErrors(tr) {
+  if (tr.nextElementSibling?.classList.contains('detail')) return;
+  const pkg = shown[tr.dataset.i];
+  const detail = document.createElement('tr');
+  detail.className = 'detail open errors';
+  detail.dataset.mode = 'build';
+  detail.innerHTML = `<td colspan="6"><div class="detail-inner">
+      <div class="nix-line">Loading its builds…</div>
+    </div></td>`;
+  tr.after(detail);
+  const row = await fullRow(pkg);
+  const inner = detail.querySelector('.detail-inner');
+  if (row) fillBuilds(row, inner);
+  else inner.innerHTML = html`<div class="nix-line">Couldn't load its builds.</div>`;
 }
 
 // With every package, the header. The overview (no list chosen): all of
@@ -2927,6 +2999,8 @@ function scopeHref({ set = null, pkg = null, view = null, filter = null, cause =
     'by',
     'status',
     'ofteam',
+    'newer',
+    'errors',
   ])
     params.delete(k);
   if (set) params.set('set', set);
@@ -2960,6 +3034,8 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
   byFilter = null;
   statusFilter = null;
   matchTeam = null;
+  newerFilter = null;
+  showErrors = false;
   document.getElementById('search').value = '';
   update();
   // From the page's top, as a new page would: scrolling the view's header
@@ -3483,10 +3559,16 @@ const FAILED_BECAUSE = {
     text: "the bot couldn't work out a hash: of vendored dependencies, mostly, which failed to fetch or build",
   },
   source: { short: 'source', text: "the new version's source couldn't be fetched" },
-  updateScript: { short: 'updateScript', text: "the package's updateScript failed" },
+  // restates: its text only says the pill again ("Failed: updateScript"),
+  // so the panel leaves it out (the log lines say the rest).
+  updateScript: {
+    short: 'updateScript',
+    text: "the package's updateScript failed",
+    restates: true,
+  },
   tests: { short: 'tests', text: 'the new version built, but its tests failed' },
   noLog: { short: 'build', text: 'the build failed, and nix kept no log of why' },
-  build: { short: 'build', text: 'the new version failed to build' },
+  build: { short: 'build', text: 'the new version failed to build', restates: true },
   request: {
     short: 'request',
     text: "a request of the bot's failed (to GitHub, mostly), not the package",
@@ -3735,7 +3817,11 @@ function fillUpdate(pkg, el) {
       <span class="pd-verdict ${tone}">${o.label(u)}</span>
       <dl class="pd-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
     </div>
-    <p class="pd-text">${String(text).charAt(0).toUpperCase()}${raw(String(text).slice(1))}.</p>${
+    ${
+      because?.restates
+        ? ''
+        : html`<p class="pd-text">${String(text).charAt(0).toUpperCase()}${raw(String(text).slice(1))}.</p>`
+    }${
       because?.report
         ? Date.now() - new Date(day).getTime() <= REPORT_DAYS * DAY_MS
           ? html`<p class="pd-text">Worth telling <a class="files-link" href="https://github.com/NixOS/nixpkgs-update/issues" target="_blank" rel="noopener">nixpkgs-update's maintainers ↗</a>, if no one has yet.</p>`
@@ -3807,22 +3893,24 @@ function buildLine(pkg, b) {
   const since =
     'lastSuccess' in b
       ? b.lastSuccess
-        ? html`last built${lastGood} ${longDate(b.lastSuccess)} <span class="pd-ago">(${shortAge(b.lastSuccess)} ago)</span>`
+        ? html`last built${lastGood} <span title="${longDate(b.lastSuccess)}">${shortAge(b.lastSuccess)} ago</span>`
         : 'never built successfully'
       : '';
-  // Why it failed, from its log (nixkeeper-hydra), and the lines that say so.
+  // Why it failed, from its log (nixkeeper-hydra), and the lines that say so:
+  // in the status badge itself ("failed: missing file", as the list's cell
+  // says it), not beside it.
   const why = b.status === 'failed' && BUILD_FAILED[b.failedBecause];
-  const because = why
-    ? html`<span class="br-why" title="${why.text}">${why.short}</span>${at || since ? ' · ' : ''}`
-    : '';
   const what =
     b.status === 'dependency' && b.blockedBy?.length
       ? html`${blockedByHtml(b.blockedBy)}${since ? html` · ${since}` : ''}`
-      : html`${because}${at}${at && since ? ' · ' : ''}${since}`;
+      : html`${at}${at && since ? ' · ' : ''}${since}`;
   const act = (href, name, label, title) =>
     html`<a class="pd-link" href="${href}" target="_blank" rel="noopener"${title ? html` title="${title}"` : ''}>${icon(name)}${label}</a>`;
   const acts = [
-    b.status === 'failed' && act(`${HYDRA}/build/${b.build}/log`, 'file-text', 'Log'),
+    // With the log's lines shown, their own link ("full log") instead.
+    b.status === 'failed' &&
+      !(why && b.failedExcerpt) &&
+      act(`${HYDRA}/build/${b.build}/log`, 'file-text', 'Log'),
     // A failed build's page too: every step, when the failure is in a
     // derivation built for it rather than the package's own step.
     ['failed', 'dependency', 'unfinished'].includes(b.status) &&
@@ -3840,11 +3928,11 @@ function buildLine(pkg, b) {
       ),
   ].filter(Boolean);
   return html`<div class="br">
-    <span class="br-sys"><span class="status-dot ${s.dot}" aria-hidden="true"></span><span class="mono">${b.system}</span>${multi ? html`<span class="mono br-attr">${b.attr}</span>` : ''}</span>
-    <span class="br-st ${s.dot}" title="${s.text}">${s.short}</span>
+    <span class="br-sys"><span class="mono">${b.system}</span>${multi ? html`<span class="mono br-attr">${b.attr}</span>` : ''}</span>
+    <span class="br-st ${s.dot}" title="${why ? `${s.text}: ${why.text}` : s.text}">${why ? html`<span class="sr-only">${s.short}: </span>${why.short}` : s.short}</span>
     <span class="br-what">${what}</span>
     <span class="br-acts">${acts}</span>
-    ${why && b.failedExcerpt ? html`<pre class="br-log" title="From the build's log on Hydra">${b.failedExcerpt}</pre>` : ''}
+    ${why && b.failedExcerpt ? html`<div class="br-log-wrap"><pre class="br-log" title="From the build's log on Hydra">${b.failedExcerpt}</pre><a class="files-link br-full-log" href="${HYDRA}/build/${b.build}/log" target="_blank" rel="noopener">full log ↗</a></div>` : ''}
   </div>`;
 }
 
@@ -3869,47 +3957,22 @@ function fillBuilds(pkg, el) {
     el.innerHTML = html`${stale}${none('Not built', html`Hydra doesn't build this package (nixpkgs may exclude it with <span class="mono">hydraPlatforms</span>).`)}`;
     return;
   }
-  const built = pkg.builds.filter((b) => b.status !== 'notBuilt');
-  const failed = built.filter((b) => b.status === 'failed').length;
-  const stopped = built.filter((b) => ['broken', 'dependency', 'unfinished'].includes(b.status));
-  // All stopped by a dependency: "blocked", as the list calls it.
-  const blocked = stopped.length && stopped.every((b) => b.status === 'dependency');
-  const verdict = failed
-    ? ['danger', `Failing on ${failed} of ${built.length}`]
-    : stopped.length
-      ? [
-          'caution',
-          `${blocked ? 'Blocked' : 'Not building'} on ${stopped.length} of ${built.length}`,
-        ]
-      : built.length
-        ? ['ok', built.length === 1 ? 'Building' : `Building on all ${built.length}`]
-        : ['neutral', 'Not built'];
-  // Builds with nothing going on are checked every few days, not daily
-  // (nixkeeper/sources/hydra.py): when the oldest was, if it isn't today.
+  // Each platform's line says how it stands: no summary above them (a
+  // count the lines show at a glance). Builds with nothing going on are
+  // checked every few days, not daily (nixkeeper/sources/hydra.py): when
+  // the oldest was, under them, if it isn't today.
   const checked = pkg.builds
     .map((b) => b.checkedAt)
     .filter(Boolean)
     .sort()[0];
   const age = checked && daysText(checked);
-  const facts = [
-    [
-      'jobset',
-      html`<a class="files-link mono" href="${HYDRA}/jobset/nixpkgs/unstable" target="_blank" rel="noopener" title="Hydra's builds of nixpkgs master">nixpkgs/unstable</a>`,
-    ],
-    checked &&
-      age !== 'today' && [
-        'checked',
-        html`<span title="${new Date(checked).toLocaleString()}">${age} ago</span>`,
-      ],
-  ].filter(Boolean);
-  const darwin = pkg.platforms === null || pkg.platforms?.darwin;
   el.innerHTML = html`${stale}<div class="pd">
-    <div class="pd-head">
-      <span class="pd-verdict ${verdict[0]}">${verdict[1]}</span>
-      <dl class="pd-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
-    </div>
     <div class="br-list">${pkg.builds.map((b) => buildLine(pkg, b))}</div>
-    ${darwin ? html`<p class="pd-foot">x86_64-darwin is no longer built by nixpkgs.</p>` : ''}
+    ${
+      checked && age !== 'today'
+        ? html`<p class="pd-foot" title="${new Date(checked).toLocaleString()}">Checked on Hydra ${age} ago.</p>`
+        : ''
+    }
   </div>`;
 }
 
@@ -4708,6 +4771,12 @@ document.addEventListener('click', (e) => {
   else return;
   update();
 });
+// Show errors: on or off.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('button[data-show-errors]')) return;
+  showErrors = !showErrors;
+  update({ keepPage: true });
+});
 // ↓/↑: the list's order reversed, or back.
 document.addEventListener('click', (e) => {
   if (!e.target.closest('button[data-sort-dir]')) return;
@@ -4746,6 +4815,7 @@ document.addEventListener('change', (e) => {
   else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
   else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
   else if (e.target.matches('select[data-sort]')) sortMode = e.target.value || 'pressing';
+  else if (e.target.matches('select[data-newer]')) newerFilter = e.target.value || null;
   else if (e.target.matches('select[data-pr-pick]')) {
     refines.delete('withpr');
     refines.delete('nopr');
