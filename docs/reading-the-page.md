@@ -98,8 +98,11 @@ the top, split: their own failure, a dependency's, unfinished), packages not bui
 ## Lists
 
 Each row is a package. Clicking it opens [its details](#a-packages-details);
-clicking its build or update cell opens that panel instead. One package is
-open at a time, so opening another closes it. Its **Open on GitHub** cell
+clicking its build or update cell opens that panel instead. Several can be
+open at once, each closing on its own; with two or more open, **Close all**
+beside the list's count, or Esc, closes them. A package's name is a link to
+it alone (`?pkg=`): Ctrl/Cmd-click or middle-click opens it in a tab of its
+own. Its **Open on GitHub** cell
 counts the open nixpkgs PRs and issues with its name in the title, each
 with GitHub's icon and a link to that search ("—" when there are none).
 
@@ -252,14 +255,14 @@ merged since that likely fixes it, waiting for Hydra.
 
 **On GitHub**: what nixkeeper-prs found of the package's PRs and issues,
 each with GitHub's icon for it (an open PR, a draft, a merged one in violet,
-an issue):
+an issue), and a short label ("merge-bot ready", "likely fix", "builds now ·
+can close"), the sentence behind it on hover:
 
 - its update PR ready for the merge bot, superseded or overtaken, blocking
   the update bot, or duplicated; **behind** when upstream has a newer
   version than it brings (merged, the package would still be outdated:
-  worth updating the PR first), and **for a vulnerable package** when the
-  package counts as vulnerable (worth reviewing first, and checking whether
-  its version fixes the CVEs);
+  worth updating the PR first). For a vulnerable package, it's under its
+  vulnerabilities instead (below);
 - open PRs touching it while its build fails on Hydra (maybe its fix), and
   for a package marked broken, that open PRs touch it (one may fix it);
 - its other open PRs, a removal first ("removes it from nixpkgs": the list
@@ -268,8 +271,20 @@ an issue):
   or "(no activity since ...)", and the list says nothing);
 - its issues that look done (a build failure that builds on Hydra now, an
   update request nixpkgs has met, an issue about CVEs none of which affect
-  nixpkgs' version as nixkeeper reads them; "check the condition" when the
+  nixpkgs' version as nixkeeper reads them; "check it" when the
   title names something Hydra doesn't build) or still fail.
+
+A merged PR's author and merger are on its link's hover.
+
+**Vulnerabilities**: the CVEs and advisories that count, worst first, with
+what they share said once above them ("24 CVEs: 4 critical, 8 high ... · all
+affected · still affected on 26.05"); grouped by the security tracker's
+issue (linked once, with its nixpkgs issue), a line each: the id, its
+severity and its summary (cut short, whole on hover), and what it doesn't
+share. The worst five, then **Show all**. When an update PR is open, it's
+under them: "updates it to 3.20.1: check whether that fixes it, and review
+it first" (the tracker gives no fixed version). Those not counted (fixed,
+unconfirmed, dismissed) are folded below.
 
 These are worked out automatically, from titles, Hydra's builds and the
 merge bot's rules: hints for a person to check before acting (closing an
@@ -428,7 +443,7 @@ PR and issue counts:
 | `on staging`, `on staging-next` (violet) | the update is merged into staging or staging-next, the branches mass rebuilds go through (libraries, compilers, curl, coreutils): it reaches master when staging-next is merged into it, about every two to three weeks; staging's goes to the next staging-next first. Links to its PR; the details say since when, which staging-next, and for staging-next's, how it builds there in Hydra's newest evaluation of it (a day or two old: its day is said). Still outdated until then |
 | `devel` | a development release, compared against other devel versions |
 | `insecure` | nixpkgs itself marks it insecure (`meta.knownVulnerabilities`): it won't build unless allowed; the details give nixpkgs' reasons, their CVEs linked |
-| `vulnerable` | vulnerable, says one or more of: the NixOS security tracker (a CVE affecting the package), OSV (an advisory listing its version), Repology; hovering says who, and how many CVEs. Red for critical or high severity, orange for medium, grey for low; the vulnerable list goes worst first. The details list each CVE: its severity, the verdict, the tracker's issue and its nixpkgs issue, and the release branches still affected (a fix to backport); the ones not counted (fixed, unconfirmed, dismissed) folded below |
+| `vulnerable` | vulnerable, says one or more of: the NixOS security tracker (a CVE affecting the package), OSV (an advisory listing its version), Repology; hovering says who, and how many CVEs. Red for critical or high severity, orange for medium, grey for low; the vulnerable list goes worst first. The details list them, grouped by the tracker's issue: each one's severity and summary, the verdict and the release branches still affected (a fix to backport), said once when shared; the ones not counted (fixed, unconfirmed, dismissed) folded below |
 | `untrusted`, `rolling`, ... | Repology's status for a version it can't compare |
 | `not refreshed` | Repology couldn't be reached on the last sync: older data |
 | `check failing` | nixkeeper's own update check for it isn't working: fix it in `package-lists/update-checks.nix` |
@@ -441,6 +456,11 @@ builds panel: a line per system with how it stands there (why it failed,
 when it last built (the date on hover), its Hydra build and job (or source)
 to open, and for a failure the log's lines that say why, with the **full
 log ↗**; "checked on Hydra N days ago" under them when it wasn't today.
+Builds failing alike (the same reason and log lines, a test run's timing
+aside: python313Packages and python314Packages on two platforms) are
+together, each its own line, their log's lines once under the last: "the
+same on all 4". For pytest, the lines are its failed tests and its count
+of them.
 
 **Show errors** (with the Build failures or Failed tile: `?errors=1`)
 opens every failing package's builds under its row, loaded as they scroll

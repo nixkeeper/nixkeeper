@@ -52,6 +52,19 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- Several packages open at once: opening one no longer closes the others;
+  **Close all** beside the list's count, or Esc, closes them. A package's
+  name is a link to it alone (`?pkg=`), for a tab of its own.
+- The builds panel brings failures alike together (same reason and log
+  lines: python313Packages and python314Packages, on two platforms), their
+  log's lines shown once: "the same on all 4".
+- A package's details: "On GitHub" labels a few words long ("likely fix",
+  "merge-bot ready", "builds now · can close"), the sentence on hover; a
+  merged PR's people on its link's hover; no "a draft" (its icon says it).
+  The update PR of a vulnerable package is under its vulnerabilities, which
+  say what their CVEs share once, group them by the tracker's issue, a line
+  each (the worst five, then Show all: zitadel's 24 took 48 lines), and
+  short verdicts ("affected", the sentence on hover).
 - **Open on GitHub**: GitHub's icons and the counts above 0 ("PRs 2" is
   the PR icon and 2), and "—" when there are none (two thirds of the
   attention list showed "PRs 0 issues 0": two links to an empty search).
