@@ -72,6 +72,18 @@ def title_words(text):
     return found
 
 
+# A nixpkgs name in a title: an attribute or a package's name, letters,
+# digits and _ . + - (python3Packages.requests, gtk+3, wesnoth-devel), a
+# final "." being the sentence's.
+NAME = re.compile(r"[A-Za-z0-9_][\w.+-]*")
+
+
+def title_names(text):
+    """The names in a title, in lower case: "pkg: 2.7.5 -> 2.8.4" has pkg,
+    "Build failure: pkg-config" pkg-config, not pkg."""
+    return {n.rstrip(".").lower() for n in NAME.findall(text or "")}
+
+
 def list_open(token):
     """(open pull requests, open issues) of nixpkgs, as GraphQL nodes; raises
     if a request fails (a partial list would give wrong counts)."""
@@ -111,23 +123,27 @@ def list_open(token):
 
 
 class Listing:
-    """Open pull requests and issues, indexed by the words in their titles
-    and by the package their titles start with ("wesnoth-devel: ...")."""
+    """Open pull requests and issues, indexed by the names and the words in
+    their titles, and by the package their titles start with
+    ("wesnoth-devel: ...")."""
 
     def __init__(self, prs, issues):
         self.prs, self.issues = prs, issues
         self.pr_words = self._index(prs)
         self.issue_words = self._index(issues)
+        self.issue_names = self._index(issues, title_names)
         self.by_package = {}
-        for pr in prs:
+        self.pr_packages = {}  # the same, in lower case: PRs' counts
+        for i, pr in enumerate(prs):
             for package in github.title_packages(pr.get("title")):
                 self.by_package.setdefault(package, []).append(pr)
+                self.pr_packages.setdefault(package.lower(), set()).add(i)
 
     @staticmethod
-    def _index(nodes):
+    def _index(nodes, split=title_words):
         index = {}
         for i, node in enumerate(nodes):
-            for word in title_words(node.get("title")):
+            for word in split(node.get("title")):
                 index.setdefault(word, set()).add(i)
         return index
 
@@ -140,12 +156,34 @@ class Listing:
             found = ids if found is None else found & ids
         return found or set()
 
-    def counts(self, term):
+    def search_counts(self, term):
         """(open PRs, open issues) with term's words in their titles, as
         GitHub's `in:title term` search counts them."""
         return (
             len(self._matching(self.pr_words, term)),
             len(self._matching(self.issue_words, term)),
+        )
+
+    def counts(self, row):
+        """(open PRs, open issues) about row: PRs whose titles name it, or one
+        of its attributes, as nixpkgs' convention does ("pkg: 2.7.5 ->
+        2.8.2", "foo, pkg: ..."; title_packages), and issues, free-form, with
+        its name or search term whole in their title ("Build failure:
+        pkg", not "pkg-config" or "pkgs/"). Not GitHub's search's count,
+        whose words matched far more for a name that's a word: "pkg" 120 PRs
+        and 96 issues, against the 2 PRs about it ("pkg: remove unicode
+        arrow") and 8 issues; 1,000 of the 13,523 needing attention counted
+        fewer (2026-10-23)."""
+
+        def naming(index, names):
+            names = {n.lower() for n in names}
+            return len(set().union(*(index.get(n, set()) for n in names)))
+
+        # Issues by its own name only: an attribute can be a word too (bind's
+        # host and dig matched 59 issues about hosts).
+        return (
+            naming(self.pr_packages, [row["name"], *github.pr_names(row)]),
+            naming(self.issue_names, [row["name"], row["searchTerm"]]),
         )
 
     def open_update_pr(self, row):
@@ -187,8 +225,20 @@ def add_counts(rows, now, listed=None):
             )
             return False
     for row in rows:
-        prs, issues = listing.counts(row["searchTerm"])
+        prs, issues = listing.counts(row)
         row.update(openPRs=prs, openIssues=issues, countedAt=now)
+        # Where GitHub's search, which the page links, shows more than name
+        # it: the page's hover says so.
+        search = listing.search_counts(row["searchTerm"])
+        more = [
+            k
+            for k, n, s in zip(("pr", "issue"), (prs, issues), search, strict=True)
+            if s > n
+        ]
+        if more:
+            row["searchShowsMore"] = more
+        else:
+            row.pop("searchShowsMore", None)
         row.pop("openPR", None)
         if pr := listing.open_update_pr(row):
             row["openPR"] = pr

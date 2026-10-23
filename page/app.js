@@ -4158,14 +4158,20 @@ function githubLinks(pkg) {
   const counted = age && age !== 'today' ? ` (counted ${age} ago)` : '';
   // GitHub's icon and the count ("2 open PRs" said); without a count, the
   // word instead.
+  // The count is of titles about the package (nixkeeper/sources/
+  // github_bulk.py); GitHub's search, linked, matches words, and for a name
+  // that's a word (pkg, linux) shows more: the hover says so.
   const link = (kind, path, label, count) => {
     if (count === 0) return '';
-    const q = encodeURIComponent(`is:${kind} state:open in:title ${term}`);
+    const q = encodeURIComponent(`is:${kind} state:open in:title "${term}"`);
+    const more = pkg.searchShowsMore?.includes(kind)
+      ? `. GitHub's search shows more: titles with the word ${term} in them, not only its name`
+      : '';
     return html`<a class="gh-btn" href="https://github.com/NixOS/nixpkgs/${path}?q=${q}" target="_blank" rel="noopener"
-      title="Open nixpkgs ${label} with ${term} in the title${counted}"${count != null ? html` aria-label="${count} open ${label}"` : ''}>${GH_ICONS[kind]}${count != null ? html`<b>${count}</b>` : label}</a>`;
+      title="Open nixpkgs ${label} naming ${term} in their title${counted}${more}"${count != null ? html` aria-label="${count} open ${label}"` : ''}>${GH_ICONS[kind]}${count != null ? html`<b>${count}</b>` : label}</a>`;
   };
   if (pkg.openPRs === 0 && pkg.openIssues === 0)
-    return html`<span class="failure-na" title="No open nixpkgs PRs or issues with ${term} in the title${counted}">—</span>`;
+    return html`<span class="failure-na" title="No open nixpkgs PRs or issues naming ${term} in their title${counted}${pkg.searchShowsMore ? `. GitHub's search shows some with the word ${term} in them` : ''}">—</span>`;
   return html`<span class="gh-links">${link('pr', 'pulls', 'PRs', pkg.openPRs)}${link('issue', 'issues', 'issues', pkg.openIssues)}</span>`;
 }
 

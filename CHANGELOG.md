@@ -123,6 +123,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   and the release notes' card show the overview's social preview
   ("Health dashboard for every nixpkgs package"); the list's says
   "Health dashboard for your nixpkgs packages".
+- **Open on GitHub** counts the PRs about the package (titled with its name
+  or an attribute, by nixpkgs' convention) and the issues with its name
+  whole in their title, not every title with its name's words: "pkg" was
+  120 PRs and 96 issues (pkgs/..., pkg-config), now 2 and 8; 1,409 of the
+  13,523 packages needing attention count fewer, 51 a little more
+  (2026-10-23). The link searches for the name in quotes, and says when
+  GitHub's search shows more. Rows have `searchShowsMore`.
 
 ### Fixed
 

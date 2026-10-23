@@ -391,7 +391,8 @@ behind the newest devel version elsewhere (`refVersion`).
 | `stagingNextBlockedBy` | builds on master, but on staging-next a dependency failing there stops it, at the same version: `eval`, `evaluatedAt`, `builds` (`system`, `build`, `by`: each dependency, `name` and `row` when it's a row) |
 | `stagingNextBlocks` | its failure on staging-next stops others that build on master: `eval`, `evaluatedAt`, `packages`, `builds` |
 | `stagingNextBreaks` | builds on master but fails its own build on staging-next at the same version, in Hydra's newest evaluation of it (nixkeeper-hydra's `staging-next.json.gz`): `eval`, `evaluatedAt`, `builds` (`attr`, `system`, `build`: each failing job there), and `cycle` (`n`, `cut`: the open staging-next PR into master). A forecast: no count includes it |
-| `openPRs`, `openIssues` | how many open nixpkgs PRs and issues have `searchTerm` in their title |
+| `openPRs`, `openIssues` | how many open nixpkgs PRs and issues are about it: PRs whose titles name it or one of its `attrs` as nixpkgs' convention does (`pkg: 2.7.5 -> 2.8.2`), issues with its name or `searchTerm` whole in their title (`Build failure: pkg`, not `pkg-config`). Searched per package instead (the listing failed, or an instance of its own lists), GitHub's search counts them: titles with `searchTerm`'s words |
+| `searchShowsMore` | `["pr"]`, `["issue"]` or both: GitHub's search of `searchTerm`'s words, which the page links, shows more than those (a name that's a word: pkg, linux) |
 | `countedAt` | when those were last counted (left out: at `checkedAt`): daily, from a listing of all of nixpkgs' open PRs and issues (searched per package instead when that fails: then every 3 days for a package with none open and not outdated) |
 
 `openPR` and `masterPR`: `number`, `title`, `url`, `draft`, `base` (the

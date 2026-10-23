@@ -63,15 +63,44 @@ class Words(unittest.TestCase):
 class Listing(unittest.TestCase):
     listing = github_bulk.Listing(PRS, ISSUES)
 
-    def test_whole_words_in_any_case(self):
+    def test_search_whole_words_in_any_case(self):
         # Not winetricks; "Wine 9" and WINE_BIN count, as GitHub's search's do.
-        self.assertEqual(self.listing.counts("wine"), (3, 1))
-        self.assertEqual(self.listing.counts("winetricks"), (2, 1))
+        self.assertEqual(self.listing.search_counts("wine"), (3, 1))
+        self.assertEqual(self.listing.search_counts("winetricks"), (2, 1))
 
-    def test_every_word_of_the_term(self):
-        self.assertEqual(self.listing.counts("wesnoth-devel"), (2, 0))
-        self.assertEqual(self.listing.counts("python3Packages.requests"), (1, 0))
-        self.assertEqual(self.listing.counts("nothing-like-it"), (0, 0))
+    def test_search_every_word_of_the_term(self):
+        self.assertEqual(self.listing.search_counts("wesnoth-devel"), (2, 0))
+        self.assertEqual(self.listing.search_counts("python3Packages.requests"), (1, 0))
+        self.assertEqual(self.listing.search_counts("nothing-like-it"), (0, 0))
+
+    def test_counts_titles_naming_it(self):
+        row = lambda name, term=None, attrs=(): {  # noqa: E731
+            "name": name,
+            "searchTerm": term or name,
+            "attrs": list(attrs),
+        }
+        # PRs by nixpkgs' title convention: not "treewide: drop Wine 9" (it
+        # mentions wine), nor WINE_BIN (a word); issues with the name whole.
+        self.assertEqual(self.listing.counts(row("wine")), (1, 1))
+        self.assertEqual(self.listing.counts(row("winetricks")), (2, 1))
+        self.assertEqual(self.listing.counts(row("wesnoth")), (0, 0))
+        self.assertEqual(
+            self.listing.counts(
+                row(
+                    "python313Packages.requests",
+                    "python3Packages.requests",
+                    ["python313Packages.requests"],
+                )
+            ),
+            (1, 0),
+        )
+
+    def test_title_names(self):
+        self.assertEqual(
+            github_bulk.title_names("Build failure: pkg-config."),
+            {"build", "failure", "pkg-config"},
+        )
+        self.assertNotIn("pkg", github_bulk.title_names("pkgs/top-level: tidy pkgs"))
 
     def test_open_update_pr(self):
         row = {
@@ -154,7 +183,10 @@ class AddCounts(unittest.TestCase):
         ):
             self.assertTrue(github_bulk.add_counts(rows, self.NOW))
         wine, winetricks = rows
-        self.assertEqual((wine["openPRs"], wine["openIssues"]), (3, 1))
+        self.assertEqual((wine["openPRs"], wine["openIssues"]), (1, 1))
+        # GitHub's search, which the page links, also has those mentioning it.
+        self.assertEqual(wine["searchShowsMore"], ["pr"])
+        self.assertNotIn("searchShowsMore", winetricks)
         self.assertEqual(wine["openPR"]["number"], 1)
         self.assertEqual(wine["countedAt"], self.NOW)
         self.assertEqual((winetricks["openPRs"], winetricks["openIssues"]), (2, 1))
@@ -184,7 +216,7 @@ class AddCounts(unittest.TestCase):
         ):
             self.assertTrue(github_bulk.add_counts(rows, self.NOW, (PRS, ISSUES)))
         list_open.assert_not_called()
-        self.assertEqual((rows[0]["openPRs"], rows[0]["openIssues"]), (3, 1))
+        self.assertEqual((rows[0]["openPRs"], rows[0]["openIssues"]), (1, 1))
         self.assertEqual(rows[0]["openPR"]["number"], 1)
 
 

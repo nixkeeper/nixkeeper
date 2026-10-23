@@ -100,8 +100,11 @@ the top, split: their own failure, a dependency's, unfinished), packages not bui
 Each row is a package. Clicking it opens [its details](#a-packages-details);
 clicking its build or update cell opens that panel instead. One package is
 open at a time, so opening another closes it. Its **Open on GitHub** cell
-counts the open nixpkgs PRs and issues with its name in the title, each
-with GitHub's icon and a link to that search ("—" when there are none).
+counts the open nixpkgs PRs about it (titled with its name, as nixpkgs'
+convention has it: "pkg: 2.7.5 -> 2.8.2") and the issues with its name in
+their title, each with GitHub's icon and a link to GitHub's search ("—"
+when there are none). The search matches words, so for a name that's also
+a word (pkg, linux) it shows more, as its hover says.
 
 **Opening a list.** At the top of every page:
 
