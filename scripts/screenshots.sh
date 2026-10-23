@@ -334,9 +334,12 @@ EOF
 import sys
 path, data = sys.argv[1:]
 page = open(path).read()
+# No scrollbar: --hide-scrollbars hides the window's, not the page's in the
+# phone shots' frame, which showed as a white strip down their right edge.
 page = page.replace(
     "<head>",
     f'''<head><meta name="nixkeeper-data" content="{data}">
+<style>html{{scrollbar-width:none}}::-webkit-scrollbar{{display:none}}</style>
 <script>localStorage.setItem('nixkeeper-palette',
   new URLSearchParams(location.search).get('palette') || 'classic');</script>''',
     1,
