@@ -5,8 +5,9 @@
 [![Latest release](https://img.shields.io/github/v/release/nixkeeper/nixkeeper)](https://github.com/nixkeeper/nixkeeper/releases/latest)
 [![Dashboard](https://img.shields.io/badge/dashboard-live-8250df)](https://nixkeeper.com/)
 
-Health dashboard for the nixpkgs packages you maintain: new releases, build
-and update failures, and vulnerabilities, in one place.
+Health dashboard for every nixpkgs package: new releases, build and update
+failures, vulnerabilities and open PRs, by maintainer and team. Or, on an
+instance of your own, for your packages.
 
 <p align="center">
   <picture>

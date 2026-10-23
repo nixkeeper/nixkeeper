@@ -59,9 +59,9 @@ jobs:
         run: |
           # The card first, from this repository at the tag (so an old
           # release keeps its own); then the changelog section.
-          card="https://raw.githubusercontent.com/$REPO/$TAG/assets/screenshots/social-preview.png"
+          card="https://raw.githubusercontent.com/$REPO/$TAG/assets/screenshots/overview-social-preview.png"
           {
-            echo "![nixkeeper: new releases, build and update failures, and vulnerabilities of your nixpkgs packages]($card)"
+            echo "![nixkeeper: health of every nixpkgs package: new releases, build and update failures, vulnerabilities]($card)"
             echo
             cat "$RUNNER_TEMP/notes.md"
           } > "$RUNNER_TEMP/release.md"

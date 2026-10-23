@@ -35,6 +35,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   maintainer and team". An instance of its own lists says "health of your
   nixpkgs packages" (set once its data loads; link previews show
   index.html's).
+- Screenshots retaken with the new lines. Link previews of nixkeeper.com
+  and the release notes' card show the overview's social preview
+  ("Health dashboard for every nixpkgs package"); the list's says
+  "Health dashboard for your nixpkgs packages".
 
 ## [0.21.0] - 2026-10-21
 
