@@ -1,11 +1,14 @@
 import unittest
 
 from nixkeeper.changes import (
+    ahead_on_master,
     count_master,
     count_prs,
     diff,
     failures,
     is_outdated,
+    on_master,
+    same_release,
     should_notify,
     waiting_for_channel,
 )
@@ -272,6 +275,17 @@ class WaitingForChannel(unittest.TestCase):
         self.assertFalse(waiting_for_channel(row("x")))  # not outdated
         # Master ahead of a channel Repology calls newest: outdated, merged.
         self.assertTrue(waiting_for_channel(row("x", master="2")))
+
+    def test_a_suffix_repology_drops_is_not_ahead(self):
+        # firefox-esr: master 153.5.1esr, Repology's nixpkgs 153.5.1.
+        esr = row("firefox-esr", "legacy", nixVersion="153.5.1", master="153.5.1esr")
+        self.assertFalse(ahead_on_master(esr))
+        self.assertFalse(is_outdated(esr))
+        self.assertIsNone(on_master(esr | {"masterPR": {"to": "153.5.1esr"}}))
+        self.assertTrue(same_release("153.5.1esr", "153.5.1"))
+        self.assertFalse(same_release("1.0rc", "1.0"))  # a pre-release's
+        self.assertFalse(same_release("1.0.1", "1.0"))
+        self.assertFalse(same_release("153.5.1esr", None))
 
     def test_master_ahead_is_not_newly_outdated_news(self):
         before = {"packages": [row("wesnoth-devel", "devel", refVersion="1")]}

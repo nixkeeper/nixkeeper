@@ -1,5 +1,7 @@
 """What changed since the previous run, for notifications."""
 
+import re
+
 from . import config
 from .versions import is_newer, version_key
 
@@ -27,11 +29,34 @@ def behind_as_devel(row):
     )
 
 
+# A suffix Repology leaves out of nixpkgs' version (firefox-esr's
+# 153.5.1esr is 153.5.1 there), unlike a pre-release's.
+PRE_RELEASE = re.compile(r"(?i)(a|b|c|alpha|beta|rc|pre|preview|dev|snapshot)")
+SUFFIX = re.compile(r"[A-Za-z]+")
+
+
+def same_release(version, channel):
+    """Whether version is channel's release with a suffix Repology drops
+    (153.5.1esr, 153.5.1): not a newer one."""
+    rest = (version or "").removeprefix(channel or "\0")
+    return (
+        bool(channel)
+        and rest != version
+        and bool(SUFFIX.fullmatch(rest))
+        and not PRE_RELEASE.fullmatch(rest)
+    )
+
+
 def ahead_on_master(row):
     """Hydra's build of master is newer than the channel's version: someone
     has packaged a newer release, so there is one, whether or not Repology or
-    an update check has seen it yet."""
-    return is_newer(row.get("master") or "", row.get("nixVersion"))
+    an update check has seen it yet. Not the channel's release with a suffix
+    Repology drops (firefox-esr's 153.5.1esr against its 153.5.1: it read as
+    on master, and outdated against Firefox's 158.0.1, 2026-10-23)."""
+    master = row.get("master") or ""
+    return is_newer(master, row.get("nixVersion")) and not same_release(
+        master, row.get("nixVersion")
+    )
 
 
 def count_master(row):
@@ -75,7 +100,7 @@ def on_master(row):
     built there ("master"), or what an update PR merged into master brings
     ("masterPR", known before Hydra has built it), whichever is higher."""
     versions = [row.get("master"), (row.get("masterPR") or {}).get("to")]
-    versions = [v for v in versions if v]
+    versions = [v for v in versions if v and not same_release(v, row.get("nixVersion"))]
     return max(versions, key=version_key, default=None)
 
 

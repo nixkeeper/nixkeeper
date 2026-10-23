@@ -56,7 +56,7 @@ class Rows(unittest.TestCase):
         firefox = rows["firefox"]
         # And firefox-esr, kept beside the release, not the beta.
         esr_entries = [
-            nix("firefox-esr", "153.4.0", "legacy"),
+            nix("firefox-esr", "153.4.0", "legacy") | {"vulnerable": True},
             nix("firefox", "158.0", "newest"),
             nix("firefox-devedition", "159.0b1", "devel"),
             other("arch", "158.0", "newest"),
@@ -73,6 +73,8 @@ class Rows(unittest.TestCase):
             )
         }["firefox-esr"]
         self.assertEqual(esr["keptBeside"], {"attr": "firefox", "version": "158.0"})
+        # Repology's flag, by the newer series' CVE ranges: not for it.
+        self.assertNotIn("nixVulnerable", esr)
         self.assertEqual(
             (firefox["nixStatus"], firefox["refVersion"], firefox["devel"]),
             ("outdated", "158.0", False),

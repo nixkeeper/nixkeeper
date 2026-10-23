@@ -58,6 +58,7 @@ import {
   prPrint,
   raw,
   safeUrl,
+  sameRelease,
   searchHandle,
   severityRank,
   shardOf,
@@ -336,6 +337,23 @@ describe('master ahead of the channel', () => {
     assert.equal(aheadOnMaster(wesnoth({ master: '1.19.24' })), false);
     assert.equal(computeStatus(wesnoth({ master: '1.19.24' })), 'ok');
     assert.equal(aheadOnMaster(pkg({ nixVersion: '1.0' })), false);
+  });
+  test("not the channel's release with a suffix Repology drops", () => {
+    // firefox-esr: master 153.5.1esr, Repology 153.5.1; an older version kept
+    // beside firefox's 158.0.1, not outdated against it.
+    const esr = pkg({
+      nixStatus: 'legacy',
+      nixVersion: '153.5.1',
+      refVersion: '158.0.1',
+      master: '153.5.1esr',
+      keptBeside: { attr: 'firefox', version: '158.0.1' },
+    });
+    assert.equal(aheadOnMaster(esr), false);
+    assert.equal(computeStatus(esr), 'neutral');
+    assert.equal(onMaster({ ...esr, masterPR: { to: '153.5.1esr' } }), null);
+    assert.equal(sameRelease('153.5.1esr', '153.5.1'), true);
+    assert.equal(sameRelease('1.0rc', '1.0'), false);
+    assert.equal(sameRelease('1.0.1', '1.0'), false);
   });
   test("isn't a new release to act on in the tab icon", () => {
     assert.equal(faviconKey([wesnoth()]), 'ok');

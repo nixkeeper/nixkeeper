@@ -518,6 +518,12 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
                 key=lambda e: (len(e.get("srcname") or ""), e.get("srcname") or ""),
             )
             row["keptBeside"] = {"attr": top.get("srcname"), "version": top["version"]}
+            # Repology's vulnerable flag judges it by the newer series' CVE
+            # ranges, which an older series kept on purpose gets fixes
+            # backported for (firefox-esr 153.5.1, flagged with nothing open
+            # in the tracker, 2026-10-23): the tracker's and OSV's verdicts,
+            # checked against its version, decide.
+            row.pop("nixVulnerable", None)
             # Kept, but behind in its own series (glibmm_2_4 2.66.8, 2.66.10
             # out): outdated against that, still kept beside the newer one.
             if not devel and (

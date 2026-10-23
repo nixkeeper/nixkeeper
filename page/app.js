@@ -4890,8 +4890,10 @@ function fillDetail(pkg, el, entries) {
     </div>
     ${
       // Up to date, they'd all say the same version: the sentence's link
-      // has them. Outdated or not compared, they show who has what.
-      chips.length && st !== 'ok'
+      // has them. Outdated or not compared, they show who has what. Not for
+      // an older version kept on purpose: they're the newer series' (and
+      // its betas: firefox 159.0b5 beside firefox-esr 153.5.1).
+      chips.length && st !== 'ok' && !olderVersionKept(pkg)
         ? html`<section class="pd-sec"><h4 class="other-label">Compared against${repologyAge}</h4><div class="repo-chips">
       ${chips.map((e, i) => html`<span class="repo-chip ${e.ahead ? 'ahead' : ''}"${e.title ? html` title="${e.title}"` : ''}${i >= COMPARED_SHOWN ? raw(' hidden') : ''}>${e.repo} <span class="v mono">${e.version || '?'}</span></span>`)}${
         chips.length > COMPARED_SHOWN

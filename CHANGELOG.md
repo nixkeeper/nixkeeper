@@ -146,6 +146,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- firefox-esr read as outdated against Firefox's 158.0.1 and "on master":
+  master's `153.5.1esr` was compared with the channel's `153.5.1`, which
+  Repology writes without the suffix. A version that only adds a suffix
+  Repology drops (not a pre-release's) is the same release, in the sync
+  and on the page. And for an older version kept beside a newer one,
+  Repology's vulnerable flag no longer counts (firefox-esr, thunderbird-153
+  and libxml2_13 flagged by it alone, nothing open in the tracker or OSV),
+  nor do its details list the newer series' repositories and betas.
 - A package only nixpkgs packages, whose version nothing compared, is grey
   ("only in nixpkgs"), not green: Repology's "unique" with no other
   repository and no update check of nixkeeper's (17,988 packages on

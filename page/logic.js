@@ -416,7 +416,9 @@ export function compareVersions(a, b) {
 // what an update PR merged into master brings (before Hydra has built it),
 // whichever is higher (on_master in nixkeeper/changes.py).
 export function onMaster(pkg) {
-  const versions = [pkg.master, pkg.masterPR?.to].filter(Boolean);
+  const versions = [pkg.master, pkg.masterPR?.to].filter(
+    (v) => v && !sameRelease(v, pkg.nixVersion),
+  );
   return versions.sort(compareVersions).pop() || null;
 }
 
@@ -457,11 +459,28 @@ export function onBranch(pkg) {
   );
 }
 
+// Whether version is the channel's release with a suffix Repology leaves
+// out of nixpkgs' version (firefox-esr's 153.5.1esr is 153.5.1 there), not
+// a newer one; a pre-release's suffix isn't that (same_release in
+// nixkeeper/changes.py).
+export function sameRelease(version, channel) {
+  if (!version || !channel || !version.startsWith(channel)) return false;
+  const rest = version.slice(channel.length);
+  return (
+    /^[A-Za-z]+$/.test(rest) && !/^(a|b|c|alpha|beta|rc|pre|preview|dev|snapshot)$/i.test(rest)
+  );
+}
+
 // Hydra's build of master is newer than the channel's version: there's a
 // newer release, whatever Repology and the update checks know
-// (ahead_on_master in nixkeeper/changes.py).
+// (ahead_on_master in nixkeeper/changes.py). Not the channel's release
+// with a suffix Repology drops (sameRelease).
 export function aheadOnMaster(pkg) {
-  return Boolean(pkg.master && pkg.nixVersion) && compareVersions(pkg.master, pkg.nixVersion) > 0;
+  return (
+    Boolean(pkg.master && pkg.nixVersion) &&
+    compareVersions(pkg.master, pkg.nixVersion) > 0 &&
+    !sameRelease(pkg.master, pkg.nixVersion)
+  );
 }
 
 // Whether the version to update to is master's, newer than anything
