@@ -9,6 +9,17 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ## [Unreleased]
 
+### Added
+
+- **Fixed in**: a CVE's version that fixes it, from its version ranges
+  ("affected <3.20.1": fixed in 3.20.1), in the Vulnerabilities details;
+  and under them, whether master, the open update PR or the newest release
+  fixes them ("#564426 updates it to 3.20.1, which fixes it", "fixes 3 of
+  6: all fixed in 1.21.1"), instead of "check whether that fixes it". 470 of
+  the 1,063 CVEs affecting a package get one (123 packages, 2026-10-23); a
+  fix only in a newer series than nixpkgs' says to check for a backport,
+  and an older series kept beside a newer one (firefox-esr) gets none.
+
 ## [0.22.0] - 2026-10-23
 
 A page that's quieter and stays put, from a round of feedback: each

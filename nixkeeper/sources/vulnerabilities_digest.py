@@ -228,6 +228,39 @@ def by_version(version, affected):
     return "fixed"
 
 
+COMMIT = re.compile(r"(?=[0-9]*[a-f])[0-9a-f]{7,40}")
+
+
+def fixed_in(version, affected):
+    """The first version past version that none of a suggestion's affected
+    ranges takes in ("affected <2026.2.16593": 2026.2.16593), or None: the
+    bounds the ranges name ("<X", an "unaffected" ">=X"), the lowest newer
+    than version that by_version calls fixed. What an update needs to reach,
+    for the page to say whether the newest release or an update PR does.
+    Only for a version the ranges call affected; and versions only, not a
+    commit ("<44b2f096...", for a package without releases)."""
+    if by_version(version, affected) != "affected":
+        return None
+    bounds = set()
+    for product in affected:
+        for constraint in product.get("versions") or []:
+            if not isinstance(constraint, list) or len(constraint) != 2:
+                continue
+            status, expression = constraint
+            for m in re.finditer(r"(?<![=<>])(<|>=)\s*([^\s,<>=]+)", expression or ""):
+                op, bound = m.groups()
+                bound = re.sub(r"^v(?=\d)", "", bound)
+                fixes = op == "<" or status == "unaffected"
+                if fixes and not COMMIT.fullmatch(bound):
+                    bounds.add(bound)
+    newer = [
+        b
+        for b in bounds
+        if version_key(b) > version_key(version) and by_version(b, affected) == "fixed"
+    ]
+    return min(newer, key=version_key, default=None)
+
+
 def tracker_status(row, packages):
     """The tracker's entries for a row's attributes, by suggestion: {id:
     (worst status, its branches)}."""
@@ -314,6 +347,15 @@ def for_row(row, digest):
             **({"github": issue["github"]} if (issue or {}).get("github") else {}),
             **{k: s[k] for k in ("severity", "score") if s.get(k) is not None},
             **({"summary": s["title"]} if s.get("title") else {}),
+            # The version that fixes it, for an affected one: not for an
+            # older series kept beside a newer one, whose CVEs' ranges are
+            # written for the newer (firefox-esr: "fixed in 158").
+            **(
+                {"fixedIn": f}
+                if not row.get("keptBeside")
+                and (f := fixed_in(row.get("nixVersion"), s.get("affected")))
+                else {}
+            ),
             **(
                 {"releases": r}
                 if (r := releases(s, attr, newest, stable_version(attr, attrs, stable)))

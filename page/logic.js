@@ -632,6 +632,28 @@ export function targetVersion(pkg) {
   return fromMaster(pkg) ? pkg.master : pkg.refVersion;
 }
 
+// What fixes a package's CVEs, from the versions their ranges say fix them
+// (fixedIn, fixed_in in nixkeeper/sources/vulnerabilities_digest.py): the
+// version that fixes all of those (need), how many name one, and how many
+// master, the open update PR and the newest release each fix. null when
+// none names one.
+export function vulnFixes(pkg, vulns) {
+  const named = vulns.filter((v) => v.fixedIn);
+  if (!named.length) return null;
+  const fixes = (version) =>
+    version ? named.filter((v) => compareVersions(version, v.fixedIn) >= 0).length : null;
+  return {
+    need: named
+      .map((v) => v.fixedIn)
+      .sort(compareVersions)
+      .pop(),
+    named: named.length,
+    master: fixes(onMaster(pkg)),
+    pr: fixes(pkg.openPR?.to),
+    newest: fixes(targetVersion(pkg)),
+  };
+}
+
 // What changed between two versions, compared by whole parts (split at
 // . - _ + ~, so 1.19.24 -> 1.19.28 changes "24", not just the "4"): the
 // start they share, the rest of each. The page shows the newest version

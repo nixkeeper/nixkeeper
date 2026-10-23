@@ -76,6 +76,7 @@ import {
   versionGap,
   viewPath,
   viewSlug,
+  vulnFixes,
   vulnSources,
   vulnSummary,
   waitingForChannel,
@@ -1435,5 +1436,32 @@ describe('nothingCompared', () => {
     assert.equal(computeStatus({ ...alone, upstream: { version: '1' } }), 'ok');
     assert.equal(computeStatus({ ...alone, feed: { name: 'CRAN' } }), 'ok');
     assert.equal(computeStatus({ nixStatus: 'unique' }), 'ok');
+  });
+});
+
+describe('vulnFixes', () => {
+  // barman: 3.19.1, the newest 3.20.1, an update PR to it.
+  const barman = (over = {}) =>
+    outdated({ nixVersion: '3.19.1', refVersion: '3.20.1', openPR: { to: '3.20.1' }, ...over });
+  test('what master, the update PR and the newest release fix', () => {
+    const vulns = [{ fixedIn: '3.20.1' }, { fixedIn: '3.19.4' }, {}];
+    assert.deepEqual(vulnFixes(barman(), vulns), {
+      need: '3.20.1',
+      named: 2,
+      master: null,
+      pr: 2,
+      newest: 2,
+    });
+    const behind = barman({ openPR: { to: '3.20.0' }, master: '3.19.5' });
+    assert.deepEqual(vulnFixes(behind, vulns), {
+      need: '3.20.1',
+      named: 2,
+      master: 1,
+      pr: 1,
+      newest: 2,
+    });
+  });
+  test('null when none names a version', () => {
+    assert.equal(vulnFixes(barman(), [{}, { id: 'CVE-1' }]), null);
   });
 });

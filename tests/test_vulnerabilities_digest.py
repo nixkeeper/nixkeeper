@@ -120,6 +120,36 @@ class Ranges(unittest.TestCase):
         self.assertIsNone(vd.by_version("1.0", []))  # no ranges: can't tell
         self.assertIsNone(vd.by_version(None, ranges))
 
+    def test_fixed_in(self):
+        self.assertEqual(
+            vd.fixed_in("2026.1", [{"versions": [["affected", "<2026.2.16593"]]}]),
+            "2026.2.16593",
+        )
+        # Two affected series: the end of the one it's in.
+        two = [
+            {"versions": [["affected", ">= 1.0, < 1.7"], ["affected", ">=2.0, <2.3"]]}
+        ]
+        self.assertEqual(vd.fixed_in("1.5", two), "1.7")
+        self.assertEqual(vd.fixed_in("2.1", two), "2.3")
+        # An unaffected range's start; a leading v dropped.
+        self.assertEqual(
+            vd.fixed_in(
+                "0.9", [{"versions": [["affected", "<=1.0"], ["unaffected", ">=v1.1"]]}]
+            ),
+            "1.1",
+        )
+        # "=<" is an upper bound still affected, not "<": no fix after it.
+        self.assertIsNone(
+            vd.fixed_in("2.0", [{"versions": [["affected", "=<4.19.4"]]}])
+        )
+        # Not for a version the ranges call fixed; not a commit.
+        self.assertIsNone(vd.fixed_in("1.8", two))
+        self.assertIsNone(
+            vd.fixed_in("0-unstable", [{"versions": [["affected", "<44b2f096f67d"]]}])
+        )
+        self.assertIsNone(vd.fixed_in("1.0", [{"versions": [["affected", "*"]]}]))
+        self.assertIsNone(vd.fixed_in("1.0", []))
+
 
 class Verdicts(unittest.TestCase):
     def found(self, **row):
@@ -142,6 +172,13 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(cve["issue"], "NIXPKGS-2026-1")
         self.assertEqual(cve["github"], "https://github.com/NixOS/nixpkgs/issues/1")
         self.assertEqual(cve["releases"], {"release-26.05": "affected"})
+        self.assertEqual(cve["fixedIn"], "2.0")  # affected <2.0
+        # Not for an older series kept beside a newer one: its ranges are
+        # the newer series'.
+        kept = self.found(
+            nixVersion="1.0", keptBeside={"attr": "aspell2", "version": "3.0"}
+        )
+        self.assertNotIn("fixedIn", kept["CVE-2026-1"])
 
     def test_counted_first_worst_first(self):
         ids = [

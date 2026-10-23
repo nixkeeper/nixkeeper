@@ -72,6 +72,7 @@ import {
   versionGap,
   viewPath,
   viewSlug,
+  vulnFixes,
   vulnSources,
   vulnSummary,
   waitingForChannel,
@@ -3476,7 +3477,7 @@ function vulnSection(pkg) {
   // above (own: false), its verdict, its issue and the branches still affected.
   const line = (
     v,
-    { sharedVerdict = false, sharedReleases = false, own = true } = {},
+    { sharedVerdict = false, sharedReleases = false, sharedFix = false, own = true } = {},
     hidden = false,
   ) => {
     const releases = stillAffected(v);
@@ -3484,7 +3485,11 @@ function vulnSection(pkg) {
       v.severity ? html` <span class="sev sev-${v.severity}">${v.severity}</span>` : ''
     }${sharedVerdict ? '' : html` ${verdict(v)}`}${v.summary ? html` <span class="vl-summary" title="${v.summary}">${v.summary}</span>` : ''}${
       own && v.issue ? html`<span>· ${issueLink(v)}</span>` : ''
-    }${!sharedReleases && releases ? html`<span>· <span class="vl-backport">still affected on ${releases}</span></span>` : ''}</li>`;
+    }${!sharedReleases && releases ? html`<span>· <span class="vl-backport">still affected on ${releases}</span></span>` : ''}${
+      !sharedFix && v.fixedIn
+        ? html`<span>· fixed in <span class="mono">${v.fixedIn}</span></span>`
+        : ''
+    }</li>`;
   };
   const counted = all.filter((v) => VULN_COUNTED.includes(v.verdict));
   const rest = all.filter((v) => !VULN_COUNTED.includes(v.verdict));
@@ -3493,6 +3498,8 @@ function vulnSection(pkg) {
   const sharedVerdict = counted.length > 1 && verdicts.size === 1;
   const releaseSets = new Set(counted.map(stillAffected));
   const sharedReleases = counted.length > 1 && releaseSets.size === 1;
+  const fixSet = new Set(counted.map((v) => v.fixedIn));
+  const sharedFix = counted.length > 1 && fixSet.size === 1 && [...fixSet][0];
   const word = counted.every((v) => v.id.startsWith('CVE-')) ? 'CVE' : 'advisory';
   const severities = ['critical', 'high', 'medium', 'low']
     .map((sev) => [sev, counted.filter((v) => v.severity === sev).length])
@@ -3507,7 +3514,7 @@ function vulnSection(pkg) {
           sharedReleases && [...releaseSets][0]
             ? html` · <span class="vl-backport">still affected on ${[...releaseSets][0]}</span>`
             : ''
-        }</p>`
+        }${sharedFix ? html` · all fixed in <span class="mono">${sharedFix}</span>` : ''}</p>`
       : '';
   // Grouped by the tracker's issue, in the order of their worst.
   const groups = new Map();
@@ -3517,7 +3524,7 @@ function vulnSection(pkg) {
     const first = shownSoFar;
     shownSoFar += vs.length;
     const hideGroup = first >= VULNS_SHOWN;
-    const opts = { sharedVerdict, sharedReleases, own: !vs[0].issue || vs.length === 1 };
+    const opts = { sharedVerdict, sharedReleases, sharedFix, own: !vs[0].issue || vs.length === 1 };
     return html`<div class="vl-group"${hideGroup ? raw(' hidden') : ''}>${
       vs[0].issue && vs.length > 1
         ? html`<p class="vl-issue">${issueLink(vs[0])} · ${fmt(vs.length)} ${word === 'CVE' ? 'CVEs' : 'advisories'}</p>`
@@ -3528,17 +3535,62 @@ function vulnSection(pkg) {
     counted.length > VULNS_SHOWN
       ? html`<button type="button" class="more-btn vl-more" aria-expanded="false" data-all="${counted.length}">Show all ${fmt(counted.length)}</button>`
       : '';
-  // Its open update PR, here rather than as a pill under On GitHub: whether
-  // its version fixes them is for a person to check (the tracker gives no
-  // fixed version).
+  // What fixes them, from the versions their ranges say do: master, its
+  // open update PR (here rather than as a pill under On GitHub) and the
+  // newest release. Without those, whether the PR's version fixes them is
+  // for a person to check.
   const pr = pkg.openPR?.facts?.vulnerable && counted.length ? pkg.openPR : null;
+  const fixes = vulnFixes(pkg, counted);
+  const prItem = pr
+    ? html`<a class="files-link gh-item pr" href="${safeUrl(pr.url)}" target="_blank" rel="noopener">${GH_ICONS.pr}<span class="sr-only">PR </span>#${pr.number} ↗</a>`
+    : '';
+  const them = counted.length === 1 ? 'it' : 'them';
+  // Of those whose ranges name a version that fixes them: "fixes them",
+  // "fixes 3 of 5", with the version all of them need when it falls short.
+  const unnamed = fixes ? counted.length - fixes.named : 0;
+  const does = (k) => {
+    const of = !unnamed
+      ? ''
+      : fixes.named === 1
+        ? ' the one that names a fixed version'
+        : ` the ${fmt(fixes.named)} that name a fixed version`;
+    if (k >= fixes.named) return unnamed ? `fixes${of}` : `fixes ${them}`;
+    return k
+      ? `fixes ${fmt(k)} of${of || ` ${fmt(counted.length)}`}`
+      : `doesn't fix${of || ` ${them}`}`;
+  };
+  // A fix only in a newer series than nixpkgs' (mariadb 11.4 against
+  // 12.2.2): its own series may have it backported, which ranges miss.
+  const major = (v) => (v || '').split(/[.\-_+~]/)[0];
+  const backport =
+    fixes && major(fixes.need) !== major(pkg.nixVersion)
+      ? html` (a newer series: check whether nixpkgs' ${major(pkg.nixVersion)}.x has the fix backported)`
+      : '';
+  const need = (k) =>
+    k < fixes.named
+      ? html`: ${fixes.named > 1 ? 'all ' : ''}fixed in <span class="mono">${fixes.need}</span>${backport}`
+      : '';
+  const newest = targetVersion(pkg);
+  const fixLines = [];
+  if (fixes?.master)
+    fixLines.push(
+      html`Master has <span class="mono">${onMaster(pkg)}</span>, which ${does(fixes.master)}: it reaches the channel in a few days`,
+    );
+  if (pr)
+    fixLines.push(
+      fixes
+        ? html`${prItem} updates it to <span class="mono">${pr.to}</span>, which ${does(fixes.pr)}${need(fixes.pr)}; review it first`
+        : html`${prItem} updates it to <span class="mono">${pr.to}</span>: check whether that fixes ${them}, and review it first`,
+    );
+  if (fixes && fixes.master < fixes.named && (!pr || (fixes.pr < fixes.named && newest !== pr.to)))
+    fixLines.push(
+      newest && compareVersions(newest, pkg.nixVersion) > 0
+        ? html`${fixes.newest < fixes.named ? 'Even the' : 'The'} newest release, <span class="mono">${newest}</span>, ${does(fixes.newest)}${need(fixes.newest)}`
+        : html`${fixes.named > 1 ? 'All fixed' : 'Fixed'} in <span class="mono">${fixes.need}</span>, newer than any release nixkeeper knows of${backport}`,
+    );
   return html`<section class="pd-sec vl-sec"><h4 class="other-label">Vulnerabilities</h4>${
     counted.length ? html`${head}${grouped}${more}` : html`<p class="pd-text">None counted.</p>`
-  }${
-    pr
-      ? html`<p class="pd-text vl-pr"><a class="files-link gh-item pr" href="${safeUrl(pr.url)}" target="_blank" rel="noopener">${GH_ICONS.pr}<span class="sr-only">PR </span>#${pr.number} ↗</a> updates it to <span class="mono">${pr.to}</span>: check whether that fixes ${counted.length === 1 ? 'it' : 'them'}, and review it first</p>`
-      : ''
-  }${
+  }${counted.length ? fixLines.map((l) => html`<p class="pd-text vl-pr">${l}</p>`) : ''}${
     rest.length
       ? html`<details class="vl-rest"><summary>${rest.length} not counted (fixed, unconfirmed or dismissed)</summary><ul class="vl-list">${rest.map((v) => line(v))}</ul></details>`
       : ''

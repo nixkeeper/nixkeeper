@@ -284,10 +284,19 @@ what they share said once above them ("24 CVEs: 4 critical, 8 high ... · all
 affected · still affected on 26.05"); grouped by the security tracker's
 issue (linked once, with its nixpkgs issue), a line each: the id, its
 severity and its summary (cut short, whole on hover), and what it doesn't
-share. The worst five, then **Show all**. When an update PR is open, it's
-under them: "updates it to 3.20.1: check whether that fixes it, and review
-it first" (the tracker gives no fixed version). Those not counted (fixed,
-unconfirmed, dismissed) are folded below.
+share, with **fixed in** the version that fixes it, where the CVE's
+version ranges say ("affected <3.20.1": fixed in 3.20.1). The worst five,
+then **Show all**. Under them, whether an update fixes them: master's
+version ("Master has 1.2.6, which fixes them"), the open update PR's
+("#564426 updates it to 3.20.1, which fixes it; review it first", or "fixes
+3 of 6: all fixed in 1.21.1"), the newest release's ("The newest release,
+1.21.1, fixes them"), or none yet ("newer than any release nixkeeper knows
+of"). Counted among those that name a fixed version; with none, "check
+whether that fixes it". A fix only in a newer series than nixpkgs' (mariadb
+11.4 against 12.2.2) says to check for a backport, which ranges miss; an
+older series kept beside a newer one (firefox-esr) gets no fixed in, its
+CVEs' ranges written for the newer. Those not counted (fixed, unconfirmed,
+dismissed) are folded below.
 
 These are worked out automatically, from titles, Hydra's builds and the
 merge bot's rules: hints for a person to check before acting (closing an
