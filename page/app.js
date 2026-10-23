@@ -2203,7 +2203,7 @@ const dotTitle = (pkg, st) =>
 function rowHtml(pkg, i) {
   const st = computeStatus(pkg);
   return html`<tr class="row${isHidden(pkg) ? ' is-hidden' : ''}${inOpenFold.has(pkg.name) ? ' fold-member' : ''}" tabindex="0" data-i="${i}">
-      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${dotTitle(pkg, st)}" title="${dotTitle(pkg, st)}"></span><span class="n">${breakableName(pkg.name)} ${ageTag(pkg, st)}</span></span>${platformTags(pkg)}${foldButton(pkg)}</div></td>
+      <td class="c-name"><div class="pkg-name"><span class="who"><span class="status-dot ${waitingForChannel(pkg) ? 'merged' : st}" role="img" aria-label="${dotTitle(pkg, st)}" title="${dotTitle(pkg, st)}"></span><a class="n pkg-link" href="${scopeHref({ pkg: pkg.name })}" tabindex="-1">${breakableName(pkg.name)} ${ageTag(pkg, st)}</a></span>${platformTags(pkg)}${foldButton(pkg)}</div></td>
       <td class="c-ver ver mono">${versionCell(pkg, st)}</td>
       <td class="c-gh${pkg.openPRs || pkg.openIssues ? '' : ' quiet'}">${githubLinks(pkg)}</td>
       <td class="c-build">${buildCell(pkg)}</td>
@@ -3014,7 +3014,7 @@ function listHeaderHtml() {
         hiddenHere
           ? html`<button type="button" class="hidden-toggle" aria-pressed="${showHidden}" title="Packages you hid here, in this browser, until what they need attention for changes">${fmt(hiddenHere)} hidden · ${showHidden ? 'hide them' : 'show them'}</button>`
           : ''
-      }
+      }<button type="button" class="close-all" title="Close every open package (Esc)" hidden>Close all</button>
       ${path.startsWith('views/cause/') && causeShown ? html`<span class="scope-hint cause-line" title="The error line these builds share (paths, numbers and names vary)"><code>${causeShown.line}</code></span>` : ''}
       ${
         // Marked broken's neighbour: listed for a platform, never built there.
@@ -3256,30 +3256,35 @@ function matchFacetsHtml(by, teams, platforms) {
 
 // One panel under the row, showing the package details (clicking the row),
 // its builds or its latest update attempt (clicking those cells). Clicking
-// what's shown closes it; clicking something else switches.
-// One package open at a time: opening another row's panel closes the rest
-// (the same row switches between its panels in place). The clicked row stays
-// where it was on screen, though a panel above it closes.
-function closeOthers(tr) {
-  const others = [...document.querySelectorAll('tbody tr.row.open')].filter((o) => o !== tr);
-  if (!others.length) return;
-  const top = tr.getBoundingClientRect().top;
-  for (const other of others) {
-    other.classList.remove('open');
-    const detail = other.nextElementSibling;
+// what's shown closes it; clicking something else switches. Each row opens
+// and closes on its own, several at once (they used to close the others);
+// "Close all" beside the list's count, or Esc, closes them all.
+function closeRows(rows) {
+  for (const tr of rows) {
+    tr.classList.remove('open');
+    const detail = tr.nextElementSibling;
     if (detail?.classList.contains('detail')) {
       detail.classList.remove('open');
       detail.dataset.mode = '';
     }
-    for (const btn of other.querySelectorAll('.failure-btn')) {
+    for (const btn of tr.querySelectorAll('.failure-btn')) {
       btn.setAttribute('aria-expanded', 'false');
     }
   }
-  window.scrollBy(0, tr.getBoundingClientRect().top - top);
+  syncCloseAll();
+}
+const openRows = () => [...document.querySelectorAll('tbody tr.row.open')];
+
+// "Close all (3)" beside the list's count, while two or more are open.
+function syncCloseAll() {
+  const btn = document.querySelector('button.close-all');
+  if (!btn) return;
+  const n = openRows().length;
+  btn.hidden = n < 2;
+  btn.textContent = `Close all (${fmt(n)})`;
 }
 
 async function toggle(tr, mode) {
-  closeOthers(tr);
   const pkg = shown[tr.dataset.i];
   let detail = tr.nextElementSibling;
   if (!detail?.classList.contains('detail')) {
@@ -3298,6 +3303,7 @@ async function toggle(tr, mode) {
   for (const btn of tr.querySelectorAll('.failure-btn')) {
     btn.setAttribute('aria-expanded', !closing && btn.dataset.kind === mode);
   }
+  syncCloseAll();
   if (closing) return;
   // The panel needs the full row (the list has the summary's entry).
   const row = await fullRow(pkg);
@@ -3355,6 +3361,17 @@ document.getElementById('content').addEventListener('click', (e) => {
     return;
   }
   const tr = e.target.closest('tr.row');
+  // Its name is a link to it alone (?pkg=): a plain click opens it here,
+  // as anywhere on the row; with a modifier, a tab of its own, as links do.
+  if (
+    tr &&
+    e.target.closest('a.pkg-link') &&
+    !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)
+  ) {
+    e.preventDefault();
+    toggle(tr, 'info');
+    return;
+  }
   if (!tr || e.target.closest('a')) return;
   const copy = e.target.closest('.vcopy');
   if (copy) {
@@ -3413,23 +3430,30 @@ function vulnBadge(pkg) {
 }
 
 // What each verdict on a CVE or advisory says (nixkeeper-vulnerabilities,
-// sources/vulnerabilities_digest.py); those in VULN_COUNTED count.
+// sources/vulnerabilities_digest.py); those in VULN_COUNTED count. Each:
+// [a word or two for the line, the sentence its hover says].
 const VERDICTS = {
-  affected: "affected: nixpkgs' version is in the CVE's range",
-  byVersion: "affected: nixpkgs' version is in the CVE's range", // data from before
-  tracker: "affected, says the tracker (the CVE's versions can't be read)",
-  wontFix: "won't fix",
-  osv: 'OSV advisory',
-  unconfirmed: "unconfirmed: the CVE's versions can't be read",
-  fixed: 'fixed',
-  patched: 'fixed by a patch in nixpkgs, named after it',
-  dismissed: 'dismissed by the security team',
+  affected: ['affected', "Affected: nixpkgs' version is in the CVE's range"],
+  byVersion: ['affected', "Affected: nixpkgs' version is in the CVE's range"], // data from before
+  tracker: ['affected', "Affected, says the security tracker (the CVE's versions can't be read)"],
+  wontFix: ["won't fix", "The security team won't fix it"],
+  osv: ['OSV advisory', "An OSV advisory that lists nixpkgs' version"],
+  unconfirmed: ['unconfirmed', "Unconfirmed: the CVE's versions can't be read"],
+  fixed: ['fixed', "Fixed in nixpkgs' version"],
+  patched: ['patched', 'Fixed by a patch in nixpkgs, named after it'],
+  dismissed: ['dismissed', 'Dismissed by the security team'],
 };
 
 // The panel's CVEs and advisories (the row's "vulnerabilities"), counted
-// ones first, worst first; the others folded: each with its severity, the
-// verdict, the tracker's issue and its GitHub issue, and the release
-// branches still affected (a fix to backport).
+// ones first, worst first; the others folded. What the counted ones share
+// is said once, above them: how many of each severity, the verdict and the
+// release branches still affected (a fix to backport), when the same for
+// all. Then they're grouped by the tracker's issue (its nixpkgs issue
+// linked once), a line each: the id, its severity and its summary (cut
+// short, whole on hover), and what it doesn't share. The worst VULNS_SHOWN,
+// then "Show all": zitadel's 24 took 48 lines, most of them repeating
+// (2026-10-23).
+const VULNS_SHOWN = 5;
 function vulnSection(pkg) {
   const all = pkg.vulnerabilities || [];
   if (!all.length) return '';
@@ -3440,30 +3464,83 @@ function vulnSection(pkg) {
   const stillAffected = (v) =>
     Object.entries(v.releases || {})
       .filter(([, status]) => status === 'affected')
-      .map(([branch]) => branch.replace(/^release-/, ''));
-  const line = (v) => {
+      .map(([branch]) => branch.replace(/^release-/, ''))
+      .join(', ');
+  const verdict = (v) =>
+    VERDICTS[v.verdict]
+      ? html`<span class="vl-verdict" title="${VERDICTS[v.verdict][1]}">${VERDICTS[v.verdict][0]}<span class="sr-only">: ${VERDICTS[v.verdict][1]}</span></span>`
+      : html`<span class="vl-verdict">${v.verdict}</span>`;
+  const issueLink = (v) =>
+    html`<a class="files-link mono" href="https://tracker.security.nixos.org/issues/${encodeURIComponent(v.issue)}" target="_blank" rel="noopener">${v.issue}</a>${v.github && safeUrl(v.github) ? html` (<a class="files-link" href="${safeUrl(v.github)}" target="_blank" rel="noopener">its nixpkgs issue</a>)` : ''}`;
+  // One line: its id, severity and summary; and, when they aren't said
+  // above (own: false), its verdict, its issue and the branches still affected.
+  const line = (
+    v,
+    { sharedVerdict = false, sharedReleases = false, own = true } = {},
+    hidden = false,
+  ) => {
     const releases = stillAffected(v);
-    return html`<li class="vl"><a class="files-link mono" href="${link(v.id)}" target="_blank" rel="noopener">${v.id}</a>${
+    return html`<li class="vl"${hidden ? raw(' hidden') : ''}><a class="files-link mono" href="${link(v.id)}" target="_blank" rel="noopener">${v.id}</a>${
       v.severity ? html` <span class="sev sev-${v.severity}">${v.severity}</span>` : ''
-    } <span class="vl-verdict">${VERDICTS[v.verdict] || v.verdict}</span>${
-      v.issue
-        ? html` · <a class="files-link mono" href="https://tracker.security.nixos.org/issues/${encodeURIComponent(v.issue)}" target="_blank" rel="noopener">${v.issue}</a>`
-        : ''
-    }${v.github && safeUrl(v.github) ? html` (<a class="files-link" href="${safeUrl(v.github)}" target="_blank" rel="noopener">its nixpkgs issue</a>)` : ''}${
-      releases.length
-        ? html` · <span class="vl-backport">still affected on ${releases.join(', ')}</span>`
-        : ''
-    }${v.summary ? html`<div class="vl-summary">${v.summary}</div>` : ''}</li>`;
+    }${sharedVerdict ? '' : html` ${verdict(v)}`}${v.summary ? html` <span class="vl-summary" title="${v.summary}">${v.summary}</span>` : ''}${
+      own && v.issue ? html`<span>· ${issueLink(v)}</span>` : ''
+    }${!sharedReleases && releases ? html`<span>· <span class="vl-backport">still affected on ${releases}</span></span>` : ''}</li>`;
   };
   const counted = all.filter((v) => VULN_COUNTED.includes(v.verdict));
   const rest = all.filter((v) => !VULN_COUNTED.includes(v.verdict));
-  return html`<section class="pd-sec"><h4 class="other-label">Vulnerabilities</h4>${
-    counted.length
-      ? html`<ul class="vl-list">${counted.map(line)}</ul>`
-      : html`<p class="pd-text">None counted.</p>`
+  // What they all share, said once.
+  const verdicts = new Set(counted.map((v) => v.verdict));
+  const sharedVerdict = counted.length > 1 && verdicts.size === 1;
+  const releaseSets = new Set(counted.map(stillAffected));
+  const sharedReleases = counted.length > 1 && releaseSets.size === 1;
+  const word = counted.every((v) => v.id.startsWith('CVE-')) ? 'CVE' : 'advisory';
+  const severities = ['critical', 'high', 'medium', 'low']
+    .map((sev) => [sev, counted.filter((v) => v.severity === sev).length])
+    .filter(([, n]) => n);
+  const head =
+    counted.length > 1
+      ? html`<p class="vl-head">${fmt(counted.length)} ${word === 'CVE' ? 'CVEs' : 'advisories'}${
+          severities.length
+            ? html`: ${severities.map(([sev, n], i) => html`${i ? ', ' : ''}${fmt(n)} <span class="sev sev-${sev}">${sev}</span>`)}`
+            : ''
+        }${sharedVerdict ? html` · all ${verdict(counted[0])}` : ''}${
+          sharedReleases && [...releaseSets][0]
+            ? html` · <span class="vl-backport">still affected on ${[...releaseSets][0]}</span>`
+            : ''
+        }</p>`
+      : '';
+  // Grouped by the tracker's issue, in the order of their worst.
+  const groups = new Map();
+  for (const v of counted) groups.set(v.issue || '', [...(groups.get(v.issue || '') || []), v]);
+  let shownSoFar = 0;
+  const grouped = [...groups.values()].map((vs) => {
+    const first = shownSoFar;
+    shownSoFar += vs.length;
+    const hideGroup = first >= VULNS_SHOWN;
+    const opts = { sharedVerdict, sharedReleases, own: !vs[0].issue || vs.length === 1 };
+    return html`<div class="vl-group"${hideGroup ? raw(' hidden') : ''}>${
+      vs[0].issue && vs.length > 1
+        ? html`<p class="vl-issue">${issueLink(vs[0])} · ${fmt(vs.length)} ${word === 'CVE' ? 'CVEs' : 'advisories'}</p>`
+        : ''
+    }<ul class="vl-list">${vs.map((v, i) => line(v, opts, first + i >= VULNS_SHOWN))}</ul></div>`;
+  });
+  const more =
+    counted.length > VULNS_SHOWN
+      ? html`<button type="button" class="more-btn vl-more" aria-expanded="false" data-all="${counted.length}">Show all ${fmt(counted.length)}</button>`
+      : '';
+  // Its open update PR, here rather than as a pill under On GitHub: whether
+  // its version fixes them is for a person to check (the tracker gives no
+  // fixed version).
+  const pr = pkg.openPR?.facts?.vulnerable && counted.length ? pkg.openPR : null;
+  return html`<section class="pd-sec vl-sec"><h4 class="other-label">Vulnerabilities</h4>${
+    counted.length ? html`${head}${grouped}${more}` : html`<p class="pd-text">None counted.</p>`
+  }${
+    pr
+      ? html`<p class="pd-text vl-pr"><a class="files-link gh-item pr" href="${safeUrl(pr.url)}" target="_blank" rel="noopener">${GH_ICONS.pr}<span class="sr-only">PR </span>#${pr.number} ↗</a> updates it to <span class="mono">${pr.to}</span>: check whether that fixes ${counted.length === 1 ? 'it' : 'them'}, and review it first</p>`
+      : ''
   }${
     rest.length
-      ? html`<details class="vl-rest"><summary>${rest.length} not counted (fixed, unconfirmed or dismissed)</summary><ul class="vl-list">${rest.map(line)}</ul></details>`
+      ? html`<details class="vl-rest"><summary>${rest.length} not counted (fixed, unconfirmed or dismissed)</summary><ul class="vl-list">${rest.map((v) => line(v))}</ul></details>`
       : ''
   }</section>`;
 }
@@ -3997,7 +4074,10 @@ function blockedByHtml(blockers) {
 
 // One system's build in the builds panel: where, its status, when it last
 // built, and what to open (the log, the job, the build, the source).
-function buildLine(pkg, b) {
+// alike: how many builds fail as this one does, and whether this line shows
+// their log's lines (the last of them: groupedBuilds); the others have their
+// Log link instead.
+function buildLine(pkg, b, alike = { n: 1, shows: true }) {
   const s = BUILD_STATUS[b.status] || BUILD_STATUS.unknown;
   const multi = (pkg.attrs || []).length > 1;
   // The versions only when they differ: the same version means something else
@@ -4028,11 +4108,10 @@ function buildLine(pkg, b) {
       : html`${at}${at && since ? ' · ' : ''}${since}`;
   const act = (href, name, label, title) =>
     html`<a class="pd-link" href="${href}" target="_blank" rel="noopener"${title ? html` title="${title}"` : ''}>${icon(name)}${label}</a>`;
+  const excerpt = why && b.failedExcerpt && alike.shows;
   const acts = [
     // With the log's lines shown, their own link ("full log") instead.
-    b.status === 'failed' &&
-      !(why && b.failedExcerpt) &&
-      act(`${HYDRA}/build/${b.build}/log`, 'file-text', 'Log'),
+    b.status === 'failed' && !excerpt && act(`${HYDRA}/build/${b.build}/log`, 'file-text', 'Log'),
     // A failed build's page too: every step, when the failure is in a
     // derivation built for it rather than the package's own step.
     ['failed', 'dependency', 'unfinished'].includes(b.status) &&
@@ -4049,13 +4128,43 @@ function buildLine(pkg, b) {
         `Hydra job ${b.attr}.${b.system}: every build of it`,
       ),
   ].filter(Boolean);
-  return html`<div class="br">
+  return html`<div class="br${alike.n > 1 && !alike.shows ? ' alike' : ''}">
     <span class="br-sys"><span class="mono">${b.system}</span>${multi ? html`<span class="mono br-attr">${b.attr}</span>` : ''}</span>
     <span class="br-st ${s.dot}" title="${why ? `${s.text}: ${why.text}` : s.text}">${why ? html`<span class="sr-only">${s.short}: </span>${why.short}` : s.short}</span>
     <span class="br-what">${what}</span>
     <span class="br-acts">${acts}</span>
-    ${why && b.failedExcerpt ? html`<div class="br-log-wrap"><pre class="br-log" title="From the build's log on Hydra">${b.failedExcerpt}</pre><a class="files-link br-full-log" href="${HYDRA}/build/${b.build}/log" target="_blank" rel="noopener">full log ↗</a></div>` : ''}
+    ${excerpt ? html`<div class="br-log-wrap"><pre class="br-log" title="From the build's log on Hydra">${b.failedExcerpt}</pre><span class="br-log-foot"><a class="files-link br-full-log" href="${HYDRA}/build/${b.build}/log" target="_blank" rel="noopener">full log ↗</a>${alike.n > 1 ? ` · the same on ${alike.n === 2 ? 'both' : `all ${alike.n}`}` : ''}</span></div>` : ''}
   </div>`;
+}
+
+// A failure's log lines as compared between builds: without what changes
+// from one run to the next (pytest's timings, its "=" padding around them).
+const sameFailure = (b) =>
+  `${b.failedBecause}\n${(b.failedExcerpt || '')
+    .replace(/ in [\d.]+s( \(\d+:\d\d:\d\d\))?/g, '')
+    .replace(/=+/g, '=')
+    .replace(/\s+/g, ' ')}`;
+
+// The builds in their order, those failing alike (same reason, same log
+// lines: python313Packages and python314Packages, on two platforms) brought
+// together where the first of them is, each with its alike for buildLine:
+// their lines shown once, under the last.
+function groupedBuilds(builds) {
+  const key = (b) => (b.status === 'failed' && b.failedExcerpt ? sameFailure(b) : null);
+  const groups = new Map();
+  for (const b of builds) if (key(b)) groups.set(key(b), [...(groups.get(key(b)) || []), b]);
+  const out = [];
+  for (const b of builds) {
+    const k = key(b);
+    if (!k) out.push([b, { n: 1, shows: true }]);
+    else if (groups.get(k)[0] === b) {
+      const all = groups.get(k);
+      all.forEach((x, i) => {
+        out.push([x, { n: all.length, shows: i === all.length - 1 }]);
+      });
+    }
+  }
+  return out;
 }
 
 function fillBuilds(pkg, el) {
@@ -4089,7 +4198,7 @@ function fillBuilds(pkg, el) {
     .sort()[0];
   const age = checked && daysText(checked);
   el.innerHTML = html`${stale}<div class="pd">
-    <div class="br-list">${pkg.builds.map((b) => buildLine(pkg, b))}</div>
+    <div class="br-list">${groupedBuilds(pkg.builds).map(([b, alike]) => buildLine(pkg, b, alike))}</div>
     ${
       checked && age !== 'today'
         ? html`<p class="pd-foot" title="${new Date(checked).toLocaleString()}">Checked on Hydra ${age} ago.</p>`
@@ -4187,24 +4296,30 @@ const whoDid = (author, mergedBy) => {
 // eligibility, state, bot blocking and duplicates; open PRs touching it
 // while its build fails on Hydra; and its issues checked against Hydra and
 // nixpkgs now. Nothing when there's none.
+// Each: [the pill's few words, the sentence its hover says].
 const PR_STATES = {
-  superseded: (now) => `superseded: nixpkgs has ${now} already`,
-  overtaken: (now) => `overtaken: nixpkgs moved to ${now}, a rebase needed`,
-  downgrade: () => 'a downgrade',
-  snapshotToRelease: () => 'from a snapshot back to a release',
-  preRelease: () => 'to a pre-release, by its suffix',
+  superseded: (now) => [`superseded (${now})`, `Superseded: nixpkgs has ${now} already`],
+  overtaken: (now) => [
+    `needs a rebase (${now})`,
+    `Overtaken: nixpkgs moved to ${now}, a rebase is needed`,
+  ],
+  downgrade: () => ['a downgrade', 'It would downgrade the package'],
+  snapshotToRelease: () => ['back to a release', 'From a snapshot back to a release'],
+  preRelease: () => ['a pre-release', 'To a pre-release, by its version suffix'],
 };
 function githubSection(pkg) {
   // Each PR and issue with GitHub's icon for it: open, draft, merged, issue.
-  const link = (item, kind = item.draft ? 'draft' : 'pr') =>
-    html`<a class="files-link gh-item ${kind}" href="${safeUrl(item.url)}" target="_blank" rel="noopener">${GH_ICONS[kind]}<span class="sr-only">${kind === 'issue' ? 'issue' : kind === 'merged' ? 'merged PR' : kind === 'draft' ? 'draft PR' : 'PR'} </span>#${item.number} ↗</a>`;
+  const link = (item, kind = item.draft ? 'draft' : 'pr', who = '') =>
+    html`<a class="files-link gh-item ${kind}" href="${safeUrl(item.url)}" target="_blank" rel="noopener"${who ? html` title="${who[0].toUpperCase()}${who.slice(1)}"` : ''}>${GH_ICONS[kind]}<span class="sr-only">${kind === 'issue' ? 'issue' : kind === 'merged' ? 'merged PR' : kind === 'draft' ? 'draft PR' : 'PR'} </span>#${item.number} ↗</a>`;
+  // A pill of a few words; the sentence behind them on hover, and for
+  // screen readers (they were whole sentences, in the pill, 2026-10-23).
   const fact = (kind, text, title) =>
-    html`<span class="gh-fact ${kind}"${title ? html` title="${title}"` : ''}>${text}</span>`;
+    html`<span class="gh-fact ${kind}"${title ? html` title="${title}"` : ''}>${text}${title ? html`<span class="sr-only">: ${title}</span>` : ''}</span>`;
   const lines = [];
   // Marked broken with open PRs: one may fix it, or be moot now.
   if (pkg.markedBroken && pkg.openPRs > 0)
     lines.push(
-      html`<li>${fact('warn', `marked broken, and ${pkg.openPRs === 1 ? 'an open PR touches' : `${fmt(pkg.openPRs)} open PRs touch`} it`, 'One may fix it, or be moot while it stays broken: worth a look before reviewing it')}</li>`,
+      html`<li>${fact('warn', `broken · ${fmt(pkg.openPRs)} open PR${pkg.openPRs === 1 ? '' : 's'}`, `Marked broken, and ${pkg.openPRs === 1 ? 'an open PR touches' : `${fmt(pkg.openPRs)} open PRs touch`} it: one may fix it, or be moot while it stays broken; worth a look before reviewing it`)}</li>`,
     );
   const pr = pkg.openPR;
   const f = pr?.facts;
@@ -4213,14 +4328,14 @@ function githubSection(pkg) {
       f.fixesBuild &&
         fact(
           '',
-          'touches its failing build',
+          'may fix the build',
           'It changes the package while its build fails on Hydra: maybe its fix',
         ),
       f.mergeBot === 'ready' &&
         fact(
           'ok',
-          'ready for the merge bot',
-          'CI green, no conflict: a maintainer of the package can merge it by commenting @NixOS/nixpkgs-merge-bot merge',
+          'merge-bot ready',
+          'Ready for the merge bot: CI green, no conflict; a maintainer of the package can merge it by commenting @NixOS/nixpkgs-merge-bot merge',
         ),
       f.mergeBot === 'eligible' &&
         fact(
@@ -4228,24 +4343,18 @@ function githubSection(pkg) {
           'merge-bot eligible',
           'The merge bot could merge it once CI is green and any conflict is sorted out',
         ),
-      f.state && fact('warn', (PR_STATES[f.state] || (() => f.state))(f.now || '?')),
+      f.state && fact('warn', ...(PR_STATES[f.state] || (() => [f.state]))(f.now || '?')),
       f.behind &&
         fact(
           'warn',
-          `behind: upstream has ${f.behind}`,
-          'Merged as it is, the package would still be outdated: worth updating the PR first',
-        ),
-      f.vulnerable &&
-        fact(
-          'warn',
-          'for a vulnerable package',
-          'The package counts as vulnerable (see its vulnerabilities): worth reviewing this PR first, and checking whether its version fixes them',
+          `behind (${f.behind})`,
+          `Behind: upstream has ${f.behind}. Merged as it is, the package would still be outdated: worth updating the PR first`,
         ),
       f.blocksBot &&
         fact(
           'warn',
-          `blocks the update bot${typeof f.blocksBot === 'string' ? ` (its next try ~${shortDay(f.blocksBot)})` : ''}`,
-          'It has the very title nixpkgs-update would use, so the bot skips this update while it is open',
+          'blocks the bot',
+          `Blocks the update bot${typeof f.blocksBot === 'string' ? ` (its next try ~${shortDay(f.blocksBot)})` : ''}: it has the very title nixpkgs-update would use, so the bot skips this update while it is open`,
         ),
       f.duplicates?.length &&
         html`<span class="gh-fact">also open: ${f.duplicates.map((n, i) => html`${i ? ' ' : ''}<a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${n}" target="_blank" rel="noopener">#${n}</a>`)}</span>`,
@@ -4256,7 +4365,7 @@ function githubSection(pkg) {
   // Open update PRs nixpkgs is already past (prs_digest.mark_superseded).
   for (const sp of pkg.supersededPRs || [])
     lines.push(
-      html`<li>${link({ ...sp, url: `https://github.com/NixOS/nixpkgs/pull/${sp.number}` })} ${sp.title} ${fact('warn', `can be closed: nixpkgs has ${sp.now}`, 'nixpkgs already has this version or a newer one: the PR can be closed, or updated to the newest')}${sp.draft ? fact('', 'a draft') : ''}</li>`,
+      html`<li>${link({ ...sp, url: `https://github.com/NixOS/nixpkgs/pull/${sp.number}` })} ${sp.title} ${fact('warn', `can be closed (${sp.now})`, `nixpkgs has ${sp.now}, this version or a newer one: the PR can be closed, or updated to the newest`)}</li>`,
     );
   // Its other open PRs, a removal first (prs_digest.add_facts).
   const KIND = {
@@ -4268,10 +4377,10 @@ function githubSection(pkg) {
       return other.proposed
         ? fact(
             '',
-            `removal proposed (${other.proposed})`,
-            `This PR would remove ${what} from nixpkgs, but it doesn't look likely to be merged as it is`,
+            'removal proposed',
+            `This PR would remove ${what} from nixpkgs (${other.proposed}), but it doesn't look likely to be merged as it is`,
           )
-        : fact('warn', `removes ${what} from nixpkgs`);
+        : fact('warn', 'removes it', `It removes ${what} from nixpkgs`);
     },
     init: () => fact('', 'adds it'),
     update: () => fact('', 'an update'),
@@ -4280,7 +4389,7 @@ function githubSection(pkg) {
     lines.push(
       html`<li>${link({ ...other, url: `https://github.com/NixOS/nixpkgs/pull/${other.number}` })} ${other.title} ${other.kind ? KIND[other.kind]?.(other) || '' : ''}${
         other.mergeBot === 'ready'
-          ? fact('ok', 'ready for the merge bot')
+          ? fact('ok', 'merge-bot ready', 'Ready for the merge bot: CI green, no conflict')
           : other.mergeBot === 'eligible'
             ? fact('', 'merge-bot eligible')
             : ''
@@ -4291,26 +4400,41 @@ function githubSection(pkg) {
   const bf = pkg.buildFixPR;
   if (bf)
     lines.push(
-      html`<li>${link(bf, 'merged')} ${bf.title} ${fact('ok', 'merged since its build began failing: likely its fix', "Hydra hasn't built it yet, or the failure was elsewhere")}${bf.author ? html` by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.author)}" target="_blank" rel="noopener">@${bf.author}</a>` : ''}${bf.mergedBy ? html`, merged by <a class="files-link" href="https://github.com/${encodeURIComponent(bf.mergedBy)}" target="_blank" rel="noopener">@${bf.mergedBy}</a>` : ''}</li>`,
+      // Who wrote and merged it on the link's hover, not the line: the icon
+      // says merged, and no other line here names people.
+      html`<li>${link(bf, 'merged', [bf.author && `by @${bf.author}`, bf.mergedBy && `merged by @${bf.mergedBy}`].filter(Boolean).join(', '))} ${bf.title} ${fact('ok', 'likely fix', "Merged since its build began failing: likely its fix, which Hydra hasn't built yet (or the failure was elsewhere)")}</li>`,
     );
   for (const fix of pkg.fixPRs || [])
     lines.push(
-      html`<li>${link(fix)} ${fix.title} ${fact('', 'touches it while its build fails on Hydra', 'Maybe its fix')}</li>`,
+      html`<li>${link(fix)} ${fix.title} ${fact('', 'may fix the build', 'It touches the package while its build fails on Hydra: maybe its fix')}</li>`,
     );
   const ISSUE = {
     builds: (c) =>
       c.condition
-        ? fact('warn', 'builds on Hydra now, but the title adds a condition to check')
-        : fact('ok', 'builds on Hydra now: a candidate to close'),
-    failing: () => fact('', 'still failing on Hydra'),
-    done: (c) => fact('ok', `nixpkgs has ${c.now || 'it'}: a candidate to close`),
+        ? fact(
+            'warn',
+            'builds now · check it',
+            'It builds on Hydra now, but the title adds a condition to check',
+          )
+        : fact('ok', 'builds now · can close', 'It builds on Hydra now: a candidate to close'),
+    failing: () => fact('', 'still failing', 'Still failing on Hydra'),
+    done: (c) =>
+      fact(
+        'ok',
+        `done${c.now ? ` (${c.now})` : ''} · can close`,
+        `nixpkgs has ${c.now || 'it'}: a candidate to close`,
+      ),
     partly: (c) =>
-      fact('warn', `nixpkgs moved to ${c.now || 'a newer version'}, not to the one asked`),
+      fact(
+        'warn',
+        `partly done${c.now ? ` (${c.now})` : ''}`,
+        `nixpkgs moved to ${c.now || 'a newer version'}, not to the one asked`,
+      ),
     cveFixed: (c) =>
       fact(
         'ok',
-        `${c.cves?.length > 1 ? 'none of its CVEs affect' : "its CVE doesn't affect"} nixpkgs' version: a candidate to close`,
-        `${(c.cves || []).join(', ')}: fixed or patched, as nixkeeper reads the security tracker and OSV against nixpkgs' version. Check before closing`,
+        `CVE${c.cves?.length > 1 ? 's' : ''} fixed · can close`,
+        `${(c.cves || []).join(', ')}: ${c.cves?.length > 1 ? "none affect nixpkgs' version" : "it doesn't affect nixpkgs' version"}, as nixkeeper reads the security tracker and OSV: a candidate to close. Check before closing`,
       ),
   };
   for (const c of pkg.issueChecks || [])
@@ -4800,7 +4924,21 @@ function fillDetail(pkg, el, entries) {
       search.scrollIntoView({ block: 'nearest' });
     });
   }
-  el.querySelector('.more-btn')?.addEventListener('click', (e) => {
+  // Vulnerabilities: the worst VULNS_SHOWN, or all of them.
+  el.querySelector('.vl-more')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    const sec = btn.closest('.vl-sec');
+    sec.querySelectorAll('.vl-group > .vl-list > .vl').forEach((li, i) => {
+      li.hidden = !open && i >= VULNS_SHOWN;
+    });
+    sec.querySelectorAll('.vl-group').forEach((g) => {
+      g.hidden = !g.querySelector('.vl:not([hidden])');
+    });
+    btn.setAttribute('aria-expanded', open);
+    btn.textContent = open ? 'Show fewer' : `Show all ${btn.dataset.all}`;
+  });
+  el.querySelector('.more-btn:not(.vl-more)')?.addEventListener('click', (e) => {
     const btn = e.currentTarget;
     const open = btn.getAttribute('aria-expanded') !== 'true';
     el.querySelectorAll('.repo-chip').forEach((chip, i) => {
@@ -5001,6 +5139,10 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   if (mode) {
     highlightShown[mode.dataset.hl] = mode.dataset.mode;
     renderScope();
+    return;
+  }
+  if (e.target.closest('button.close-all')) {
+    closeRows(openRows());
     return;
   }
   if (e.target.closest('button.hidden-toggle')) {
@@ -5254,6 +5396,7 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  let closed = false;
   for (const [panel, btn, show] of [
     ['themePanel', 'themeBtn', showThemePanel],
     ['legendPanel', 'legendBtn', showLegend],
@@ -5262,7 +5405,16 @@ document.addEventListener('keydown', (e) => {
     if (document.getElementById(panel).hidden) continue;
     show(false);
     document.getElementById(btn).focus();
+    closed = true;
   }
+  // No popover to close, and not in a field (Esc empties the search): the
+  // open packages, the keyboard on the row it was in, if any.
+  if (closed || e.target.matches('input, select, textarea')) return;
+  const rows = openRows();
+  if (!rows.length) return;
+  const at = document.activeElement?.closest('tr.detail')?.previousElementSibling;
+  closeRows(rows);
+  if (at?.matches('tr.row')) at.focus();
 });
 
 // The sticky header's height, for the column headings to stick under it.

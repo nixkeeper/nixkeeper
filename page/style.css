@@ -1675,6 +1675,17 @@ tbody tr.row td {
   font-weight: 600;
   font-size: 14.5px;
 }
+/* The name, a link to the package alone (?pkg=), for a tab of its own:
+   drawn as the name, underlined on hover. */
+a.pkg-link {
+  color: inherit;
+  text-decoration: none;
+}
+a.pkg-link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+}
 /* Secondary to the name: the platforms as one small pill ("Linux ·
    Darwin"). Each is still a button: a click filters by platform. */
 .plats {
@@ -1966,17 +1977,69 @@ button.plat[aria-pressed="true"] {
 /* The panel's CVEs and advisories. */
 .vl-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 0;
+  list-style: none;
   font-size: 12.5px;
 }
+/* Under its tracker issue: indented, as its group. */
+.vl-issue + .vl-list {
+  padding-left: 14px;
+}
+/* A line each: id, severity, summary cut short (whole on hover), and what
+   the line above them doesn't say (vulnSection). */
 .vl {
   margin: 4px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0 6px;
+  white-space: nowrap;
+}
+.vl[hidden],
+.vl-group[hidden] {
+  display: none;
+}
+.vl > * {
+  flex: none;
 }
 .vl-summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--ink-soft);
+}
+/* "24 CVEs: 4 critical, 8 high ... · all affected · still affected on 26.05". */
+.vl-head {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+/* A tracker issue's CVEs, under its link. */
+.vl-issue {
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.vl-more {
+  margin-top: 6px;
+}
+/* Phones: too narrow for a line each; the summary under the id instead. */
+@media (max-width: 640px) {
+  .vl {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .vl-summary {
+    flex-basis: 100%;
+  }
 }
 .vl-backport {
   color: var(--caution);
+}
+/* Its open update PR, under them (vulnSection). */
+.vl-pr {
+  margin: 6px 0 0;
+  font-size: 12.5px;
 }
 .vl-rest summary {
   cursor: pointer;
@@ -2421,8 +2484,18 @@ tbody tr.row.open td {
   gap: 4px;
 }
 .br-full-log {
+  font-size: 12px;
+}
+/* "full log ↗ · the same on all 4" (groupedBuilds). */
+.br-log-foot {
   justify-self: start;
   font-size: 12px;
+  color: var(--ink-faint);
+}
+/* Failing alike, before the one that shows their log's lines: no line
+   between them, so they read as one group. */
+.br.alike {
+  border-bottom-color: transparent;
 }
 .br-log {
   margin: 0;
@@ -2497,6 +2570,21 @@ tbody tr.row.open td {
 .hidden-toggle[aria-pressed="true"] {
   border-style: solid;
   color: var(--ink);
+}
+/* "Close all (3)", while several packages are open (syncCloseAll). */
+.close-all {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.close-all:hover {
+  color: var(--ink);
+  border-color: var(--accent);
 }
 /* A hidden package, while "show them" is on. */
 tr.row.is-hidden {
