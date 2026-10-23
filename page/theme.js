@@ -17,3 +17,8 @@
     // Storage blocked (a private window, say): the defaults.
   }
 }
+// And which skeleton shows while the data loads (index.html): the overview's
+// for the address with nothing after it (nixkeeper.com's first page), a
+// list's for any other. app.js switches to a list's once index.json says
+// this instance lists its own packages, whose first page is a list.
+document.documentElement.dataset.start = location.search ? 'list' : 'overview';

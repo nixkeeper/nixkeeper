@@ -443,9 +443,9 @@ to keep one kind.
 
 | Shows | Means |
 |---|---|
-| failed: … (pink) | its latest build failed on a platform, and why, from its log on Hydra (`compile error`, `tests`, `CMake 4`, `patch`...: as **build failed because** above), when every failed build says the same; `failure reported` when they differ or their logs aren't read yet. The panel says each build's reason with the log's lines that say so, links the log, and says when it last built, and at which version |
-| marked broken (gold) | nixpkgs marks it broken on a platform (known, so not counted as failed) |
-| blocked (gold) | it didn't build because a dependency failed: not its own failure, so not counted as failed (the "blocked" count and tile, `?filter=blocked`, list them); the panel says which dependency (its package, to open), once nixkeeper-hydra has read the build |
+| a hard hat, then why (pink) | its latest build failed on a platform, and why, from its log on Hydra (`compile error`, `tests`, `CMake 4`, `patch`...: as **build failed because** above), when every failed build says the same; `failure` when they differ or their logs aren't read yet (screen readers say "failed:" before it). `never: x86_64-linux` when it never built there. The panel says each build's reason with the log's lines that say so, links the log, and says when it last built, and at which version |
+| a hard hat, marked broken (gold) | nixpkgs marks it broken on a platform (known, so not counted as failed) |
+| a hard hat, blocked (gold) | it didn't build because a dependency failed: not its own failure, so not counted as failed (the "blocked" count and tile, `?filter=blocked`, list them); the panel says which dependency (its package, to open), once nixkeeper-hydra has read the build |
 | not built by Hydra | unfree, or kept off Hydra by nixpkgs |
 | none reported | no failure of its own; an unfinished build shows only in the panel |
 
@@ -458,12 +458,12 @@ what it would update to), and the log and every attempt to open:
 
 | Shows | Means |
 |---|---|
-| failed: … (pink) | the bot's update failed, and why, from its log: `tests`, `build`, `dependency` (one missing or too old), `patch` (nixpkgs' patches no longer apply), `source` (couldn't be fetched), `hash` (one the bot couldn't work out), `updateScript` (the package's own failed), `unavailable` (broken, insecure or not for x86_64-linux), `request` (the bot's own request failed, not the package). The panel says it in full, with the log's line that says so. `failure reported` when the log doesn't say |
-| can't update (gold) | a newer version exists, but none of the bot's ways of updating apply to this package: update it by hand, or give it an updateScript |
+| a robot, then why (pink) | the bot's update failed, and why, from its log: `tests`, `build`, `dependency` (one missing or too old), `patch` (nixpkgs' patches no longer apply), `source` (couldn't be fetched), `hash` (one the bot couldn't work out), `updateScript` (the package's own failed), `unavailable` (broken, insecure or not for x86_64-linux), `request` (the bot's own request failed, not the package). The panel says it in full, with the log's line that says so. `failure` when the log doesn't say (screen readers say "failed:" before it). The robot is red, or the queue's colour (below) when the bot will try again |
+| a robot, can't update (gold) | a newer version exists, but none of the bot's ways of updating apply to this package: update it by hand, or give it an updateScript |
 | skipped | the bot passes this package over on purpose (the package opts out, GNOME's release cycle, too many rebuilds, ...: the panel says which): while it does, updates are done by hand |
 | superseded | the attempt no longer matters: nixpkgs has moved past that version (in the channel, or merged on master), or a manual rule ignores it (`package-lists/ignored-updates.nix`) |
 | not attempted | the bot has never tried this package |
-| … · a robot's head | joined to any of these: nixpkgs-update will try it, from its queue (screen readers say "queued"). Green when to the newest version and its last attempt didn't fail, so its PR should follow; amber when it will try but it's unsure: its last attempt didn't work, it would update to another version, or only the package's updateScript runs, which decides the version (for outdated packages). Hover it for which; it opens the update panel too, which says when. When green and nothing's reported, the cell says when instead of "—": **auto update in 4 days** (in green), so you can leave it to the bot. Not shown while an update PR is open or merged |
+| the robot's colour | in front of any of these, where the dot was: nixpkgs-update will try it, from its queue (screen readers say "queued for an update"). Green when to the newest version and its last attempt didn't fail, so its PR should follow; amber when it will try but it's unsure: its last attempt didn't work, it would update to another version, or only the package's updateScript runs, which decides the version (for outdated packages). Hover the cell for which; the update panel says when. When green and nothing's reported, the cell says when instead of "—": **auto update in 4 days** (in green), so you can leave it to the bot. No robot when the bot isn't set to try it and nothing went wrong, or while an update PR is open or merged |
 | none reported | the bot opened a PR, found one open, had already pushed the update to its branch, had nothing to update (nothing newer by Nix's version order, say), or finished without a recognisable result (the panel says which) |
 
 The update panel also says when the bot will try the package again, from

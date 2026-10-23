@@ -71,8 +71,8 @@
   <div class="stick-mark" id="stickMark"></div>
   <div class="filterbar" id="filterbar">
     <div class="filters">
-      <div class="chips" id="stats"></div>
-      <div class="chips lists" id="lists"></div>
+      <div class="chips" id="stats"><span class="sk-chip" style="width: 150px"></span></div>
+      <div class="chips lists" id="lists"><span class="sk-chip" style="width: 112px"></span><span class="sk-chip" style="width: 96px"></span></div>
       <div class="chips refine-row" id="refine" hidden></div>
     </div>
     <div class="meta">
@@ -99,8 +99,42 @@
   </div>
   <!-- Above everything the data fills in, removed when it's there (doneLoading
        in app.js), with the footer shown then: what appears takes its place
-       without moving anything in view. -->
-  <div class="loading" id="loading">Loading package data…</div>
+       without moving anything in view. Until then, grey shapes where it will
+       be (a skeleton): the overview's, or a list's (theme.js picks, from the
+       address, before the page draws), the same size as what replaces them. -->
+  <div class="loading" id="loading" role="status">
+    <span class="sr-only">Loading package data…</span>
+    <div class="sk sk-list" aria-hidden="true">
+      <div class="sk-box">
+        <i class="sk-bar" style="width: 220px; height: 35px"></i>
+        <div class="sk-tiles"><i class="sk-tile"></i><i class="sk-tile"></i><i class="sk-tile"></i><i class="sk-tile"></i><i class="sk-tile"></i><i class="sk-tile"></i><i class="sk-tile"></i></div>
+        <i class="sk-bar" style="width: 70%; height: 20px"></i>
+        <i class="sk-bar" style="width: 52%; height: 20px"></i>
+        <i class="sk-bar" style="width: 30%; height: 21px"></i>
+      </div>
+      <div class="sk-head"></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 70%"></i></span><span><i class="sk-bar" style="width: 30%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 70%"></i></span><span><i class="sk-bar" style="width: 55%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 55%"></i></span><span><i class="sk-bar" style="width: 24%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 65%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 80%"></i></span><span><i class="sk-bar" style="width: 36%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 75%"></i></span><span><i class="sk-bar" style="width: 50%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 62%"></i></span><span><i class="sk-bar" style="width: 28%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 55%"></i></span><span><i class="sk-bar" style="width: 70%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 48%"></i></span><span><i class="sk-bar" style="width: 22%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 70%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 74%"></i></span><span><i class="sk-bar" style="width: 34%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 65%"></i></span><span><i class="sk-bar" style="width: 55%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 58%"></i></span><span><i class="sk-bar" style="width: 26%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 75%"></i></span><span><i class="sk-bar" style="width: 62%"></i></span><span></span></div>
+      <div class="sk-row"><span><i class="sk-dot"></i><i class="sk-bar" style="width: 66%"></i></span><span><i class="sk-bar" style="width: 30%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 60%"></i></span><span><i class="sk-bar" style="width: 50%"></i></span><span></span></div>
+    </div>
+    <div class="sk sk-overview" aria-hidden="true">
+      <div class="sk-box">
+        <i class="sk-bar" style="width: 260px; height: 25px"></i>
+        <i class="sk-bar" style="width: 100%; height: 6px"></i>
+        <i class="sk-bar" style="width: 320px"></i>
+        <i class="sk-bar" style="width: 140px; height: 15px"></i>
+        <div class="sk-cards"><i class="sk-card"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-card"></i><i class="sk-card"></i></div>
+        <i class="sk-bar" style="width: 50%"></i>
+        <i class="sk-bar" style="width: 60%; height: 44px; margin-top: 11px"></i>
+        <div class="sk-cols"><i class="sk-col"></i><i class="sk-col"></i><i class="sk-col"></i><i class="sk-col"></i></div>
+      </div>
+    </div>
+  </div>
   <div class="scope" id="scope" hidden></div>
   <div class="list-problems" id="listProblems" hidden></div>
   <div id="content"></div>

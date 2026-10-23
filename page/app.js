@@ -880,6 +880,12 @@ const BOT_ICON = raw(
   '<svg class="bot-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.6v2"/><circle cx="8" cy="1.8" r="0.9" fill="currentColor" stroke="none"/><rect x="2.75" y="4.6" width="10.5" height="8.4" rx="2.2"/><circle cx="6" cy="8.6" r="1.05" fill="currentColor" stroke="none"/><circle cx="10" cy="8.6" r="1.05" fill="currentColor" stroke="none"/><path d="M1 7.8v2.2M15 7.8v2.2"/></svg>',
 );
 
+// A hard hat (Hydra's builders), in the text's colour: a failing build's
+// mark in the build cell, as the robot is a failed update's.
+const HAT_ICON = raw(
+  '<svg class="bot-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 11V9.6a4.8 4.8 0 0 1 9.6 0V11"/><path d="M6.6 5.1v3M9.4 5.1v3"/><rect x="1.5" y="11" width="13" height="2.4" rx="1.2"/></svg>',
+);
+
 // The robot, joined to the update cell's button: nixpkgs-update will try the
 // package (it's in the bot's queue). Green when to the newest version shown
 // and its last attempt didn't fail, so its PR should follow; amber when it
@@ -953,6 +959,25 @@ function botDueText(pkg) {
 // failing check) beside the newest. Screen readers get the two versions in a
 // sentence instead. Both versions are one button: it copies the update's
 // title as nixpkgs writes it ("unciv: 4.22.1 -> 4.22.6").
+// Whether a line's version and its badges won't fit side by side in the
+// version column (its narrowest, about 28 characters of the version's
+// font): then the badges go under the versions instead (.vcell.long), or
+// they squeezed a long version into a line per few characters
+// (linuxKernel.packages.linux_6_6.tbs's 7.2.11-unstable-2025-12-15, beside
+// devel and on master, took 8 lines). Badges stack within their column, so
+// the widest counts: about 0.95 of a character each, with 1.5 for the
+// padding ("only in nixpkgs", 113px, fits beside 2020-01-31 at 1,081px).
+const VERSION_LINE = 28;
+function tooWide(version, badges) {
+  const widest = Math.max(
+    0,
+    ...[...String(badges).matchAll(/class="badge[^"]*"[^>]*>([^<]*)</g)].map(
+      (m) => m[1].length * 0.95 + 1.5,
+    ),
+  );
+  return widest > 0 && String(version || '').length + 2 + widest > VERSION_LINE;
+}
+
 function versionCell(pkg, st) {
   if (st === 'missing') return html`<span class="badge missing">not packaged</span>`;
   const now = pkg.nixVersion;
@@ -962,7 +987,7 @@ function versionCell(pkg, st) {
     : '';
   const about = html`${pkg.set ? bulkBadge(pkg.set) : ''}${olderVersionKept(pkg) ? html`<span class="badge neutral" title="${keptText(pkg)}">older version</span>` : pkg.unversioned && st === 'neutral' ? html`<span class="badge neutral" title="${UNVERSIONED_TITLE}">not versioned</span>` : st === 'neutral' ? html`<span class="badge neutral"${pkg.nixStatus === 'unsupported' ? html` title="${UNSUPPORTED_TEXT}"` : nothingCompared(pkg) ? html` title="${ONLY_NIXPKGS_TEXT}"` : ''}>${statusLabel(pkg.nixStatus)}</span>` : ''}${pkg.archived ? html`<span class="badge warn" title="${archivedText(pkg)}">archived</span>` : ''}${pkg.dropPR && !pkg.dropPR.proposed ? html`<span class="badge warn" title="An open PR removes it from nixpkgs: #${pkg.dropPR.number} (${pkg.dropPR.title})">being removed</span>` : ''}${pkg.feed?.heldBack && st === 'ok' ? html`<span class="badge neutral" title="nixpkgs pins it to ${pkg.feed.name}: Hackage has ${pkg.feed.heldBack}, which Stackage holds back until its next series">Stackage LTS</span>` : ''}${pkg.devel ? html`<span class="badge devel ${st}">devel</span>` : ''}${vulnBadge(pkg)}${pkg.staleSince ? html`<span class="badge neutral" title="Repology lookup failed on the last run; this is data from ${new Date(pkg.staleSince).toLocaleString()}">not refreshed</span>` : pkg.lookupFailed ? html`<span class="badge neutral" title="${LOOKUP_FAILED}">not looked up</span>` : ''}`;
   if (st !== 'warn')
-    return html`<div class="vcell"><span class="v-now"><span class="v">${now}</span></span><span class="v-tags top">${about}${failing}</span></div>`;
+    return html`<div class="vcell${tooWide(now, html`${about}${failing}`) ? ' long' : ''}"><span class="v-now"><span class="v">${now}</span></span><span class="v-tags top">${about}${failing}</span></div>`;
   const target = targetVersion(pkg);
   const merged = waitingForChannel(pkg);
   const title = updateTitle(pkg);
@@ -988,7 +1013,11 @@ function versionCell(pkg, st) {
   const said = mid
     ? `${now}, on master ${mid}, newest ${target || 'unknown'}`
     : `${now}, newest ${target || 'unknown'}`;
-  return html`<div class="vcell${mid ? ' three' : ''}">
+  const long =
+    tooWide(now, about) ||
+    (mid && tooWide(mid, masterBadge(pkg))) ||
+    tooWide(target, html`${update}${failing}`);
+  return html`<div class="vcell${mid ? ' three' : ''}${long ? ' long' : ''}">
     <button type="button" class="vcopy" data-copy="${title || ''}" title="Copy “${title || ''}”">
     <span class="v-now"><span class="v" aria-hidden="true">${now}</span><span class="sr-only">${said}</span></span>
     ${steps}
@@ -1934,6 +1963,7 @@ async function loadIndex() {
       // logo and the tab's title say so (index.html has nixkeeper.com's;
       // link previews, which run no script, keep it).
       document.querySelector('.wordmark .tag').textContent = OWN_TAG;
+      document.documentElement.dataset.start = 'list'; // its skeleton (theme.js)
       document.title = `nixkeeper — ${OWN_TAG}`;
     }
     // The nixkeeper that made the data, in the footer (older data has none).
@@ -3462,11 +3492,23 @@ const staleNote = (info, what, after) =>
 // quiet: nothing that needs attention, so it's drawn muted, without a dot
 // ("none reported" as a dash), and the phone layout leaves it out. Only
 // what needs a look keeps its colour.
-function failureButton(kind, dot, text, title, stale = null, quiet = false) {
+// mark: in place of the dot (a build's hard hat, the bot's robot), when
+// given; marked: what it says that the text doesn't, for screen readers
+// ("queued for an update").
+function failureButton(
+  kind,
+  dot,
+  text,
+  title,
+  stale = null,
+  quiet = false,
+  mark = null,
+  marked = '',
+) {
   const calm = quiet && !stale;
   const shown = calm && text === 'none reported' ? html`<span aria-hidden="true">—</span>` : text;
-  return html`<button class="failure-btn${dot === 'missing' ? ' failing' : ''}${calm ? ' calm' : ''}" type="button" data-kind="${kind}"${calm ? html` data-quiet aria-label="${kind}: ${text}"` : ''} aria-expanded="false" title="${title}">
-    <span class="status-dot ${dot}" aria-hidden="true"></span><span class="cell-label">${kind}:</span>${shown}${
+  return html`<button class="failure-btn${dot === 'missing' ? ' failing' : ''}${calm ? ' calm' : ''}" type="button" data-kind="${kind}"${calm ? html` data-quiet aria-label="${kind}: ${text}${marked ? `, ${marked}` : ''}"` : ''} aria-expanded="false" title="${title}">
+    ${mark || html`<span class="status-dot ${dot}" aria-hidden="true"></span>`}<span class="cell-label">${kind}:</span>${shown}${marked && !calm ? html`<span class="sr-only">, ${marked}</span>` : ''}${
       stale
         ? html` <span class="stale-tag" title="${staleText(stale, 'Not refreshed')}">not refreshed</span>`
         : ''
@@ -3483,70 +3525,99 @@ function buildCell(pkg) {
   if (!pkg.builds) return html`<span class="failure-na" title="Not in nixpkgs">—</span>`;
   const button = (dot, text, quiet = false) =>
     failureButton('build', dot, text, 'Show Hydra builds', notRefreshed(pkg, 'builds'), quiet);
+  // Failing, blocked or marked broken: the hard hat in place of the dot, in
+  // its colour, as the update column has the robot.
+  const hat = (dot, text) =>
+    failureButton(
+      'build',
+      dot,
+      text,
+      'Show Hydra builds',
+      notRefreshed(pkg, 'builds'),
+      false,
+      html`<span class="bot-mark${dot === 'caution' ? ' queued' : ''}" aria-hidden="true">${HAT_ICON}</span>`,
+    );
   // A failed build that never succeeded on Hydra: where, instead (the
   // panel lists the others).
   const never = neverWhere(pkg);
-  if (never) return button('missing', `never: ${never}`);
+  if (never) return hat('missing', `never: ${never}`);
   if (failedBuilds(pkg).length) {
-    // One reason for all of them (their logs, nixkeeper-hydra): it, as the
-    // update column says its own.
+    // One reason for all of them (their logs, nixkeeper-hydra): only it, as
+    // the update column says its own; the column says the rest.
     const [why, ...more] = buildFailedBecause(pkg, platformFilter);
     const known = !more.length && why !== 'unread' && BUILD_FAILED[why];
-    return button('missing', known ? `failed: ${known.short}` : 'failure reported');
+    return hat(
+      'missing',
+      html`<span class="sr-only">failed: </span>${known ? known.short : 'failure'}`,
+    );
   }
   // Known failures: shown, but not counted as failed.
   // Hydra's builds say where; a broken package often has no Hydra job at
   // all, and then only meta.broken does (markedBroken).
-  if (buildsWith(pkg, 'broken').length || pkg.markedBroken)
-    return button('caution', 'marked broken');
+  if (buildsWith(pkg, 'broken').length || pkg.markedBroken) return hat('caution', 'marked broken');
   // A dependency's failure stopped it: not its own, so not counted as failed.
-  if (buildsWith(pkg, 'dependency').length) return button('caution', 'blocked');
+  if (buildsWith(pkg, 'dependency').length) return hat('caution', 'blocked');
   if (!hydraBuildsIt(pkg)) return button('neutral', 'not built by Hydra', true);
   return button('ok', 'none reported', true);
 }
 
 // nixpkgs-update's latest attempt. `update` is null when the bot never tried
-// and missing for packages not in nixpkgs.
+// and missing for packages not in nixpkgs. When the bot is set to update it
+// (its queue), the robot is in front, in place of the dot, coloured as
+// queuedTag's: green when its PR should follow, amber when unsure; its hover
+// says which. Without the queue, a failure's robot is red and "can't
+// update"'s gold; the rest have no mark.
 function updateCell(pkg) {
-  const status = updateStatus(pkg);
-  // The bot set to update it: joined to the status, as the platforms are.
-  const queued = pkg.update === undefined ? '' : queuedTag(pkg);
-  return queued ? html`<span class="upd-pair">${status}${queued}</span>` : status;
-}
-
-function updateStatus(pkg) {
   // A set's, the bot never tried: its set's tooling updates it.
   if (pkg.set && !pkg.update)
-    return html`<span class="failure-na" title="${bulkText(pkg.set)}: nixpkgs-update hasn't tried it">—</span>`;
+    return queuedBeside(
+      pkg,
+      html`<span class="failure-na" title="${bulkText(pkg.set)}: nixpkgs-update hasn't tried it">—</span>`,
+    );
   if (pkg.update === undefined)
     return html`<span class="failure-na" title="Not in nixpkgs">—</span>`;
-  const button = (dot, text, quiet = false) =>
+  if (pkg.update === null && pkg.unversioned && !pkg.unread?.includes('update'))
+    return queuedBeside(
+      pkg,
+      html`<span class="failure-na" title="${UNVERSIONED_TITLE}: nothing for nixpkgs-update to update">—</span>`,
+    );
+  const q = queuedState(pkg);
+  const robot = (colour) =>
+    html`<span class="bot-mark${colour ? ` ${colour}` : ''}" aria-hidden="true">${BOT_ICON}</span>`;
+  const button = (dot, text, quiet = false, unqueued = null) =>
     failureButton(
       'update',
       dot,
       text,
-      'Show the latest nixpkgs-update attempt',
+      `Show the latest nixpkgs-update attempt${q ? `. ${q.title.replace(/\. When: the update panel$/, '')}` : ''}`,
       notRefreshed(pkg, 'update'),
       quiet,
+      q ? robot(q.match ? 'match' : 'queued') : unqueued,
+      q ? 'queued for an update' : '',
     );
+  // Failed: only why ("patch"), the column saying the rest.
   if (pkg.updateFailure) {
     const because = FAILED_BECAUSE[pkg.update?.failedBecause];
-    return button('missing', because ? `failed: ${because.short}` : 'failure reported');
+    return button(
+      'missing',
+      html`<span class="sr-only">failed: </span>${because ? because.short : 'failure'}`,
+      false,
+      robot(''),
+    );
   }
   // The bot's last attempt failed, but nixpkgs has moved on since: not a
   // failure anymore, though the next attempt may well break the same way.
   if (pkg.update?.outcome === 'superseded') return button('neutral', 'superseded', true);
   // A newer version the bot has no way to update to: not a failure, but it
   // needs a manual update (or an updateScript).
-  if (pkg.update?.outcome === 'cantUpdate') return button('caution', "can't update");
+  if (pkg.update?.outcome === 'cantUpdate')
+    return button('caution', "can't update", false, robot('queued'));
   // The bot passes it over on purpose (opted out, GNOME's release cycle, too
   // many rebuilds, ...): not a failure, but it won't update it either.
   if (pkg.update?.outcome === 'skipped') return button('neutral', 'skipped', true);
   // With every package, only the lists' packages' logs are read (with no
   // attempt read before).
   if (pkg.unread?.includes('update') && !pkg.update) return button('neutral', 'not read', true);
-  if (pkg.update === null && pkg.unversioned)
-    return html`<span class="failure-na" title="${UNVERSIONED_TITLE}: nothing for nixpkgs-update to update">—</span>`;
   // Nothing reported, and the bot is set to update it: when, in green.
   const due = botDueText(pkg);
   if (due)
@@ -3554,11 +3625,20 @@ function updateStatus(pkg) {
       'update',
       'ok',
       html`<span class="bot-due">${due}</span>`,
-      `${queuedState(pkg).title.replace(/\. When: the update panel$/, '')}, expected by ${pkg.queued.by}`,
+      `${q.title.replace(/\. When: the update panel$/, '')}, expected by ${pkg.queued.by}`,
       notRefreshed(pkg, 'update'),
+      false,
+      robot('match'),
     );
   if (pkg.update === null) return button('neutral', 'not attempted', true);
   return button('ok', 'none reported', true);
+}
+
+// A "—" with nothing to open: the queue's robot beside it, as its own
+// button, when the bot is set to update it anyway.
+function queuedBeside(pkg, dash) {
+  const queued = queuedTag(pkg);
+  return queued ? html`<span class="upd-pair">${dash}${queued}</span>` : dash;
 }
 
 // Why the bot's attempt failed ("failedBecause"), as the log says: short in

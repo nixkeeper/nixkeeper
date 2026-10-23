@@ -456,6 +456,19 @@ a:focus-visible {
   border-radius: 6px;
   padding: 2px 6px;
 }
+/* Fixed widths, the same on every list: sized to their longest option,
+   which counts change from list to list, they moved what follows them
+   ("In any set" was 282px on Build failures, 310px on Update failures,
+   2026-10-23). A long choice is cut short in the closed box; its menu
+   shows it whole. The short ones (any / with one / without) narrower. */
+.refine-age select {
+  width: 11em;
+  text-overflow: ellipsis;
+}
+.refine-age select[data-newer],
+.refine-age select[data-pr-pick] {
+  width: 7.5em;
+}
 /* "By": a maintainer's handle, typed or picked (refineHtml). */
 .refine-age .by-pick {
   width: 11em;
@@ -627,6 +640,12 @@ button.checked:focus-visible {
   grid-template-columns: auto 1fr;
   /* A name beside the first line of what it says, when that wraps. */
   align-items: baseline;
+}
+/* Its links below the list, one per line. */
+.sources-panel > .files-link {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
 }
 .sources-panel .unused .src-what {
   color: var(--caution);
@@ -1492,6 +1511,75 @@ table {
   border-collapse: separate;
   border-spacing: 0;
 }
+/* Wide enough for the table (narrower: cards), its columns are the same on
+   every list: sized to their content, they moved between Build failures
+   and Update failures, and a long version with its badges pushed the table
+   past the filters' edge (2026-10-23). A version too long for its column
+   wraps, as on phones. */
+@media (min-width: 1081px) {
+  table {
+    table-layout: fixed;
+  }
+  thead th:nth-child(1) {
+    width: 22%;
+  }
+  thead th:nth-child(2) {
+    width: 23%;
+  }
+  thead th:nth-child(3) {
+    width: 13%;
+  }
+  thead th:nth-child(4) {
+    width: 19%;
+  }
+  thead th:nth-child(5) {
+    width: 19%;
+  }
+  thead th:nth-child(6) {
+    width: 48px;
+  }
+  table .vcell {
+    grid-template-columns: minmax(0, max-content) 1fr;
+  }
+  table .v-now,
+  table .v-mid,
+  table .v-next,
+  table .vcell .v {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* A name with no dot or hyphen where it's too long for its column
+     (linuxPackages_xanmod_latest.rtl8821cu) breaks anywhere instead. */
+  table .pkg-name .who {
+    max-width: 100%;
+  }
+  table .pkg-name .n {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* Versions too long to have their badges beside them (tooWide, app.js):
+     the badges on a line under them instead, one after the other. */
+  table .vcell.long {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 5px;
+  }
+  table .vcell.long > .vcopy,
+  table .vcell.long > .v-now {
+    flex-basis: 100%;
+  }
+  table .vcell.long .v-tags {
+    justify-content: flex-start;
+  }
+  /* Every collapsed row the same height: room for a name on two lines (a
+     quarter of the rows) or two versions, so the list doesn't jump about
+     and the loading skeleton's rows match (index.html). Taller only for
+     the rare row that needs more. */
+  tbody tr.row > td {
+    height: 78px;
+  }
+}
 thead th {
   text-align: left;
   font-size: 12px;
@@ -2023,6 +2111,18 @@ a.badge:hover {
 }
 .bot-icon {
   display: block;
+}
+/* A failed update's robot, in place of the dot: red, or the queue's colour
+   when the bot will try again (amber; green when to the newest). A build's
+   hard hat the same: red failing, amber blocked or marked broken. */
+.bot-mark {
+  color: var(--danger);
+}
+.bot-mark.queued {
+  color: var(--caution);
+}
+.bot-mark.match {
+  color: var(--ok-devel);
 }
 .queued-tag:focus-visible {
   outline: 2px solid var(--accent);
@@ -2797,6 +2897,129 @@ a.page-btn:focus-visible {
 }
 .page-gap {
   color: var(--ink-faint);
+}
+/* The skeleton while the data loads (index.html): grey shapes the size of
+   what replaces them, a list's (its box of tiles and filters, then rows of
+   the list's height and columns) or the overview's, gently pulsing. */
+.loading:has(.sk) {
+  padding: 0;
+  text-align: left;
+}
+.sk {
+  display: grid;
+  animation: sk-pulse 1.6s ease-in-out infinite;
+}
+:root[data-start="list"] .sk-overview,
+:root:not([data-start="list"]) .sk-list {
+  display: none;
+}
+@keyframes sk-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.sk-box {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+}
+.sk-bar,
+.sk-tile,
+.sk-card,
+.sk-col,
+.sk-chip,
+.sk-dot {
+  display: block;
+  height: 16px;
+  max-width: 100%;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+}
+.sk-chip {
+  display: inline-block;
+  box-sizing: border-box;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+}
+.sk-tiles,
+.sk-cards,
+.sk-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.sk-tile {
+  height: 58px;
+  border-radius: 8px;
+}
+.sk-cards {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.sk-card {
+  height: 118px;
+  border-radius: 10px;
+}
+.sk-cols {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 63px; /* "browse every maintainer" and a heading, above them */
+}
+.sk-col {
+  height: 317px;
+  border-radius: 10px;
+}
+/* The list's rows: its columns (style.css's table widths) and height. */
+.sk-head,
+.sk-row {
+  display: grid;
+  grid-template-columns: 22fr 23fr 13fr 19fr 19fr 48px;
+  align-items: center;
+  border-bottom: 1px solid var(--hairline);
+}
+.sk-head {
+  height: 24px;
+}
+.sk-row {
+  height: 78px;
+}
+.sk-row > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+}
+.sk-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.sk-row .sk-bar {
+  flex: 0 1 auto;
+}
+/* Phones and tablets: the list is cards (name, version, build, update
+   stacked), so are its skeleton's rows. */
+@media (max-width: 1080px) {
+  .sk-head {
+    display: none;
+  }
+  .sk-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+    height: auto;
+    padding: 18px 0;
+  }
+  .sk-row > span:nth-child(3),
+  .sk-row > span:nth-child(n + 6) {
+    display: none;
+  }
 }
 .loading,
 .empty,

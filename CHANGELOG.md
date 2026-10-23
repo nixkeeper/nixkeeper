@@ -52,6 +52,25 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- The build and update columns: a **hard hat** (Hydra's builders) and a
+  **robot** (nixpkgs-update) in place of the dot, then only why ("compile
+  error", "patch"; "failure" when the logs don't say), without "failed:"
+  on every line (screen readers still hear it). Red for a failure, gold
+  for blocked, marked broken or can't update; the update cell's robot in
+  the queue's colour (green, amber) when the bot will try it, instead of a
+  second robot beside the text.
+- The list no longer moves between lists: its
+  columns have fixed widths (they were sized to each list's content, and
+  Build failures scrolled sideways at 1,280px), the filters' selects too
+  (their counts changed their width), and every collapsed row is 78px
+  (room for a name or versions on two lines); a long version's badges go
+  on a line under it rather than squeezing it into one line per few
+  characters. Names with no dot near the column's edge break anywhere.
+- Loading: grey shapes where the overview or the list will be (a
+  skeleton), the same size as what replaces them, instead of "Loading
+  package data…" (screen readers still hear that). Layout shift while
+  loading: 0.0006, from 0.013.
+- "Where the data is from": its two links on lines of their own.
 - The builds panel says each platform once: one badge with why it failed
   ("missing file"; "failed: missing file" for screen readers), "last built
   1 y ago" (the date on hover), its Build and Job at the line's end, and
