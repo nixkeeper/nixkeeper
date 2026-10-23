@@ -285,7 +285,9 @@ affected · still affected on 26.05"); grouped by the security tracker's
 issue (linked once, with its nixpkgs issue), a line each: the id, its
 severity and its summary (cut short, whole on hover), and what it doesn't
 share, with **fixed in** the version that fixes it, where the CVE's
-version ranges say ("affected <3.20.1": fixed in 3.20.1). The worst five,
+version ranges say ("affected <3.20.1": fixed in 3.20.1), and **patched
+by** the open PRs whose diff adds its id ("patched by #578062, #578074
+(into release-26.05)": a fix and its backport). The worst five,
 then **Show all**. Under them, whether an update fixes them: master's
 version ("Master has 1.2.6, which fixes them"), the open update PR's
 ("#564426 updates it to 3.20.1, which fixes it; review it first", or "fixes

@@ -308,6 +308,9 @@ def main():
         prs_digest.build_fix_prs(shown, digest["merged"], previous)
     # The CVEs and advisories of each package, with their verdicts.
     vulnerabilities_digest.add(index_rows, vulnerabilities_digest.load(now), revision)
+    # And the open PRs patching them.
+    if digest.get("raw") is not None:
+        prs_digest.add_cve_prs(index_rows, digest["raw"])
     # What this sync finds fixed since the last (with who, when a PR is
     # known), kept on each package a month too, for its panel.
     found_fixes = history.fixes(index_rows, previous, now)

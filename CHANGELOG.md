@@ -11,6 +11,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Patched by**: the open PRs patching a CVE still affecting a package
+  (their diff adds its id, mostly a patch named after it), on its line in
+  the Vulnerabilities details: "patched by #578062, #578074 (into
+  release-26.05)" on libsidplayfp. From nixkeeper-prs' `diffFacts.cves`; 6
+  packages on 2026-10-23.
+
 - **Init PRs for a package nixpkgs has now** (added another way while they
   waited: 68 on 2026-10-23, `macshot: init at 4.0.4` with nixpkgs at
   4.1.2) in "Can be closed", **PR to close**, the list of them all and

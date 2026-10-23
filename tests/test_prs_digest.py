@@ -620,6 +620,64 @@ class CveIssues(unittest.TestCase):
         self.assertEqual(rows[0]["issueChecks"], [{"number": 9, "kind": "build"}])
 
 
+class CvePRs(unittest.TestCase):
+    """Open PRs whose diff adds a CVE id (2026-10-23: alsa-lib's patches for
+    CVE-2026-90781, #563607; binutils' #575362, mapped to no package)."""
+
+    def test_on_the_vulnerabilities(self):
+        rows = [
+            {
+                "name": "alsa-lib",
+                "vulnerabilities": [
+                    {"id": "CVE-2026-90781", "verdict": "affected"},
+                    {"id": "CVE-2026-1", "verdict": "fixed"},
+                ],
+            },
+            {
+                "name": "binutils",
+                "vulnerabilities": [{"id": "cve-2026-6846", "verdict": "notFixed"}],
+            },
+            {
+                "name": "other",
+                "vulnerabilities": [{"id": "CVE-2026-90781", "verdict": "affected"}],
+            },
+        ]
+        prs = [
+            {
+                "n": 563607,
+                "title": "alsa-lib: Fetch CVE-2026-90781 Patches",
+                "base": "master",
+                "packages": ["alsa-lib"],
+                "diffFacts": {"cves": ["CVE-2026-90781", "CVE-2026-1"]},
+            },
+            {
+                "n": 575362,
+                "title": "binutils: add patch for CVE-2026-6846",
+                "base": "staging",
+                "draft": True,
+                "packages": [],
+                "diffFacts": {"cves": ["CVE-2026-6846"]},
+            },
+        ]
+        prs_digest.add_cve_prs(rows, prs)
+        alsa = rows[0]["vulnerabilities"]
+        self.assertEqual(
+            alsa[0]["prs"],
+            [{"number": 563607, "title": "alsa-lib: Fetch CVE-2026-90781 Patches"}],
+        )
+        self.assertNotIn("prs", alsa[1])  # fixed already
+        self.assertEqual(
+            rows[1]["vulnerabilities"][0]["prs"][0],
+            {
+                "number": 575362,
+                "title": "binutils: add patch for CVE-2026-6846",
+                "base": "staging",
+                "draft": True,
+            },
+        )
+        self.assertNotIn("prs", rows[2]["vulnerabilities"][0])  # another package's PR
+
+
 class MarkSuperseded(unittest.TestCase):
     """Update PRs nixpkgs is already past (2026-10-23: 255, ocamlPackages.trace:
     0.5 -> 0.12 open since 2024 with nixpkgs at 0.12)."""

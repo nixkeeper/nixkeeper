@@ -3489,11 +3489,29 @@ function vulnSection(pkg) {
       : html`<span class="vl-verdict">${v.verdict}</span>`;
   const issueLink = (v) =>
     html`<a class="files-link mono" href="https://tracker.security.nixos.org/issues/${encodeURIComponent(v.issue)}" target="_blank" rel="noopener">${v.issue}</a>${v.github && safeUrl(v.github) ? html` (<a class="files-link" href="${safeUrl(v.github)}" target="_blank" rel="noopener">its nixpkgs issue</a>)` : ''}`;
+  // Open PRs patching it (prs_digest.add_cve_prs): "patched by #563607".
+  const patches = (prs, all = false) =>
+    html`${all ? 'all ' : ''}patched by ${prs.map(
+      (p, i) =>
+        html`${i ? ', ' : ''}<a class="files-link gh-item pr" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener" title="${p.title}">${GH_ICONS.pr}<span class="sr-only">PR </span>#${p.number} ↗</a>${
+          p.base || p.draft
+            ? html` (${[p.base && html`into <span class="mono">${p.base}</span>`, p.draft && 'a draft'].filter(Boolean).map((x, k) => html`${k ? ', ' : ''}${x}`)})`
+            : ''
+        }`,
+    )}`;
+  const prKey = (v) => (v.prs || []).map((p) => p.number).join(',');
+  const sharedPRs = (vs) => vs.length > 1 && new Set(vs.map(prKey)).size === 1 && vs[0].prs;
   // One line: its id, severity and summary; and, when they aren't said
   // above (own: false), its verdict, its issue and the branches still affected.
   const line = (
     v,
-    { sharedVerdict = false, sharedReleases = false, sharedFix = false, own = true } = {},
+    {
+      sharedVerdict = false,
+      sharedReleases = false,
+      sharedFix = false,
+      sharedPR = false,
+      own = true,
+    } = {},
     hidden = false,
   ) => {
     const releases = stillAffected(v);
@@ -3505,7 +3523,7 @@ function vulnSection(pkg) {
       !sharedFix && v.fixedIn
         ? html`<span>· fixed in <span class="mono">${v.fixedIn}</span></span>`
         : ''
-    }</li>`;
+    }${!sharedPR && v.prs ? html`<span>· ${patches(v.prs)}</span>` : ''}</li>`;
   };
   const counted = all.filter((v) => VULN_COUNTED.includes(v.verdict));
   const rest = all.filter((v) => !VULN_COUNTED.includes(v.verdict));
@@ -3516,6 +3534,8 @@ function vulnSection(pkg) {
   const sharedReleases = counted.length > 1 && releaseSets.size === 1;
   const fixSet = new Set(counted.map((v) => v.fixedIn));
   const sharedFix = counted.length > 1 && fixSet.size === 1 && [...fixSet][0];
+  const sharedPR = sharedPRs(counted);
+  const restPR = sharedPRs(rest);
   const word = counted.every((v) => v.id.startsWith('CVE-')) ? 'CVE' : 'advisory';
   const severities = ['critical', 'high', 'medium', 'low']
     .map((sev) => [sev, counted.filter((v) => v.severity === sev).length])
@@ -3530,7 +3550,9 @@ function vulnSection(pkg) {
           sharedReleases && [...releaseSets][0]
             ? html` · <span class="vl-backport">still affected on ${[...releaseSets][0]}</span>`
             : ''
-        }${sharedFix ? html` · all fixed in <span class="mono">${sharedFix}</span>` : ''}</p>`
+        }${sharedFix ? html` · all fixed in <span class="mono">${sharedFix}</span>` : ''}${
+          sharedPR ? html` · ${patches(sharedPR, true)}` : ''
+        }</p>`
       : '';
   // Grouped by the tracker's issue, in the order of their worst.
   const groups = new Map();
@@ -3540,7 +3562,13 @@ function vulnSection(pkg) {
     const first = shownSoFar;
     shownSoFar += vs.length;
     const hideGroup = first >= VULNS_SHOWN;
-    const opts = { sharedVerdict, sharedReleases, sharedFix, own: !vs[0].issue || vs.length === 1 };
+    const opts = {
+      sharedVerdict,
+      sharedReleases,
+      sharedFix,
+      sharedPR,
+      own: !vs[0].issue || vs.length === 1,
+    };
     return html`<div class="vl-group"${hideGroup ? raw(' hidden') : ''}>${
       vs[0].issue && vs.length > 1
         ? html`<p class="vl-issue">${issueLink(vs[0])} · ${fmt(vs.length)} ${word === 'CVE' ? 'CVEs' : 'advisories'}</p>`
@@ -3608,7 +3636,9 @@ function vulnSection(pkg) {
     counted.length ? html`${head}${grouped}${more}` : html`<p class="pd-text">None counted.</p>`
   }${counted.length ? fixLines.map((l) => html`<p class="pd-text vl-pr">${l}</p>`) : ''}${
     rest.length
-      ? html`<details class="vl-rest"><summary>${rest.length} not counted (fixed, unconfirmed or dismissed)</summary><ul class="vl-list">${rest.map((v) => line(v))}</ul></details>`
+      ? html`<details class="vl-rest"><summary>${rest.length} not counted (fixed, unconfirmed or dismissed)${
+          restPR ? html` · ${patches(restPR, true)}` : ''
+        }</summary><ul class="vl-list">${rest.map((v) => line(v, { sharedPR: Boolean(restPR) }))}</ul></details>`
       : ''
   }</section>`;
 }

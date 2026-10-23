@@ -208,6 +208,48 @@ CVE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.IGNORECASE)
 NOT_AFFECTED = ("fixed", "patched")
 
 
+def add_cve_prs(rows, prs):
+    """Open PRs patching a package's CVE: their diff adds its id (a patch
+    named after it, mostly: the digest's diffFacts "cves", 17 PRs on
+    2026-10-23), on each of its vulnerabilities still affecting it, as
+    "prs" ([{"number", "title", "base"?: not master, "draft"?}], at most
+    SHOWN): "is someone fixing this?" in its panel. A PR touching other
+    packages only doesn't count; one the digest maps to none does (a patch
+    in a shared file: binutils, gimp). After the vulnerabilities are in."""
+    by_cve = {}
+    for pr in prs or []:
+        for cve in (pr.get("diffFacts") or {}).get("cves") or []:
+            by_cve.setdefault(cve.upper(), []).append(pr)
+    if not by_cve:
+        return
+    for row in rows:
+        keys = {package_key(n) for n in [row["name"], *(row.get("attrs") or [])]}
+        for v in row.get("vulnerabilities") or []:
+            found = [
+                pr
+                for pr in by_cve.get(v["id"].upper(), [])
+                if v["verdict"] not in NOT_AFFECTED
+                and (
+                    not pr.get("packages")
+                    or keys & {package_key(n) for n in pr["packages"]}
+                )
+            ]
+            if found:
+                v["prs"] = [
+                    {
+                        "number": pr["n"],
+                        "title": pr["title"],
+                        **(
+                            {"base": pr["base"]}
+                            if pr.get("base") not in (None, "master")
+                            else {}
+                        ),
+                        **({"draft": True} if pr.get("draft") else {}),
+                    }
+                    for pr in sorted(found, key=lambda pr: pr["n"])[:SHOWN]
+                ]
+
+
 def add_cve_issues(rows, issues):
     """An open issue naming CVEs (in its title) that nixkeeper finds don't
     affect a package's nixpkgs version, every one of them (its
