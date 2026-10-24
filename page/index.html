@@ -29,6 +29,7 @@
 <link rel="modulepreload" href="ui.js">
 <link rel="modulepreload" href="data.js">
 <link rel="modulepreload" href="state.js">
+<link rel="modulepreload" href="search.js">
 <link rel="modulepreload" href="filters.js">
 <link rel="modulepreload" href="list.js">
 <link rel="modulepreload" href="store.js">
@@ -50,8 +51,9 @@
     <div class="actions">
       <label class="search">
         <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="search" id="search" placeholder="pkgs, @maintainer" aria-label="Filter packages, or @handle for a maintainer's packages" disabled>
+        <input type="search" id="search" placeholder="pkgs, @maintainer, is:builds" aria-label="Filter packages, @handle for a maintainer's packages, or filters as is:builds on:darwin" aria-describedby="searchProblems" disabled>
         <kbd title="Press / to filter">/</kbd>
+        <span class="search-problems" id="searchProblems" role="status" hidden></span>
       </label>
       <div class="theme">
         <button type="button" class="btn icon-btn" id="themeBtn" aria-expanded="false" aria-controls="themePanel" aria-label="Theme" title="Theme">

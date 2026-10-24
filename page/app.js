@@ -44,6 +44,7 @@ import {
 import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
+import { parseQuery, readBox, searchText, showQuery, writeQuery } from './search.js';
 import { failedBuilds, PAGE_SIZES, readState, scopeHref, state, writeState } from './state.js';
 import { store } from './store.js';
 import { fmt } from './ui.js';
@@ -142,12 +143,16 @@ async function copyTitle(btn) {
 function readViewFromUrl() {
   const read = readState(new URLSearchParams(location.search), KNOWN);
   Object.assign(state, read.state);
-  document.getElementById('search').value = read.query;
+  // ?q= may hold qualifiers too (is:builds on:darwin): they set what they
+  // name, over the address's other parameters.
+  const typed = parseQuery(read.query);
+  Object.assign(state, typed.fields);
+  showQuery(typed.text, { force: true });
 }
 
 // The address for the current view, on page `page`.
 function viewQuery(page = state.pageNum) {
-  const query = document.getElementById('search').value;
+  const query = searchText();
   const params = new URLSearchParams(location.search);
   return location.pathname + writeState(state, query, params, KNOWN, page);
 }
@@ -261,14 +266,14 @@ async function fullRow(pkg) {
 const typingHandleOnOverview = () =>
   store.shownView === 'overview' &&
   document.activeElement?.id === 'overviewSearch' &&
-  document.getElementById('search').value.trim().startsWith('@');
+  searchText().trim().startsWith('@');
 
 async function ensureView() {
   const path = typingHandleOnOverview()
     ? 'overview'
     : viewPath({
         pkg: state.pkgParam,
-        query: document.getElementById('search').value,
+        query: searchText(),
         team: state.teamFilter,
         list: state.listFilter,
         set: state.setFilter,
@@ -402,6 +407,8 @@ const yieldToBrowser = () =>
 
 async function update({ keepPage = false } = {}) {
   const run = ++updateRun;
+  // The box says the filters the chips and selects set (not while typed in).
+  showQuery();
   if (store.community) {
     try {
       await ensureView();
@@ -585,13 +592,13 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   if (!list.length) {
     const narrowed =
       state.refines.size || state.ageFilter || state.becauseFilter || state.buildFailedFilter;
-    const handle = document.getElementById('search').value.trim();
+    const handle = searchText().trim();
     if (store.community && /^@\S/.test(handle) && !narrowed && state.activeFilter === 'all') {
       // No such maintainer (yet: still typing): the ones whose handle matches.
       content.innerHTML = html`<div class="empty">No maintainer is ${handle}.</div>${moreMatchesHtml()}`;
       return;
     }
-    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !document.getElementById('search').value.trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${store.community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
+    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !searchText().trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${store.community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
     return;
   }
   content.innerHTML = html`<div class="wrap"><table>
@@ -698,7 +705,7 @@ function renderScope() {
   // While searching, the matches (drawn under the overview) get the room:
   // the newest and longest-standing and the sets updated in bulk step aside, and
   // come back once the search is cleared.
-  const query = document.getElementById('search').value;
+  const query = searchText();
   const more = el.querySelector('.overview-more');
   if (more) more.hidden = Boolean(query.trim());
   // Typed in the top search: the overview's box says the same.
@@ -730,7 +737,7 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
   state.matchTeam = null;
   state.newerFilter = null;
   state.showErrors = false;
-  document.getElementById('search').value = '';
+  showQuery('', { force: true });
   update();
   // From the page's top, as a new page would: scrolling the view's header
   // into view left it under the sticky top bar, its tiles hidden.
@@ -763,7 +770,7 @@ function maintainerMatchesHtml(query) {
 }
 
 function moreMatchesHtml() {
-  const query = document.getElementById('search').value;
+  const query = searchText();
   if (
     store.community &&
     !state.pkgParam &&
@@ -1009,8 +1016,27 @@ let searchTimer;
 document.getElementById('search').addEventListener('input', () => {
   state.pkgParam = null; // a search leaves a package shown alone (?pkg=)
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => update(), 150);
+  // Its qualifiers set the filters (search.js), the rest is searched for.
+  searchTimer = setTimeout(() => {
+    showProblems(readBox());
+    update();
+  }, 150);
 });
+// Left, the box written as the state says (its words in their usual
+// order), unless something in it isn't understood: that stays, to fix.
+document.getElementById('search').addEventListener('blur', () => {
+  if (!parseQuery(document.getElementById('search').value).problems.length) showQuery();
+});
+// What the box couldn't read, under it: "no is:biulds: is:builds?".
+function showProblems(problems) {
+  const box = document.getElementById('search');
+  const el = document.getElementById('searchProblems');
+  box.setAttribute('aria-invalid', String(problems.length > 0));
+  el.hidden = !problems.length;
+  el.textContent = problems
+    .map((p) => `${p.message}${p.suggestion ? `: ${p.suggestion}?` : ''}`)
+    .join(' · ');
+}
 // With every package: the links between views (a generated set, one
 // package, back to what needs attention) and the team picker. A click with
 // a modifier opens the link elsewhere, as links do.
@@ -1035,7 +1061,7 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   showView({});
   const search = document.getElementById('search');
-  search.value = `@${a.dataset.maintainer}`;
+  search.value = writeQuery(state, `@${a.dataset.maintainer}`);
   search.dispatchEvent(new Event('input'));
 });
 // The visitor's packages (their maintainer view), or (show false) back to
@@ -1044,7 +1070,7 @@ function showMine(show) {
   showView({});
   if (!show) return;
   const search = document.getElementById('search');
-  search.value = `@${listView.myHandle}`;
+  search.value = writeQuery(state, `@${listView.myHandle}`);
   search.dispatchEvent(new Event('input'));
 }
 // The visitor's team's packages, or (show false) back to the overview.
@@ -1059,7 +1085,9 @@ function showMyTeam(show) {
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'overviewSearch') return;
   const search = document.getElementById('search');
-  search.value = e.target.value;
+  // Its text with the filters the top box says (the overview's box holds a
+  // name or @handle only).
+  search.value = writeQuery(state, e.target.value);
   search.dispatchEvent(new Event('input'));
 });
 // Enter, or leaving it, with @someone typed there: their packages.
@@ -1106,8 +1134,11 @@ document.addEventListener('keydown', (e) => {
     search.value += e.key;
     search.dispatchEvent(new Event('input', { bubbles: true }));
   } else if (e.key === 'Escape' && e.target === search && search.value) {
-    search.value = '';
+    // The name or @handle cleared, what's typed and not read yet dropped;
+    // the filters stay, as the chips set them.
+    search.value = writeQuery(state, '');
     clearTimeout(searchTimer);
+    showProblems([]);
     update();
   }
 });

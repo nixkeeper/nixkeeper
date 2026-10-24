@@ -35,6 +35,7 @@ import {
   vulnSection,
   whoDid,
 } from './panel.js';
+import { writeQuery } from './search.js';
 import { failedBuilds, state } from './state.js';
 import { store } from './store.js';
 import {
@@ -867,7 +868,7 @@ export function fillDetail(pkg, el, entries, page) {
   for (const btn of el.querySelectorAll('.maint-btn:not(.team-btn)')) {
     btn.addEventListener('click', () => {
       const search = document.getElementById('search');
-      search.value = `@${btn.dataset.handle}`;
+      search.value = writeQuery(state, `@${btn.dataset.handle}`);
       search.dispatchEvent(new Event('input'));
       search.scrollIntoView({ block: 'nearest' });
     });

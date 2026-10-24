@@ -8,15 +8,16 @@ happen. For what nixkeeper does and how to set up your own, see the
 
 - `nixkeeper/`: the sync and the hourly checks, as a Python package (see
   [The code](#the-code))
-- `tests/`: offline tests, one file per module (nothing reaches the
-  network: sources are faked). `tests/js/` tests the page's rules
-  (`page/logic.js`), a package panel's sections (`page/panel.js`), how it
-  reads its data (`page/data.js`, with `fetch` stood in for), its address
+- `tests/`: offline tests, one file per module (nothing reaches the network:
+  sources are faked). `tests/js/` tests the page's rules (`page/logic.js`),
+  a package panel's sections (`page/panel.js`), how it reads its data
+  (`page/data.js`, with `fetch` stood in for), its address
   (`page/state.js`), a package's panel (`page/package-view.js`, the parts
   that are HTML), the overview (`page/overview.js`), a maintainer's page
   (`page/maintainer-view.js`), what the list keeps (`page/filters.js`), the
-  list's rows and cells (`page/list.js`) and the views' controls (wired
-  onto stand-in elements) with Node's own test runner
+  list's rows and cells (`page/list.js`), the views' controls (wired onto
+  stand-in elements) and the search box's query (`page/search.js`) with
+  Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -43,32 +44,32 @@ happen. For what nixkeeper does and how to set up your own, see the
   ages, safe links, the tab icon's signals) without the page, so they can be
   tested; `overview.js` the overview (the cards, trends, causes, sets,
   fixes, nixpkgs in numbers); `maintainer-view.js` a maintainer's or team's
-  page (You can merge these, Can be closed) and the maintainers page; `package-view.js` a package's panel
-  (Details, Updates, Builds),
-  given what it needs of the page (`panelPage` in `app.js`: a package's
-  address, hiding it, drawing again); `panel.js` its sections
-  (vulnerabilities, builds, On GitHub), from the package alone, tested
-  too; `ui.js` the small pieces of HTML and text they and the list share
-  (numbers, dates, icons, why a build failed); `data.js` where the data is and
-  how it's read (its files as JSON, the shards' rows once each); `state.js`
-  the filters, sort and paging in one object (`state`), read from the
-  address and written back (`readState`, `writeState`), and a view's
-  address (`scopeHref`, with the tables `app.js` gives it in `known`);
-  `list.js` the list (its header with the tiles, refines and facets, Your
-  packages and Your team, each row and its cells, where the data is from);
-  `filters.js` what the list keeps (the tiles' filters, refines, sorts,
-  platforms, and the list worked out with them); `prefs.js` what this
-  browser keeps (localStorage, the rows hidden here); `store.js` what's
-  loaded of the data, in one object (`store`); `app.js` imports them,
-  changes the state, fills the store and draws the page. Each view wires its
-  own controls (`wireList`, `wireOverview`, `wireMaintainerView`), given
-  what they need of the page (`pageHooks` in `app.js`); `app.js` keeps the
-  search, the links between views, the theme menu and the keyboard. Native
-  ES modules, no build step: `index.html` preloads each (`modulepreload`),
-  so a new module goes there too. `favicon*.svg` (the mark, and the live
-  status icons the page switches between), `nixkeeper-lockup-tight*.svg`
-  (the header) and `tokens.css` are copies from `assets/brand/`, written by
-  `nix run .#brand`
+  page (You can merge these, Can be closed) and the maintainers page;
+  `package-view.js` a package's panel (Details, Updates, Builds), given what
+  it needs of the page (`panelPage` in `app.js`: a package's address, hiding
+  it, drawing again); `panel.js` its sections (vulnerabilities, builds, On
+  GitHub), from the package alone, tested too; `ui.js` the small pieces of
+  HTML and text they and the list share (numbers, dates, icons, why a build
+  failed); `data.js` where the data is and how it's read (its files as JSON,
+  the shards' rows once each); `state.js` the filters, sort and paging in
+  one object (`state`), read from the address and written back (`readState`,
+  `writeState`), and a view's address (`scopeHref`, with the tables `app.js`
+  gives it in `known`); `list.js` the list (its header with the tiles,
+  refines and facets, Your packages and Your team, each row and its cells,
+  where the data is from); `filters.js` what the list keeps (the tiles'
+  filters, refines, sorts, platforms, and the list worked out with them);
+  `search.js` the search box as a query (`is:builds on:darwin`: parseQuery,
+  writeQuery); `prefs.js` what this browser keeps (localStorage, the rows
+  hidden here); `store.js` what's loaded of the data, in one object
+  (`store`); `app.js` imports them, changes the state, fills the store and
+  draws the page. Each view wires its own controls (`wireList`,
+  `wireOverview`, `wireMaintainerView`), given what they need of the page
+  (`pageHooks` in `app.js`); `app.js` keeps the search box's listeners, the
+  links between views, the theme menu and the keyboard. Native ES modules,
+  no build step: `index.html` preloads each (`modulepreload`), so a new
+  module goes there too. `favicon*.svg` (the mark, and the live status icons
+  the page switches between), `nixkeeper-lockup-tight*.svg` (the header) and
+  `tokens.css` are copies from `assets/brand/`, written by `nix run .#brand`
 - `assets/`:
   - `brand/`: nixkeeper's identity: the guide (`BRAND.md`), the mark and
     its variants, status versions and lockups as SVGs, the colour tokens

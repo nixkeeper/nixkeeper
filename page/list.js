@@ -60,6 +60,7 @@ import {
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
 import { isHidden, remember } from './prefs.js';
+import { searchText } from './search.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';
 import { store } from './store.js';
 import {
@@ -884,12 +885,11 @@ export function renderStats() {
 export const isMyTeam = () =>
   Boolean(listView.myTeam) &&
   store.shownView === `views/team/${viewSlug(listView.myTeam)}.json` &&
-  !document.getElementById('search').value.trim().startsWith('@');
+  !searchText().trim().startsWith('@');
 
 export const isMine = () =>
   Boolean(listView.myHandle) &&
-  document.getElementById('search').value.trim().toLowerCase() ===
-    `@${listView.myHandle.toLowerCase()}`;
+  searchText().trim().toLowerCase() === `@${listView.myHandle.toLowerCase()}`;
 
 // "Your packages": the visitor's handle (a chip opening their packages,
 // ✎ to change it), or a field to give it.
@@ -991,7 +991,7 @@ export function rowHtml(pkg, i) {
 }
 
 export function listHeaderHtml(loadMerge) {
-  const handle = document.getElementById('search').value.trim().replace(/^@/, '');
+  const handle = searchText().trim().replace(/^@/, '');
   const path = store.shownView || '';
   // The tiles count the view shown, with the platform, list and team
   // filters, as the count chips do (renderStats).

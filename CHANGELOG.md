@@ -11,6 +11,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **The search box holds the filters as words**, as GitHub's does:
+  `is:builds -is:broken age:1y on:linux build:compile wine`. The tiles,
+  chips and selects write them there; typing one sets it. Each word is the
+  address's own (`is:` a tile, `on:` a platform, `has:pr`, `age:1y`,
+  `team:`, `status:` for the matches in all of nixpkgs...); a word not
+  understood is said under the box with what was likely meant ("no
+  is:biulds: is:builds?"). Addresses are as before; `?q=` takes the words
+  too. The syntax in reading-the-page.md.
 - **The update a build has failed since**: a failure at another version
   than it last built at says so in the builds panel, "at 1.2.4, since its
   update (#575734) · last built at 1.1.0", with the PR when nixkeeper-prs'

@@ -30,6 +30,7 @@ import {
   waitingForChannel,
 } from './logic.js';
 import { isHidden } from './prefs.js';
+import { searchText } from './search.js';
 import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } from './state.js';
 import { store } from './store.js';
 import { failingSince } from './ui.js';
@@ -268,7 +269,7 @@ export const refined = (p, kind = state.activeFilter) =>
   olderThan(p, state.ageFilter, kind, Date.now(), state.platformFilter);
 
 // The maintainer whose page this is (@handle in the search), or null.
-export const shownHandle = () => searchHandle(document.getElementById('search').value);
+export const shownHandle = () => searchHandle(searchText());
 
 export const notHidden = (pkg) => filtering.showHidden || !isHidden(pkg);
 
@@ -283,7 +284,7 @@ export const passesOthers = (p, q) =>
   matchesSearch(p, q);
 
 export function currentFiltered() {
-  const q = document.getElementById('search').value;
+  const q = searchText();
   filtering.facetBase = store.packages.filter((p) => passesOthers(p, q));
   const list = filtering.facetBase.filter((p) => inPlatform(p) && inNameSet(p) && byMaintainer(p));
   return sortedList(list, state.sortReverse ? -1 : 1);

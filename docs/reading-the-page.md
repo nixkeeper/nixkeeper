@@ -154,7 +154,8 @@ packages beyond it whose names match, closest first. The browser's find
 package. It filters as you type; `/` jumps to it, and so does typing with
 a row of the list focused (after clicking one, or tabbing to it). Python
 packages are found as nixpkgs titles write them too: `python3Packages.`
-finds `python313Packages.…`.
+finds `python313Packages.…`. It holds the filters too, as words, as
+GitHub's search does: see [Search syntax](#search-syntax).
 
 Those matches in all of nixpkgs show 50 at a time ("Show 200 more" for the
 next), and narrow by **in** a package set (the same `?in=` as the list's,
@@ -238,6 +239,40 @@ The `?refine=` words combine (`?refine=unmaintained,notbroken`), so
 "failing for 6 months, with no maintainer" is a link. A build failure's date
 is Hydra's last success; the others only go back to when nixkeeper started
 following a package, so "older than" finds more of them as time goes on.
+
+## Search syntax
+
+The search box shows the list's filters as words, beside the name or
+`@handle` searched for: opening `?filter=builds&platform=linux`, it says
+`is:builds on:linux`. Clicking a tile, a chip or a select writes it there;
+typing one sets it, once you pause (and turns off what you delete). Leaving
+the box puts the words in their usual order. A word it doesn't know is
+left as typed and said under the box ("no is:biulds: is:builds?"), the box
+outlined; the rest of what's typed applies. Escape clears the name or
+`@handle`, and keeps the filters.
+
+The words are the address's own:
+
+| Words | Sets | In the address |
+|---|---|---|
+| `is:outdated`, `is:failed`, `is:builds`, `is:updates`, `is:vulnerable`, `is:backport`, `is:blocked`, `is:broken` | a tile | `?filter=` |
+| `-has:maintainer`, `-is:broken`, `-is:merged`, `is:staging-next-breaks`, `has:pr`, `-has:pr`, `is:unbuilt`, `has:pr-to-close`, `is:bot-wont-update` | [narrowing](#narrowing-a-list): without maintainer, not marked broken, not merged yet, breaks on staging-next, with an open PR, without, not built where listed, PR to close, bot won't update it | `?refine=` |
+| `has:newer`, `-has:newer` | newer version known, or none | `?newer=yes`, `no` |
+| `age:1m`, `6m`, `1y`, `2y`, `3y`, `never` | older than, never built | `?age=` |
+| `build:compile`, `update:patch` | build or update failed because | `?buildFailed=`, `?updateFailed=` |
+| `on:linux`, `darwin` (or `macos`), `x86_64-linux`, `aarch64-linux` | on a platform | `?platform=` |
+| `in:python313Packages` | in a package set | `?in=` |
+| `by:fabaff` | by a maintainer, within the list | `?by=` |
+| `team:gaming`, `-team:geospatial`, `team:none` | a team's packages, a team left out, not via a team | `?team=` |
+| `-maintainer:natsukium` | a maintainer left out | `?maintainer=-natsukium` |
+| `status:outdated`, `ofteam:Python` | the matches in all of nixpkgs: their status, their team | `?status=`, `?ofteam=` |
+| `sort:oldest`, `order:reverse` | the order | `?sort=`, `?order=reverse` |
+
+A value with spaces in quotes (`-team:"Security review"`). An address can
+hold them in `?q=` too: `?q=is:builds on:darwin wine` is the build failures
+on Darwin named like "wine". Where the page is (a view, a set, a list, a
+cause, one package), its paging and **Show errors** stay in the address,
+not in the box.
 
 ## A package's details
 

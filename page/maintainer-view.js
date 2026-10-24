@@ -6,6 +6,7 @@
 
 import { html, maintainerMatches, prPrint, raw } from './logic.js';
 import { remember, stored } from './prefs.js';
+import { searchText } from './search.js';
 import { maintainerHref, scopeHref, state, teamName } from './state.js';
 import { store } from './store.js';
 import { fmt } from './ui.js';
@@ -202,7 +203,7 @@ export function maintainerItem([handle, count, outdated, failing]) {
 // search narrows them (an @ in front or not).
 export function maintainersHtml(pagerHtml) {
   if (!store.maintainersList) return html`<div class="empty">Loading the maintainers…</div>`;
-  const query = document.getElementById('search').value.trim();
+  const query = searchText().trim();
   const list = query
     ? maintainerMatches(store.maintainersList, query, Infinity).found
     : store.maintainersList;

@@ -218,6 +218,35 @@ header.top {
 .search:focus-within kbd {
   display: none;
 }
+/* Typed in, the box takes room for a query (is:builds on:darwin ...). */
+.search {
+  position: relative;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    width 0.15s;
+}
+.search:focus-within {
+  width: min(380px, 60vw);
+}
+/* What the query couldn't read, under the box. */
+.search:has(input[aria-invalid="true"]) {
+  border-color: var(--danger);
+}
+.search-problems {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 4px 8px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .btn {
   text-decoration: none;
   display: inline-grid;
