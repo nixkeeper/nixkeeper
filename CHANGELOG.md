@@ -36,6 +36,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   fix only in a newer series than nixpkgs' says to check for a backport,
   and an older series kept beside a newer one (firefox-esr) gets none.
 
+### Changed
+
+- The page in modules: a package panel's sections in `page/panel.js` (pure,
+  with node tests), shared pieces of HTML in `page/ui.js`, preloaded with
+  `app.js`. Nothing on the page changes.
+
 ### Fixed
 
 - "Master already has 1.2.4 (..., built by Hydra)" only when Hydra's build

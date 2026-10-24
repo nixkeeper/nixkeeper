@@ -10,7 +10,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   [The code](#the-code))
 - `tests/`: offline tests, one file per module (nothing reaches the
   network: sources are faked). `tests/js/` tests the page's rules
-  (`page/logic.js`) with Node's own test runner
+  (`page/logic.js`) and a package panel's sections (`page/panel.js`) with
+  Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -35,7 +36,11 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
   from the `data` branch. `logic.js` holds its rules (statuses, versions,
   ages, safe links, the tab icon's signals) without the page, so they can be
-  tested; `app.js` imports it and draws the page. `favicon*.svg` (the mark, and the live status
+  tested; `panel.js` a package panel's sections (vulnerabilities, builds,
+  On GitHub), from the package alone, tested too; `ui.js` the small pieces
+  of HTML both use (numbers, dates, icons); `app.js` imports them, loads the
+  data and draws the page. Native ES modules, no build step: `index.html`
+  preloads each (`modulepreload`), so a new module goes there too. `favicon*.svg` (the mark, and the live status
   icons the page switches between), `nixkeeper-lockup-tight*.svg` (the
   header) and `tokens.css` are copies from
   `assets/brand/`, written by `nix run .#brand`
