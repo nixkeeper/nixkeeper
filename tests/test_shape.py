@@ -1,7 +1,9 @@
 """nixkeeper.shape: what data/ must look like, checked before it's written."""
 
 import contextlib
+import copy
 import io
+import random
 import re
 import tempfile
 import unittest
@@ -256,6 +258,67 @@ class Malformed(unittest.TestCase):
         for case, (data, expected) in cases.items():
             with self.subTest(case):
                 self.assertEqual(shape.problems(data), expected)
+
+    def test_random_damage_is_reported_never_raised(self):
+        # The cases above are picked by hand; this keeps the promise as the
+        # check grows: values at every depth replaced by others of any kind.
+        failing = row(
+            "a",
+            platforms={"linux": True, "darwin": True, "systems": ["x86_64-linux"]},
+            builds=[{"system": "x86_64-linux", "status": "failed"}],
+        )
+        valid = files(
+            [failing, row("b", set="haskellPackages")],
+            views={"attention": [failing]},
+            counts={"buildFailures": 1, "buildFailuresOn": {"linux": 1}, "broken": 0},
+        )
+        valid["index.json"]["views"].update(
+            {
+                "teams": {"Gaming": 1},
+                "sets": {"haskellPackages": {"packages": 1}},
+                "broken": 0,
+            }
+        )
+        valid["views/team/gaming.json"] = {"packages": [failing]}
+        valid["views/set/haskellPackages.json"] = {"packages": [row("b")]}
+        kinds = (None, 0, 7, "x", [], ["x", 1], {}, {"name": 1}, True)
+        rng = random.Random(334)
+
+        def places(value, path=()):
+            yield path
+            children = (
+                value.items()
+                if isinstance(value, dict)
+                else enumerate(value)
+                if isinstance(value, list)
+                else ()
+            )
+            for key, child in children:
+                yield from places(child, (*path, key))
+
+        MISSING = object()
+
+        def reach(value, key):
+            if isinstance(value, dict):
+                return value.get(key, MISSING)
+            if isinstance(value, list) and isinstance(key, int) and key < len(value):
+                return value[key]
+            return MISSING
+
+        every = list(places(valid))
+        for attempt in range(500):
+            data = copy.deepcopy(valid)
+            for path in rng.sample(every, rng.randint(1, 4)):
+                if not path:
+                    continue
+                # An earlier change may have replaced a value on the way.
+                parent = data
+                for key in path[:-1]:
+                    parent = reach(parent, key)
+                if reach(parent, path[-1]) is not MISSING:
+                    parent[path[-1]] = rng.choice(kinds)
+            with self.subTest(attempt=attempt):
+                self.assertIsInstance(shape.problems(data), dict)
 
     def test_a_write_goes_on_if_the_check_itself_fails(self):
         index = {"checkedAt": "2026-10-24T00:00:00+00:00", "packages": [row("a")]}

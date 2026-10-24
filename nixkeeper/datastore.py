@@ -972,8 +972,13 @@ def _check_shape(written):
     try:
         shape.report(shape.problems(written))
     except Exception as e:  # reporting only: never stop a write
-        # Where it broke, to find the bug without running it again.
-        frame = traceback.extract_tb(e.__traceback__)[-1]
+        # Where in shape.py it broke, to find the bug without running it
+        # again: the innermost frame may be in a library it called.
+        frames = traceback.extract_tb(e.__traceback__)
+        frame = next(
+            (f for f in reversed(frames) if os.path.basename(f.filename) == "shape.py"),
+            frames[-1],
+        )
         where = f"{os.path.basename(frame.filename)}:{frame.lineno}"
         print(f"Data shape: the check itself failed at {where}: {e!r}", file=sys.stderr)
 

@@ -119,6 +119,8 @@ ROW = {
     "notRefreshed": Field((dict, list)),
 }
 
+# The view the build failures are counted from, as the page counts them.
+ATTENTION = "views/attention.json"
 # The views whose length index.json's "views" states.
 COUNTED_VIEWS = ("attention", "broken", "backport", "blocked", "unbuilt", "superseded")
 # The counts in index.json's "counts" that must equal the view of the
@@ -269,13 +271,12 @@ def _check_views(files, manifest, names, say):
     # where nixpkgs lists the package).
     failed = [
         entry
-        for entry in _entries(files.get("views/attention.json"))
+        for entry in _entries(files.get(ATTENTION))
         if any(build.get("status") == "failed" for build in _builds(entry))
     ]
-    attention = "views/attention.json"
     if "buildFailures" in counts:
         _compare(
-            say, "counts.buildFailures", counts["buildFailures"], len(failed), attention
+            say, "counts.buildFailures", counts["buildFailures"], len(failed), ATTENTION
         )
     on = _named(counts, "buildFailuresOn", "counts.buildFailuresOn", say)
     for platform, stated in on.items():
@@ -283,7 +284,7 @@ def _check_views(files, manifest, names, say):
             say("manifest", f"counts.buildFailuresOn: {platform!r} isn't a platform")
             continue
         actual = sum(_failing_on(entry, platform) for entry in failed)
-        _compare(say, f"counts.buildFailuresOn.{platform}", stated, actual, attention)
+        _compare(say, f"counts.buildFailuresOn.{platform}", stated, actual, ATTENTION)
 
 
 def _compare(say, stated_in, stated, actual, counted_from):
