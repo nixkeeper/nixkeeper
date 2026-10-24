@@ -39,8 +39,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 ### Changed
 
 - The page in modules: a package panel's sections in `page/panel.js` (pure,
-  with node tests), shared pieces of HTML in `page/ui.js`, preloaded with
-  `app.js`. Nothing on the page changes.
+  with node tests), shared pieces of HTML in `page/ui.js`, reading the data
+  in `page/data.js` (with node tests), preloaded with `app.js`. Nothing on
+  the page changes.
 
 ### Fixed
 

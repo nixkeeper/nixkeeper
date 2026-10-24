@@ -1,3 +1,4 @@
+import { dataUrl, fullRowOf, githubRepo, locateData, readJson } from './data.js';
 import {
   attentionPrint,
   botWontUpdate,
@@ -49,11 +50,9 @@ import {
   prPrint,
   attentionRank as rankOn,
   raw,
-  githubRepo as repoFrom,
   safeUrl,
   searchHandle,
   severityRank,
-  shardOf,
   shortAge,
   TOP_LEVEL,
   targetVersion,
@@ -74,7 +73,6 @@ import {
   vulnSummary,
   waitingForChannel,
   withRunStamps,
-  withSlash,
 } from './logic.js';
 import {
   backportNote,
@@ -89,36 +87,6 @@ import {
 import { BUILD_FAILED, fmt, GH_ICONS, icon, longDate, shortDay } from './ui.js';
 
 const NIX_REPO = 'nix_unstable';
-
-const githubRepo = (params) => repoFrom(params, location);
-
-// Where the data (index.json, summary.json, the shards) lives, as a URL
-// ending in "/". First of:
-//   1. ?data=<url> in the address: for testing; same site only, so a link
-//      can't point someone's page at data from elsewhere
-//   2. <meta name="nixkeeper-data" content="<url>"> in index.html: a host
-//      that keeps the data somewhere else sets it
-//   3. data/ next to the page, when one server serves both (self-hosting)
-//   4. on a GitHub Pages project site (https://<owner>.github.io/<repo>/),
-//      the repo's data branch; ?owner=...&repo=... names another repo
-async function findDataBase() {
-  const params = new URLSearchParams(location.search);
-  const asked = params.get('data');
-  if (asked) {
-    const url = new URL(asked, location.href);
-    if (url.origin === location.origin) return withSlash(url.href);
-  }
-  const meta = document.querySelector('meta[name="nixkeeper-data"]')?.content;
-  if (meta) return withSlash(new URL(meta, location.href).href);
-  try {
-    const res = await fetch('data/index.json', { method: 'HEAD', cache: 'no-store' });
-    if (res.ok) return new URL('data/', location.href).href;
-  } catch {
-    // not served here: try GitHub
-  }
-  const repo = githubRepo(params);
-  return repo ? `https://raw.githubusercontent.com/${repo}/data/data/` : null;
-}
 
 // The footer links to nixkeeper itself; a copy of it on GitHub Pages (its
 // own package lists) also links to those lists.
@@ -139,8 +107,6 @@ addListsLink();
 // filter, search and open panel starts over).
 document.getElementById('homeLink').href = homeHref(location.pathname, location.search);
 
-let dataBase = null; // set by loadIndex
-const dataUrl = (path) => new URL(path, dataBase).href;
 // The data (docs/data.md, format 2): the list from summary.json (a short
 // entry per package), each package's full row from its shard
 // (rows/<n>.json, of shardCount), loaded when a panel opens.
@@ -182,7 +148,6 @@ const inSet = (pkg) => !setFilter || pkg.set === setFilter;
 // nixkeeper's causes.py), and what its view file says of it.
 let causeFilter = null;
 let causeShown = null;
-const shardCache = new Map(); // n -> Promise of Map(name -> full row)
 let packages = [];
 let checkedAt = null;
 let activeFilter = 'all'; // 'all' | 'warn' | 'failed' | 'vuln'
@@ -1574,36 +1539,14 @@ function showListProblems(problems) {
 
 // The summary's entries, a short one per package (summary.json).
 async function summaryOf() {
-  const res = await fetch(dataUrl('summary.json'), { cache: 'no-store' });
-  if (!res.ok) throw new Error(res.status);
-  return (await res.json()).packages || [];
+  return (await readJson('summary.json')).packages || [];
 }
 
 // A package's full row (what its panels show): its shard's, loaded once (a
 // failed load isn't kept, so opening it again tries again). null if it
 // couldn't be loaded.
 async function fullRow(pkg) {
-  const n = shardOf(pkg.name, shardCount);
-  if (!shardCache.has(n)) {
-    shardCache.set(
-      n,
-      fetch(dataUrl(`rows/${n}.json`), { cache: 'no-store' })
-        .then((res) => {
-          if (!res.ok) throw new Error(res.status);
-          return res.json();
-        })
-        .then(
-          (shard) =>
-            new Map(shard.packages.map((row) => [row.name, withRunStamps(row, checkedAt)])),
-        ),
-    );
-  }
-  try {
-    return (await shardCache.get(n)).get(pkg.name) || null;
-  } catch {
-    shardCache.delete(n);
-    return null;
-  }
+  return fullRowOf(pkg.name, shardCount, (row) => withRunStamps(row, checkedAt));
 }
 
 // With every package: load the view the address asks for (viewPath) into
@@ -1649,9 +1592,7 @@ async function ensureView() {
     const row = await fullRow({ name: path.slice(4) });
     found = row ? [row] : [];
   } else {
-    const res = await fetch(dataUrl(path), { cache: 'no-store' });
-    if (!res.ok && res.status !== 404) throw new Error(res.status);
-    const data = res.ok ? await res.json() : { packages: [] };
+    const data = await readJson(path, { missing: { packages: [] } });
     found = data.packages;
     causeShown = path.startsWith('views/cause/') ? data : null;
   }
@@ -1667,8 +1608,7 @@ async function ensureView() {
 function loadHistory() {
   if (historyLoading) return;
   historyLoading = true;
-  fetch(dataUrl('history.json'), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : { points: [] }))
+  readJson('history.json', { otherwise: { points: [] } })
     .then((data) => {
       trendPoints = data.points || [];
       trendEvents = data.events || [];
@@ -1688,8 +1628,7 @@ let maintainersList = null;
 let maintainersLoading = null;
 function loadMaintainers() {
   if (maintainersLoading) return;
-  maintainersLoading = fetch(dataUrl('maintainers.json'), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : { maintainers: [] }))
+  maintainersLoading = readJson('maintainers.json', { otherwise: { maintainers: [] } })
     .then((data) => {
       maintainersList = data.maintainers || [];
       update({ keepPage: true });
@@ -1709,8 +1648,7 @@ const MERGE_SHOWN = 5;
 const MERGE_COMMAND = '@NixOS/nixpkgs-merge-bot merge';
 function loadMerge() {
   if (mergeLoading) return;
-  mergeLoading = fetch(dataUrl('views/merge.json'), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : { prs: [] }))
+  mergeLoading = readJson('views/merge.json', { otherwise: { prs: [] } })
     .then((data) => {
       mergeList = data.prs || [];
       // Hidden PRs that changed, or left the list: not hidden anymore.
@@ -1875,8 +1813,7 @@ function closeHtml(path, handle) {
 
 function loadNames() {
   if (namesLoading) return;
-  namesLoading = fetch(dataUrl('names.json'), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : { names: [] }))
+  namesLoading = readJson('names.json', { otherwise: { names: [] } })
     .then((data) => {
       names = data.names || [];
       update({ keepPage: true });
@@ -1890,8 +1827,7 @@ function loadNames() {
 // on first use: about 120 KB.
 function loadFacets() {
   if (facetsLoading || !names) return;
-  facetsLoading = fetch(dataUrl('facets.json'), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : null))
+  facetsLoading = readJson('facets.json', { otherwise: null })
     .then((data) => {
       const found = data ? decodeFacets(data) : [];
       if (found.length === names.length) {
@@ -1939,8 +1875,7 @@ async function update({ keepPage = false } = {}) {
 
 async function loadIndex() {
   const content = document.getElementById('content');
-  dataBase = dataBase || (await findDataBase());
-  if (!dataBase) {
+  if (!(await locateData())) {
     doneLoading();
     content.innerHTML = `<div class="error">
       Couldn't find the data to show.<br>
@@ -1951,9 +1886,7 @@ async function loadIndex() {
     return;
   }
   try {
-    const res = await fetch(dataUrl('index.json'), { cache: 'no-store' });
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
+    const data = await readJson('index.json');
     if (!(data.format >= 2 && data.shardCount)) {
       // Format 1, which only nixkeeper 0.11.0 and before write alone.
       doneLoading();
@@ -2089,8 +2022,7 @@ const isMine = () =>
 function loadMyCount() {
   if (!myHandle) return;
   const handle = myHandle;
-  fetch(dataUrl(`views/maintainer/${handle.toLowerCase()}.json`), { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : { packages: [] }))
+  readJson(`views/maintainer/${handle.toLowerCase()}.json`, { otherwise: { packages: [] } })
     .then((data) => {
       if (handle !== myHandle) return; // changed meanwhile
       myCount = (data.packages || []).length;
@@ -4805,9 +4737,7 @@ document.addEventListener('click', async (e) => {
     allCauses = null;
   } else {
     try {
-      const res = await fetch(dataUrl('views/causes.json'), { cache: 'no-store' });
-      if (!res.ok) throw new Error(res.status);
-      allCauses = (await res.json()).groups || [];
+      allCauses = (await readJson('views/causes.json')).groups || [];
     } catch {
       return; // the biggest stay
     }
