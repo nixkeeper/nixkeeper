@@ -56,6 +56,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on
   "browse every maintainer", the box narrowing them as you type.
+- **A list's words on the overview open the list**: `is:builds` (or
+  `age:1y`, `has:pr`...) typed there opens what needs attention with it,
+  as its card does, rather than doing nothing; `team:` opens the team's
+  packages. A name and the words for the matches in all of nixpkgs
+  (`status:`, `ofteam:`, `on:`, `in:`, `by:`) keep the overview. So does
+  an old link such as `/?filter=builds`: it opens the list now.
 - The page in modules: the overview in `page/overview.js`, a maintainer's
   page in `page/maintainer-view.js`, the list in `page/list.js` and its
   filters in `page/filters.js`, each view wiring its own controls, a

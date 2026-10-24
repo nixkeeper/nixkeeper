@@ -59,7 +59,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   where the data is from); `filters.js` what the list keeps (the tiles'
   filters, refines, sorts, platforms, and the list worked out with them);
   `search.js` the search box as a query (`is:builds on:darwin`: parseQuery,
-  writeQuery) and its menu (suggest, wireSearchMenu; the values and counts
+  writeQuery, needsList: the words that open a list from the overview) and
+  its menu (suggest, wireSearchMenu; the values and counts
   from list.js's searchValues); `prefs.js` what this browser keeps (localStorage, the rows
   hidden here); `store.js` what's loaded of the data, in one object
   (`store`); `app.js` imports them, changes the state, fills the store and

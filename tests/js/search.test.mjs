@@ -9,7 +9,9 @@ globalThis.document = { getElementById: () => ({ value: '' }) };
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { KNOWN } = await import('../../page/filters.js');
-const { parseQuery, queryFields, suggest, writeQuery } = await import('../../page/search.js');
+const { needsList, parseQuery, queryFields, suggest, writeQuery } = await import(
+  '../../page/search.js'
+);
 const { readState } = await import('../../page/state.js');
 
 // A query's state: what it sets, the rest as when it says nothing.
@@ -100,6 +102,33 @@ describe('writeQuery', () => {
     assert.equal(st.activeFilter, 'all');
     assert.equal(st.refines.size, 0);
     assert.equal(st.sortMode, 'pressing');
+  });
+});
+
+describe('needsList', () => {
+  const of = (q) => needsList(queryFields(parseQuery(q).fields));
+  test('a word only a list reads', () => {
+    for (const q of [
+      'is:builds',
+      '-has:maintainer',
+      'age:1y',
+      'build:compile',
+      '-team:Gaming',
+      'sort:oldest',
+      'order:reverse',
+    ])
+      assert.equal(of(q), true, q);
+  });
+  test('a name, or words the matches read too', () => {
+    for (const q of [
+      '',
+      'firefox',
+      'status:outdated ofteam:Python',
+      'on:darwin in:python313Packages',
+      'by:fabaff',
+      'team:Gaming',
+    ])
+      assert.equal(of(q), false, q);
   });
 });
 

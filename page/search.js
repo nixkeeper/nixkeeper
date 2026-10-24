@@ -75,6 +75,27 @@ export const queryFields = (fields) => ({
   ...fields,
 });
 
+// The fields the matches in all of nixpkgs read too (on the overview, under
+// a name): status:, ofteam:, on:, in:, by:, and team: (a team's page).
+const MATCH_FIELDS = new Set([
+  'statusFilter',
+  'matchTeam',
+  'platformFilter',
+  'inFilter',
+  'byFilter',
+  'teamFilter',
+]);
+// Whether st sets a field only a list reads (is:, has:, age:, -team:,
+// sort:...): on the overview, which has none, it opens what needs
+// attention, as a tile does.
+export const needsList = (st) =>
+  Object.entries(QUERY_FIELDS).some(([k, v]) => {
+    if (MATCH_FIELDS.has(k)) return false;
+    if (typeof v !== 'function') return st[k] !== v;
+    const value = st[k];
+    return Boolean(value && (value.size ?? value.length));
+  });
+
 // The closest of words to word (edit distance), for "did you mean": one
 // within a third of its length, or none.
 function closest(word, words) {

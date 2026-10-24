@@ -46,6 +46,7 @@ import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
 import {
+  needsList,
   parseQuery,
   readBox,
   searchText,
@@ -269,7 +270,7 @@ async function fullRow(pkg) {
 // `packages`, unless it's there already. A maintainer, team or list with no
 // file has no packages here. Throws if a view can't be loaded.
 async function ensureView() {
-  const path = viewPath({
+  const asked = {
     pkg: state.pkgParam,
     query: searchText(),
     team: state.teamFilter,
@@ -277,7 +278,14 @@ async function ensureView() {
     set: state.setFilter,
     view: state.viewParam,
     cause: state.causeFilter,
-  });
+  };
+  let path = viewPath(asked);
+  // The overview has no list: a word for one (is:builds, age:1y...) opens
+  // what needs attention, as a tile does, the box keeping the query.
+  if (path === 'overview' && needsList(state)) {
+    state.viewParam = 'attention';
+    path = viewPath({ ...asked, view: 'attention' });
+  }
   // Something else shown instead (a package, a maintainer...): ?set= and
   // ?view= no longer apply, and nothing on the page would take them off
   // again (a set's filter would hide every row: the other views leave out

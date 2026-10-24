@@ -51,6 +51,10 @@ list. From the top:
   The search box at the top searches from here too: a package's name lists
   the matches in all of nixpkgs in place of what follows, which comes back
   once the search is cleared; `@handle` opens a maintainer's packages.
+  `status:`, `ofteam:`, `on:`, `in:` and `by:` narrow those matches, and
+  `team:` opens a team's packages; a word for a list (`is:builds`,
+  `age:1y`, `has:pr`...) opens what needs attention with it, as a card
+  does.
 - **The newest and longest-standing** build failures, outdated packages
   (not those whose update is merged and only waits for the channel) and
   update failures (a switch on each), and "show all" for the whole list.
