@@ -59,7 +59,7 @@ import {
   waitingForChannel,
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
-import { isHidden } from './prefs.js';
+import { isHidden, remember } from './prefs.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';
 import { store } from './store.js';
 import {
@@ -100,6 +100,8 @@ export const listView = {
   editingTeam: false,
   folds: new Map(),
   inOpenFold: new Set(),
+  // The folds opened (by key, until reload).
+  openFolds: new Set(),
 };
 
 // Every list some package is on: "maintained" first, as the sync sorts them.
@@ -1320,4 +1322,254 @@ export function githubLinks(pkg) {
 // table past the screen for every row.
 export function breakableName(name) {
   return name.split('.').map((part, i) => (i ? html`.<wbr>${part}` : part));
+}
+
+// The list's controls, on the page's elements, once: its rows (a panel, a
+// copy, a fold, a platform, a page), the counts and tiles, the chips,
+// refines and selects that narrow it, Your packages and Your team. page:
+// what they need of the page (app.js's pageHooks).
+export function wireList(page) {
+  // The table's clicks, for every row: a link opens (and nothing else), the
+  // versions copy the update's title, a platform filters by it, the build and
+  // update cells open their panel, and anywhere else the details.
+  document.getElementById('content').addEventListener('click', (e) => {
+    // A page link: that page, from its top (a click with a modifier opens it
+    // elsewhere, as links do).
+    const pageLink = e.target.closest('a.page-btn');
+    if (pageLink && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)) {
+      e.preventDefault();
+      state.pageNum = Number(pageLink.dataset.page);
+      // Back to the table's top, the keyboard on its first row, once drawn.
+      page.update({ keepPage: true }).then(() => {
+        const content = document.getElementById('content');
+        if (content.getBoundingClientRect().top < 0) content.scrollIntoView();
+        content.querySelector('tr.row')?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    const tr = e.target.closest('tr.row');
+    // Its name is a link to it alone (?pkg=): a plain click opens it here,
+    // as anywhere on the row; with a modifier, a tab of its own, as links do.
+    if (
+      tr &&
+      e.target.closest('a.pkg-link') &&
+      !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)
+    ) {
+      e.preventDefault();
+      page.toggle(tr, 'info');
+      return;
+    }
+    if (!tr || e.target.closest('a')) return;
+    const copy = e.target.closest('.vcopy');
+    if (copy) {
+      page.copyTitle(copy);
+      return;
+    }
+    const fold = e.target.closest('button.fold-btn');
+    if (fold) {
+      // Shown or folded again, the keyboard back on the same button.
+      const key = fold.dataset.fold;
+      if (listView.openFolds.has(key)) listView.openFolds.delete(key);
+      else listView.openFolds.add(key);
+      page
+        .update({ keepPage: true })
+        .then(() =>
+          [...document.querySelectorAll('button.fold-btn')]
+            .find((b) => b.dataset.fold === key)
+            ?.focus(),
+        );
+      return;
+    }
+    const plat = e.target.closest('button.plat');
+    if (plat) {
+      // Clicking the active platform again shows all platforms.
+      state.platformFilter =
+        state.platformFilter === plat.dataset.platform ? null : plat.dataset.platform;
+      page.update();
+      return;
+    }
+    // A cell's button or the "queued" badge: its panel; anywhere else, the
+    // package's details.
+    page.toggle(tr, e.target.closest('[data-kind]')?.dataset.kind || 'info');
+  });
+
+  document.getElementById('content').addEventListener('keydown', (e) => {
+    if (e.target.matches('tr.row') && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      e.target.click();
+    }
+  });
+
+  document.getElementById('stats').addEventListener('click', (e) => {
+    const clear = e.target.closest('.plat-filter[data-clear]');
+    if (clear) {
+      if (clear.dataset.clear === 'team') state.teamFilter = null;
+      else state.platformFilter = null;
+      page.update();
+      return;
+    }
+    const btn = e.target.closest('.stat-btn');
+    if (!btn) return;
+    if (btn.dataset.view) {
+      // With every package: the list, or (pressed) back to the overview.
+      page.showView({
+        view: btn.getAttribute('aria-pressed') === 'true' ? null : btn.dataset.view,
+      });
+      return;
+    }
+    // Clicking the active filter again goes back to showing everything.
+    state.activeFilter = btn.dataset.filter === state.activeFilter ? 'all' : btn.dataset.filter;
+    page.update();
+  });
+
+  // ?team='s left-out teams and none: their chips (teamOutChips) and the
+  // maintainer page's "Not via a team".
+  document.addEventListener('click', (e) => {
+    const out = e.target.closest('button[data-team-out]');
+    const person = e.target.closest('button[data-maintainer-out]');
+    if (out) state.teamsLeftOut = state.teamsLeftOut.filter((t) => t !== out.dataset.teamOut);
+    else if (person)
+      state.maintainersLeftOut = state.maintainersLeftOut.filter(
+        (h) => h !== person.dataset.maintainerOut,
+      );
+    else if (e.target.closest('button[data-team-none]')) state.noTeam = false;
+    else if (e.target.closest('button[data-no-team]')) state.noTeam = !state.noTeam;
+    else return;
+    page.update();
+  });
+
+  // Show errors: on or off.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('button[data-show-errors]')) return;
+    state.showErrors = !state.showErrors;
+    page.update({ keepPage: true });
+  });
+
+  // ↓/↑: the list's order reversed, or back.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('button[data-sort-dir]')) return;
+    state.sortReverse = !state.sortReverse;
+    page.update();
+  });
+
+  // Narrowing the list (refineHtml), wherever it's drawn.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-refine]');
+    if (!btn) return;
+    const key = btn.dataset.refine;
+    if (state.refines.has(key)) state.refines.delete(key);
+    else state.refines.add(key);
+    page.update();
+  });
+
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('select[data-age]')) state.ageFilter = e.target.value || null;
+    else if (e.target.matches('select[data-because]')) state.becauseFilter = e.target.value || null;
+    else if (e.target.matches('select[data-build-failed]'))
+      state.buildFailedFilter = e.target.value || null;
+    else if (e.target.matches('select[data-platform-pick]'))
+      state.platformFilter = e.target.value || null;
+    else if (e.target.matches('select[data-in]')) state.inFilter = e.target.value || null;
+    else if (e.target.matches('select[data-sort]')) state.sortMode = e.target.value || 'pressing';
+    else if (e.target.matches('select[data-newer]')) state.newerFilter = e.target.value || null;
+    else if (e.target.matches('select[data-pr-pick]')) {
+      state.refines.delete('withpr');
+      state.refines.delete('nopr');
+      if (e.target.value) state.refines.add(e.target.value);
+    } else if (e.target.matches('select[data-status]')) state.statusFilter = e.target.value || null;
+    else if (e.target.matches('select[data-match-team]')) state.matchTeam = e.target.value || null;
+    else if (e.target.matches('input[data-by]')) {
+      const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
+      state.byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
+    } else if (e.target.matches('select[data-per]')) {
+      // The page holding the first row shown before, at the new size.
+      const first = (state.pageNum - 1) * state.pageSize;
+      state.pageSize = Number(e.target.value);
+      state.pageNum = Math.floor(first / state.pageSize) + 1;
+      page.update({ keepPage: true });
+      return;
+    } else return;
+    page.update();
+  });
+
+  document.getElementById('lists').addEventListener('click', (e) => {
+    if (e.target.closest('[data-mine-edit]')) {
+      listView.editingHandle = true;
+      renderLists();
+      document.getElementById('mineInput')?.focus();
+      return;
+    }
+    if (e.target.closest('[data-mine]')) {
+      page.showMine(!isMine());
+      return;
+    }
+    if (e.target.closest('[data-team-edit]')) {
+      listView.editingTeam = true;
+      renderLists();
+      document.getElementById('teamInput')?.focus();
+      return;
+    }
+    if (e.target.closest('[data-my-team]')) {
+      page.showMyTeam(!isMyTeam());
+      return;
+    }
+    const btn = e.target.closest('.stat-btn[data-list]');
+    if (!btn) return;
+    // Clicking the active list again shows every list.
+    state.listFilter = btn.dataset.list === state.listFilter ? null : btn.dataset.list;
+    page.update();
+  });
+
+  document.getElementById('lists').addEventListener('submit', (e) => {
+    if (e.target.id !== 'teamForm') return;
+    e.preventDefault();
+    listView.myTeam = e.target.team.value || null;
+    listView.editingTeam = false;
+    remember('nixkeeper-team', listView.myTeam);
+    if (listView.myTeam) page.showMyTeam(true);
+    else renderLists();
+  });
+
+  document.getElementById('lists').addEventListener('submit', (e) => {
+    if (e.target.id !== 'mineForm') return;
+    e.preventDefault();
+    const handle = e.target.handle.value.trim().replace(/^@/, '');
+    listView.myHandle = handle || null;
+    listView.myCount = null;
+    listView.editingHandle = false;
+    remember('nixkeeper-handle', listView.myHandle);
+    if (listView.myHandle) {
+      page.loadMyCount();
+      page.showMine(true);
+    } else renderLists();
+  });
+
+  document.getElementById('lists').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && e.target.id === 'mineInput') {
+      listView.editingHandle = false;
+      renderLists();
+    }
+    if (e.key === 'Escape' && e.target.id === 'teamInput') {
+      listView.editingTeam = false;
+      renderLists();
+    }
+  });
+
+  // With every package, the header's tiles: filters, as the count chips are;
+  // closing every panel; the rows hidden here shown, or not.
+  document.getElementById('scope')?.addEventListener('click', (e) => {
+    if (e.target.closest('button.close-all')) {
+      page.closeRows(page.openRows());
+      return;
+    }
+    if (e.target.closest('button.hidden-toggle')) {
+      filtering.showHidden = !filtering.showHidden;
+      page.update({ keepPage: true });
+      return;
+    }
+    const tile = e.target.closest('button.tile');
+    if (!tile) return;
+    state.activeFilter = tile.dataset.filter === state.activeFilter ? 'all' : tile.dataset.filter;
+    page.update();
+  });
 }

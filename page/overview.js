@@ -4,6 +4,7 @@
 // what was fixed, nixpkgs in numbers. HTML from the store and the state;
 // app.js draws it (renderScope) and handles its buttons.
 
+import { readJson } from './data.js';
 import { dayPosition, html, NAME_DOTS, raw, shortAge, trendChange } from './logic.js';
 import { scopeHref } from './state.js';
 import { store } from './store.js';
@@ -569,4 +570,35 @@ export function setsHtml(sets) {
   });
   return html`<h2 class="scope-label">Sets updated in bulk <span class="scope-hint">each by its own tooling, not one PR per package: counted here, not in the cards above</span></h2>
     <div class="set-grid">${cards}</div>`;
+}
+
+// The overview's controls, once: its lists' newest or longest-standing, the
+// groups card in full. page: what they need of the page (app.js's
+// pageHooks).
+export function wireOverview(page) {
+  // The overview's lists: newest or longest-standing.
+  document.getElementById('scope')?.addEventListener('click', (e) => {
+    const mode = e.target.closest('button.hl-mode');
+    if (mode) {
+      highlightShown[mode.dataset.hl] = mode.dataset.mode;
+      page.renderScope();
+    }
+  });
+
+  // The groups card shown in full (or back to the biggest): every group,
+  // loaded once from views/causes.json, then the overview drawn again.
+  document.addEventListener('click', async (e) => {
+    const button = e.target.closest('.cause-more');
+    if (!button) return;
+    if (store.allCauses) {
+      store.allCauses = null;
+    } else {
+      try {
+        store.allCauses = (await readJson('views/causes.json')).groups || [];
+      } catch {
+        return; // the biggest stay
+      }
+    }
+    if (store.shownView === 'overview') page.renderScope();
+  });
 }

@@ -1,17 +1,16 @@
 import { dataUrl, fullRowOf, githubRepo, locateData, readJson } from './data.js';
-import { currentFiltered, FILTERS, filtering, KNOWN, PLATFORMS } from './filters.js';
+import { currentFiltered, FILTERS, KNOWN, PLATFORMS } from './filters.js';
 import {
   BY_SHOWN,
   bulkBadge,
   DOT_TITLE,
   facetOption,
-  isMine,
-  isMyTeam,
   listHeaderHtml,
   listView,
   renderLists,
   renderStats,
   rowHtml,
+  wireList,
 } from './list.js';
 import {
   attentionPrint,
@@ -37,13 +36,12 @@ import {
 } from './logic.js';
 import {
   hiddenPrPrints,
-  isPrHidden,
   maintainerItem,
   maintainersHtml,
-  maintainerView,
   saveHiddenPrs,
+  wireMaintainerView,
 } from './maintainer-view.js';
-import { highlightShown, overviewHtml } from './overview.js';
+import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
 import { failedBuilds, PAGE_SIZES, readState, scopeHref, state, writeState } from './state.js';
@@ -493,7 +491,6 @@ function loadMyCount() {
 // The packages the table shows, in order: a row's data-i is its place here.
 let shown = [];
 // The folds opened (by key, until reload); the folds drawn are listView's.
-const openFolds = new Set();
 
 // The pages of the list, when there's more than one: "1–200 of 241" and
 // links to the others (real links, so one can open in a new tab).
@@ -574,7 +571,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     list,
     folds: listView.folds,
     inOpen: listView.inOpenFold,
-  } = foldFamilies(list, computeStatus, openFolds));
+  } = foldFamilies(list, computeStatus, listView.openFolds));
   const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
   state.pageNum = keepPage ? Math.min(state.pageNum, pages) : 1;
   writeViewToUrl();
@@ -969,121 +966,27 @@ table.addEventListener('pointerover', (e) => {
 table.addEventListener('pointerleave', () => preload(null, 0));
 table.addEventListener('focusin', (e) => preload(e.target.closest('tbody tr.row'), 0));
 
-// The table's clicks, for every row: a link opens (and nothing else), the
-// versions copy the update's title, a platform filters by it, the build and
-// update cells open their panel, and anywhere else the details.
-document.getElementById('content').addEventListener('click', (e) => {
-  // A page link: that page, from its top (a click with a modifier opens it
-  // elsewhere, as links do).
-  const pageLink = e.target.closest('a.page-btn');
-  if (pageLink && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)) {
-    e.preventDefault();
-    state.pageNum = Number(pageLink.dataset.page);
-    // Back to the table's top, the keyboard on its first row, once drawn.
-    update({ keepPage: true }).then(() => {
-      const content = document.getElementById('content');
-      if (content.getBoundingClientRect().top < 0) content.scrollIntoView();
-      content.querySelector('tr.row')?.focus({ preventScroll: true });
-    });
-    return;
-  }
-  const tr = e.target.closest('tr.row');
-  // Its name is a link to it alone (?pkg=): a plain click opens it here,
-  // as anywhere on the row; with a modifier, a tab of its own, as links do.
-  if (
-    tr &&
-    e.target.closest('a.pkg-link') &&
-    !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)
-  ) {
-    e.preventDefault();
-    toggle(tr, 'info');
-    return;
-  }
-  if (!tr || e.target.closest('a')) return;
-  const copy = e.target.closest('.vcopy');
-  if (copy) {
-    copyTitle(copy);
-    return;
-  }
-  const fold = e.target.closest('button.fold-btn');
-  if (fold) {
-    // Shown or folded again, the keyboard back on the same button.
-    const key = fold.dataset.fold;
-    if (openFolds.has(key)) openFolds.delete(key);
-    else openFolds.add(key);
-    update({ keepPage: true }).then(() =>
-      [...document.querySelectorAll('button.fold-btn')]
-        .find((b) => b.dataset.fold === key)
-        ?.focus(),
-    );
-    return;
-  }
-  const plat = e.target.closest('button.plat');
-  if (plat) {
-    // Clicking the active platform again shows all platforms.
-    state.platformFilter =
-      state.platformFilter === plat.dataset.platform ? null : plat.dataset.platform;
-    update();
-    return;
-  }
-  // A cell's button or the "queued" badge: its panel; anywhere else, the
-  // package's details.
-  toggle(tr, e.target.closest('[data-kind]')?.dataset.kind || 'info');
-});
-document.getElementById('content').addEventListener('keydown', (e) => {
-  if (e.target.matches('tr.row') && (e.key === 'Enter' || e.key === ' ')) {
-    e.preventDefault();
-    e.target.click();
-  }
-});
+// What the views' controls (wireList, wireOverview, wireMaintainerView)
+// need of the page: drawing it again, a row's panel, the views, Your
+// packages and Your team, copying, hiding a PR. Each a call, not the
+// function itself: some are defined further down.
+const pageHooks = {
+  update: (...a) => update(...a),
+  renderScope: (...a) => renderScope(...a),
+  toggle: (...a) => toggle(...a),
+  copyTitle: (...a) => copyTitle(...a),
+  showView: (...a) => showView(...a),
+  showMine: (...a) => showMine(...a),
+  showMyTeam: (...a) => showMyTeam(...a),
+  loadMyCount: (...a) => loadMyCount(...a),
+  closeRows: (...a) => closeRows(...a),
+  openRows: (...a) => openRows(...a),
+  setPrHidden: (...a) => setPrHidden(...a),
+};
+wireList(pageHooks);
+wireOverview(pageHooks);
+wireMaintainerView(pageHooks);
 
-document.getElementById('stats').addEventListener('click', (e) => {
-  const clear = e.target.closest('.plat-filter[data-clear]');
-  if (clear) {
-    if (clear.dataset.clear === 'team') state.teamFilter = null;
-    else state.platformFilter = null;
-    update();
-    return;
-  }
-  const btn = e.target.closest('.stat-btn');
-  if (!btn) return;
-  if (btn.dataset.view) {
-    // With every package: the list, or (pressed) back to the overview.
-    showView({ view: btn.getAttribute('aria-pressed') === 'true' ? null : btn.dataset.view });
-    return;
-  }
-  // Clicking the active filter again goes back to showing everything.
-  state.activeFilter = btn.dataset.filter === state.activeFilter ? 'all' : btn.dataset.filter;
-  update();
-});
-
-// ?team='s left-out teams and none: their chips (teamOutChips) and the
-// maintainer page's "Not via a team".
-document.addEventListener('click', (e) => {
-  const out = e.target.closest('button[data-team-out]');
-  const person = e.target.closest('button[data-maintainer-out]');
-  if (out) state.teamsLeftOut = state.teamsLeftOut.filter((t) => t !== out.dataset.teamOut);
-  else if (person)
-    state.maintainersLeftOut = state.maintainersLeftOut.filter(
-      (h) => h !== person.dataset.maintainerOut,
-    );
-  else if (e.target.closest('button[data-team-none]')) state.noTeam = false;
-  else if (e.target.closest('button[data-no-team]')) state.noTeam = !state.noTeam;
-  else return;
-  update();
-});
-// Show errors: on or off.
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('button[data-show-errors]')) return;
-  state.showErrors = !state.showErrors;
-  update({ keepPage: true });
-});
-// ↓/↑: the list's order reversed, or back.
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('button[data-sort-dir]')) return;
-  state.sortReverse = !state.sortReverse;
-  update();
-});
 // The search's matches in all of nixpkgs: the next ones, or every one again
 // (moreMatchesHtml).
 document.addEventListener('click', (e) => {
@@ -1098,123 +1001,6 @@ document.addEventListener('click', (e) => {
     state.platformFilter = null;
     update();
   }
-});
-// Narrowing the list (refineHtml), wherever it's drawn.
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-refine]');
-  if (!btn) return;
-  const key = btn.dataset.refine;
-  if (state.refines.has(key)) state.refines.delete(key);
-  else state.refines.add(key);
-  update();
-});
-document.addEventListener('change', (e) => {
-  if (e.target.matches('select[data-age]')) state.ageFilter = e.target.value || null;
-  else if (e.target.matches('select[data-because]')) state.becauseFilter = e.target.value || null;
-  else if (e.target.matches('select[data-build-failed]'))
-    state.buildFailedFilter = e.target.value || null;
-  else if (e.target.matches('select[data-platform-pick]'))
-    state.platformFilter = e.target.value || null;
-  else if (e.target.matches('select[data-in]')) state.inFilter = e.target.value || null;
-  else if (e.target.matches('select[data-sort]')) state.sortMode = e.target.value || 'pressing';
-  else if (e.target.matches('select[data-newer]')) state.newerFilter = e.target.value || null;
-  else if (e.target.matches('select[data-pr-pick]')) {
-    state.refines.delete('withpr');
-    state.refines.delete('nopr');
-    if (e.target.value) state.refines.add(e.target.value);
-  } else if (e.target.matches('select[data-status]')) state.statusFilter = e.target.value || null;
-  else if (e.target.matches('select[data-match-team]')) state.matchTeam = e.target.value || null;
-  else if (e.target.matches('input[data-by]')) {
-    const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
-    state.byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
-  } else if (e.target.matches('select[data-per]')) {
-    // The page holding the first row shown before, at the new size.
-    const first = (state.pageNum - 1) * state.pageSize;
-    state.pageSize = Number(e.target.value);
-    state.pageNum = Math.floor(first / state.pageSize) + 1;
-    update({ keepPage: true });
-    return;
-  } else return;
-  update();
-});
-
-// With every package, the header's tiles: filters, as the count chips are.
-document.getElementById('scope')?.addEventListener('click', (e) => {
-  // The overview's lists: newest or longest-standing.
-  const mode = e.target.closest('button.hl-mode');
-  if (mode) {
-    highlightShown[mode.dataset.hl] = mode.dataset.mode;
-    renderScope();
-    return;
-  }
-  if (e.target.closest('button.close-all')) {
-    closeRows(openRows());
-    return;
-  }
-  if (e.target.closest('button.hidden-toggle')) {
-    filtering.showHidden = !filtering.showHidden;
-    update({ keepPage: true });
-    return;
-  }
-  const copy = e.target.closest('button.merge-copy');
-  if (copy) {
-    copyTitle(copy);
-    return;
-  }
-  const hidePr = e.target.closest('button.merge-hide');
-  if (hidePr) {
-    const number = Number(hidePr.dataset.pr);
-    const pr = (store.mergeList || []).find((p) => p.number === number);
-    if (pr) setPrHidden(number, !isPrHidden(pr));
-    return;
-  }
-  if (e.target.closest('button.merge-hidden-toggle')) {
-    maintainerView.showHiddenPrs = !maintainerView.showHiddenPrs;
-    renderScope();
-    return;
-  }
-  if (e.target.closest('button[data-close-more]')) {
-    maintainerView.closeAll = !maintainerView.closeAll;
-    renderScope();
-    return;
-  }
-  if (e.target.closest('button.merge-more')) {
-    maintainerView.mergeAll = !maintainerView.mergeAll;
-    renderScope();
-    return;
-  }
-  const tile = e.target.closest('button.tile');
-  if (!tile) return;
-  state.activeFilter = tile.dataset.filter === state.activeFilter ? 'all' : tile.dataset.filter;
-  update();
-});
-
-document.getElementById('lists').addEventListener('click', (e) => {
-  if (e.target.closest('[data-mine-edit]')) {
-    listView.editingHandle = true;
-    renderLists();
-    document.getElementById('mineInput')?.focus();
-    return;
-  }
-  if (e.target.closest('[data-mine]')) {
-    showMine(!isMine());
-    return;
-  }
-  if (e.target.closest('[data-team-edit]')) {
-    listView.editingTeam = true;
-    renderLists();
-    document.getElementById('teamInput')?.focus();
-    return;
-  }
-  if (e.target.closest('[data-my-team]')) {
-    showMyTeam(!isMyTeam());
-    return;
-  }
-  const btn = e.target.closest('.stat-btn[data-list]');
-  if (!btn) return;
-  // Clicking the active list again shows every list.
-  state.listFilter = btn.dataset.list === state.listFilter ? null : btn.dataset.list;
-  update();
 });
 
 // Typing redraws the table once it pauses (150 ms), not at every key: with
@@ -1268,38 +1054,6 @@ function showMyTeam(show) {
   state.teamFilter = listView.myTeam;
   update();
 }
-document.getElementById('lists').addEventListener('submit', (e) => {
-  if (e.target.id !== 'teamForm') return;
-  e.preventDefault();
-  listView.myTeam = e.target.team.value || null;
-  listView.editingTeam = false;
-  remember('nixkeeper-team', listView.myTeam);
-  if (listView.myTeam) showMyTeam(true);
-  else renderLists();
-});
-document.getElementById('lists').addEventListener('submit', (e) => {
-  if (e.target.id !== 'mineForm') return;
-  e.preventDefault();
-  const handle = e.target.handle.value.trim().replace(/^@/, '');
-  listView.myHandle = handle || null;
-  listView.myCount = null;
-  listView.editingHandle = false;
-  remember('nixkeeper-handle', listView.myHandle);
-  if (listView.myHandle) {
-    loadMyCount();
-    showMine(true);
-  } else renderLists();
-});
-document.getElementById('lists').addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && e.target.id === 'mineInput') {
-    listView.editingHandle = false;
-    renderLists();
-  }
-  if (e.key === 'Escape' && e.target.id === 'teamInput') {
-    listView.editingTeam = false;
-    renderLists();
-  }
-});
 
 // The overview's own search box: the page's search, from there.
 document.addEventListener('input', (e) => {
@@ -1326,23 +1080,6 @@ document.addEventListener('change', (e) => {
   state.pkgParam = null;
   state.viewParam = null;
   update();
-});
-
-// The groups card shown in full (or back to the biggest): every group,
-// loaded once from views/causes.json, then the overview drawn again.
-document.addEventListener('click', async (e) => {
-  const button = e.target.closest('.cause-more');
-  if (!button) return;
-  if (store.allCauses) {
-    store.allCauses = null;
-  } else {
-    try {
-      store.allCauses = (await readJson('views/causes.json')).groups || [];
-    } catch {
-      return; // the biggest stay
-    }
-  }
-  if (store.shownView === 'overview') renderScope();
 });
 
 // "/" jumps to the filter, as on GitHub; Escape in it clears it.

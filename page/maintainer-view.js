@@ -212,3 +212,39 @@ export function maintainersHtml(pagerHtml) {
   const page = list.slice((state.pageNum - 1) * state.pageSize, state.pageNum * state.pageSize);
   return html`<ul class="maint-list maint-page">${page.map(maintainerItem)}</ul>${pagerHtml(list.length, pages)}`;
 }
+
+// Its controls, once. page: what they need of the page (app.js's
+// pageHooks).
+export function wireMaintainerView(page) {
+  // You can merge these and Can be closed: the merge bot's command copied, a
+  // PR hidden or shown again, the hidden ones shown, every one shown.
+  document.getElementById('scope')?.addEventListener('click', (e) => {
+    const copy = e.target.closest('button.merge-copy');
+    if (copy) {
+      page.copyTitle(copy);
+      return;
+    }
+    const hidePr = e.target.closest('button.merge-hide');
+    if (hidePr) {
+      const number = Number(hidePr.dataset.pr);
+      const pr = (store.mergeList || []).find((p) => p.number === number);
+      if (pr) page.setPrHidden(number, !isPrHidden(pr));
+      return;
+    }
+    if (e.target.closest('button.merge-hidden-toggle')) {
+      maintainerView.showHiddenPrs = !maintainerView.showHiddenPrs;
+      page.renderScope();
+      return;
+    }
+    if (e.target.closest('button[data-close-more]')) {
+      maintainerView.closeAll = !maintainerView.closeAll;
+      page.renderScope();
+      return;
+    }
+    if (e.target.closest('button.merge-more')) {
+      maintainerView.mergeAll = !maintainerView.mergeAll;
+      page.renderScope();
+      return;
+    }
+  });
+}
