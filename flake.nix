@@ -48,6 +48,7 @@
               ./tests
               ./page # the page, shipped with the package
               ./community # the community rules, too
+              ./docs/data.md # the data's description: tests hold nixkeeper/shape.py to it
             ];
           };
         };

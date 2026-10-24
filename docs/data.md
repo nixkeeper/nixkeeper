@@ -25,7 +25,10 @@ Fields are only present when they have something to say: a field missing
 from a row means none (no open update PR, never outdated, ...). Dates are ISO
 8601 in UTC (`2026-09-30T06:00:00+00:00`), or a plain day (`2026-09-26`) where
 the source only has that. New fields may be added; existing ones change only
-with a note in the [changelog](../CHANGELOG.md).
+with a note in the [changelog](../CHANGELOG.md). Before writing, the sync
+checks the data against what this page says (`nixkeeper/shape.py`: each
+row's fields and their types, and the manifest's counts against the views
+they count) and says in its log what doesn't match (`Data shape: ...`).
 
 The files are compact JSON (no indentation) with keys sorted, so a file
 whose data didn't change keeps the same bytes. For the same reason, three
@@ -336,6 +339,7 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 | `nixStatus` | Repology's status for it: `newest`, `outdated`, `devel`, `unique`, `legacy`, `untrusted`, `rolling`, `noscheme`, `incorrect`, ..., or `missing` when nixpkgs doesn't have it; `unsupported` when nixpkgs' version is `0-unsupported`, its version for a package it doesn't build in its default configuration (CUDA packages for another CUDA), so with nothing to compare; with every package, `unlisted` for one Repology doesn't know (`nixVersion` is then nixpkgs') |
 | `refVersion` | the newest version seen elsewhere (for a devel row, the newest devel one), or what nixkeeper's update check found, or what master has (`master`), whichever is newest |
 | `refFromMaster` | `true` when `refVersion` is master's: newer than anything Repology or an update check knows of |
+| `refFromPR` | `true` when `refVersion` is the newest an update PR of it brings (merged or open): an outdated package Repology names no newer version for, as for "-unclassified" projects |
 | `repoCount` | how many other repositories Repology compares it with (each counted once) |
 | `onlyNixpkgs` | `true` when no repository outside nixpkgs has it (nixpkgs' release channels aren't another). With `nixStatus` `unique` and no `upstream` or `feed`, its version was compared with nothing: the page shows it grey ("only in nixpkgs"), its status letter is `n`. Packages it's true for get the GitHub releases digest's result even when it only confirms their version |
 | `devel` | a development variant of a split project: newer than its stable one, or named for one (`wesnoth-devel`, `_1password-gui-beta`); or a version Repology calls devel |

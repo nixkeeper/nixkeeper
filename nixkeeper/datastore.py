@@ -23,7 +23,7 @@ import shutil
 import zlib
 from datetime import UTC, datetime, timedelta
 
-from . import causes, config
+from . import causes, config, shape
 from . import rows as rows_module
 from .changes import (
     broken_builds,
@@ -984,7 +984,9 @@ def write(
     tmp_dir = out_dir + ".tmp"
     shutil.rmtree(tmp_dir, ignore_errors=True)  # leftover from a failed run
     os.makedirs(tmp_dir)
-    for name, data in files(index, entries, history, fixed, events).items():
+    written = files(index, entries, history, fixed, events)
+    shape.report(shape.problems(written, slug))
+    for name, data in written.items():
         _write_file(os.path.join(tmp_dir, name), dumps(data))
     for name, data in (kept or {}).items():
         if data is not None:
@@ -999,7 +1001,9 @@ def update(index, entries, out_dir=None):
     leaves one half-written. For partial runs (the hourly checks), which
     change a few rows."""
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
-    for name, data in files(index, entries).items():
+    written = files(index, entries)
+    shape.report(shape.problems(written, slug))
+    for name, data in written.items():
         path = os.path.join(out_dir, name)
         text = dumps(data)
         try:

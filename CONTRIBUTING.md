@@ -123,7 +123,7 @@ the subcommand's module. `nixkeeper/sync.py` runs one sync, top to bottom:
 | where nixpkgs marks them broken, and Hydra's builds | `sources/nixpkgs.py`, `sources/hydra.py` |
 | the nixpkgs-update bot's latest attempts | `sources/nixpkgs_update.py` |
 | open PR and issue counts, and update PRs | `sources/github.py` |
-| write `data/` | `output.py` |
+| check `data/` against its shape, then write it | `shape.py`, `datastore.py` |
 | rewrite the status issue, commenting on what's newly wrong | `notify.py`, `changes.py` |
 
 Around that:
@@ -139,6 +139,11 @@ Around that:
   safe mode)
 - `lock.py`: one run at a time on a data folder (`<data dir>.lock`), for
   every command that writes or copies the data
+- `shape.py`: what `data/` must look like, checked before each write (the
+  sync's and the hourly checks'): a row's fields and their types (`ROW`:
+  a field added to the rows is added there and to `docs/data.md`, which a
+  test holds to it), and the manifest's counts against the views they
+  count. For now its problems are reported in the log (`Data shape: ...`)
 - `page.py`: `nixkeeper page` and `nixkeeper serve`. The package carries the
   page: its build copies `page/` into `nixkeeper/page/` (and links it as
   `share/nixkeeper/www/`); from a checkout, `page/` itself

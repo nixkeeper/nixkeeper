@@ -11,6 +11,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **The sync checks its data before writing it**: each row's fields and
+  their types, against a table of every field (`nixkeeper/shape.py`), and
+  the manifest's counts against the views they count (the views' lengths,
+  the teams', lists' and sets', the build failures by platform as the page
+  counts them). What doesn't match is said in the log (`Data shape: 2
+  manifest problems`, then each: `counts.buildFailuresOn.darwin 769, the
+  view's 767`); for now it's only said, not stopping the sync. Today's
+  published data: none, of 126,364 rows (1.3 s).
+
 - **The search box holds the filters as words**, as GitHub's does:
   `is:builds -is:broken age:1y on:linux build:compile wine`. The tiles,
   chips and selects write them there; typing one sets it. Each word is the
@@ -82,6 +91,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   preloaded with `app.js`. Nothing on the page changes.
 
 ### Fixed
+
+- `docs/data.md` names `refFromPR` (a row's `refVersion` from an update
+  PR), which rows have had without it being described.
 
 - **Typing in the search box is light again**: the menu worked out every
   qualifier's values, with counts over every package, at each key, click
