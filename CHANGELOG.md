@@ -68,6 +68,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- The sync's code reads as its phases: `sync.main` calls one function per
+  phase, named as the log times them, each from what the run works from
+  (made once) and which rows each step covers (worked out once), rather
+  than one function of 280 lines handing the same values to every step.
+  The data is the same: two syncs, before and after, run together, wrote
+  the same 5,401 files with every package, and the same 4 with one
+  maintainer's lists.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on
