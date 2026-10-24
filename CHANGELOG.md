@@ -38,6 +38,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- "Master already has 1.2.4 (..., built by Hydra)" only when Hydra's build
+  of it didn't fail: "failing to build on Hydra on x86_64-linux" (tgrep), or
+  "built by Hydra, but failing on ..." when it builds elsewhere.
 - PRs titled with tags before the package ("[26.05] libsidplayfp: ...",
   "[Backport release-26.05] ...", "[WIP] ...": 232 open) count for it, in
   **Open on GitHub** and for staging: 139 packages counted too few.

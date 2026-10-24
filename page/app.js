@@ -4835,11 +4835,22 @@ function fillDetail(pkg, el, entries) {
                 : ''
             }`,
           );
-  // Where master is: the PR that brought it, and whether Hydra built it.
+  // Where master is: the PR that brought it, and whether Hydra built it:
+  // master is Hydra's latest build's version, which can be a failure (tgrep
+  // 1.2.4, failing on x86_64-linux).
+  const masterBuilt = (p) => {
+    if (!p.master) return 'not built by Hydra yet';
+    const at = (p.builds || []).filter((b) => b.version === p.master);
+    const failing = [...new Set(at.filter((b) => b.status === 'failed').map((b) => b.system))];
+    if (!failing.length) return 'built by Hydra';
+    return at.some((b) => b.status === 'ok')
+      ? `built by Hydra, but failing on ${failing.join(', ')}`
+      : `failing to build on Hydra on ${failing.join(', ')}`;
+  };
   const masterSaid = [
     pkg.masterPR &&
       html`merged in <a class="files-link" href="${safeUrl(pkg.masterPR.url)}" target="_blank" rel="noopener">#${pkg.masterPR.number} ↗</a>${whoDid(pkg.masterPR.author, pkg.masterPR.mergedBy)}`,
-    pkg.master ? 'built by Hydra' : 'not built by Hydra yet',
+    masterBuilt(pkg),
   ]
     .filter(Boolean)
     .flatMap((part, i) => (i ? [', ', part] : [part]));
