@@ -6,11 +6,20 @@ import { describe, test } from 'node:test';
 
 import { buildLine, githubSection, groupedBuilds, vulnSection } from '../../page/panel.js';
 
+// Markup without its tags, removed until none is left (a single pass would
+// leave one behind in "<sp<b>an>": CodeQL's incomplete sanitization).
+const untagged = (markup) => {
+  let out = String(markup).replace(/<span class="sr-only">[^<]*<\/span>/g, '');
+  for (let was = null; was !== out; ) {
+    was = out;
+    out = out.replace(/<[^>]*>/g, '');
+  }
+  return out;
+};
+
 // The visible text of some HTML, spaces collapsed: what a reader sees.
 const text = (markup) =>
-  String(markup)
-    .replace(/<span class="sr-only">[^<]*<\/span>/g, '')
-    .replace(/<[^>]+>/g, '')
+  untagged(markup)
     .replace(/&gt;/g, '>')
     .replace(/&lt;/g, '<')
     .replace(/&quot;/g, '"')
