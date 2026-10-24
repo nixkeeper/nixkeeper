@@ -11,22 +11,23 @@ none, they are meant to stop the sync instead, so that the last good data
 stays published.
 
 The check never raises on bad data: finding bad data is its job, so every
-lookup expects the data to be malformed and reports what it finds instead.
+lookup checks the type of what it reads and reports what doesn't fit
+(the Malformed tests hold it to that).
 """
 
 import re
 import sys
-import zlib
+from types import NoneType
 from typing import NamedTuple
 
-NULL = type(None)
+from .naming import shard_of, slug
 
 
 class Field(NamedTuple):
     """What a row's field may hold.
 
     Attributes:
-        types: The types its value may have. NULL means it may be null.
+        types: The types its value may have. NoneType means it may be null.
         required: Whether every row has the field.
     """
 
@@ -43,10 +44,10 @@ ROW = {
     "attrs": Field((list,), required=True),
     "searchTerm": Field((str,), required=True),
     "lists": Field((list,), required=True),
-    "project": Field((str, NULL)),
+    "project": Field((str, NoneType)),
     "dataFile": Field((str,)),
-    "platforms": Field((dict, NULL)),
-    "homepage": Field((str, NULL)),
+    "platforms": Field((dict, NoneType)),
+    "homepage": Field((str, NoneType)),
     "maintainers": Field((list,)),
     "nonTeamMaintainers": Field((list,)),
     "markedBroken": Field((bool,)),
@@ -65,8 +66,8 @@ ROW = {
     # Its versions.
     "nixStatus": Field((str,), required=True),
     # Null for a list entry that nixpkgs doesn't have (nixStatus "missing").
-    "nixVersion": Field((str, NULL)),
-    "refVersion": Field((str, NULL)),
+    "nixVersion": Field((str, NoneType)),
+    "refVersion": Field((str, NoneType)),
     "refFromMaster": Field((bool,)),
     "refFromPR": Field((bool,)),
     "repoCount": Field((int,)),
@@ -109,7 +110,7 @@ ROW = {
     "stagingNextBlockedBy": Field((dict,)),
     "stagingNextBlocks": Field((dict,)),
     # The update bot's attempts (nixpkgs-update).
-    "update": Field((dict, NULL)),
+    "update": Field((dict, NoneType)),
     "updateFailure": Field((bool,)),
     "updateFailingSince": Field((str,)),
     "queued": Field((dict,)),
@@ -147,20 +148,18 @@ def row_problems(row):
         # An exact type check: isinstance would accept True as an int.
         if type(value) not in field.types:
             expected = " or ".join(
-                "null" if t is NULL else t.__name__ for t in field.types
+                "null" if t is NoneType else t.__name__ for t in field.types
             )
             found.append(f"{name} is {type(value).__name__}, not {expected}")
     found.extend(f"unknown field {name}" for name in row.keys() - ROW.keys())
     return found
 
 
-def problems(files, slug):
+def problems(files):
     """Check the data before it's written.
 
     Args:
         files: The data, as datastore.files builds it: {path in data/: data}.
-        slug: A function that turns a team's or list's name into its view's
-            file name (datastore.slug).
 
     Returns:
         The problems found, by kind: {kind: [sentence, ...]}. Empty when the
@@ -180,14 +179,18 @@ def problems(files, slug):
         say("manifest", f"shardCount is {count!r}, not a number of shards")
         count = None
     names = _check_rows(files, count, say)
-    shards = sum(path.startswith("rows/") for path in files)
+    # Only real shards count: a stray file in rows/ is reported on its own.
+    shards = sum(bool(SHARD.fullmatch(path)) for path in files)
     if count is not None and shards != count:
-        say("manifest", f"shardCount {count}, but {shards} shards")
+        say("manifest", f"shardCount is {count}, but rows/ has {shards}")
     package_count = manifest.get("packageCount")
     if package_count != len(names):
-        say("manifest", f"packageCount {package_count!r}, rows {len(names)}")
+        say(
+            "manifest",
+            f"packageCount is {package_count!r}, but the shards hold {len(names)} rows",
+        )
     if "views" in manifest:
-        _check_views(files, manifest, names, slug, say)
+        _check_views(files, manifest, names, say)
     return found
 
 
@@ -208,12 +211,12 @@ def _check_rows(files, count, say):
         if not path.startswith("rows/"):
             continue
         shard = SHARD.fullmatch(path)
-        packages = data.get("packages") if isinstance(data, dict) else None
+        packages = _object(data).get("packages")
         if not shard or not isinstance(packages, list):
             say("rows", f"{path} isn't a shard of rows")
             continue
         for position, row in enumerate(packages):
-            name = row.get("name") if isinstance(row, dict) else None
+            name = _object(row).get("name")
             if not isinstance(name, str):
                 say("rows", f"{path}, row {position}: no name")
                 continue
@@ -222,14 +225,13 @@ def _check_rows(files, count, say):
             if name in names:
                 say("rows", f"{name}: appears twice")
             names.add(name)
-            if count is not None and zlib.crc32(name.encode()) % count != int(
-                shard.group(1)
-            ):
-                say("rows", f"{name}: in {path}, not in its own shard")
+            own = shard_of(name, count) if count is not None else None
+            if own is not None and own != int(shard.group(1)):
+                say("rows", f"{name}: in {path}, but its shard is rows/{own}.json")
     return names
 
 
-def _check_views(files, manifest, names, slug, say):
+def _check_views(files, manifest, names, say):
     """Check the views of an instance tracking every package.
 
     Every view's rows must be rows of the data, and the manifest's counts
@@ -243,24 +245,25 @@ def _check_views(files, manifest, names, slug, say):
     for path, data in files.items():
         if path.startswith("views/"):
             for entry in _entries(data):
-                if entry.get("name") not in names:
-                    say("views", f"{path}: {entry.get('name')!r} isn't a row")
+                name = entry.get("name")
+                if not isinstance(name, str) or name not in names:
+                    say("views", f"{path}: {name!r} isn't a row")
     for view in COUNTED_VIEWS:
         if view in views:
-            _compare(say, f"views.{view}", views[view], _length(files, view))
+            path = f"views/{view}.json"
+            _compare(say, f"views.{view}", views[view], _length(files, path), path)
     for kind, key in (("team", "teams"), ("list", "lists"), ("set", "sets")):
-        for name, stated in (views.get(key) or {}).items():
-            file = name if kind == "set" else slug(name)
+        for name, stated in _named(views, key, f"views.{key}", say).items():
+            if not isinstance(name, str):
+                say("manifest", f"views.{key}: {name!r} isn't a name")
+                continue
+            path = f"views/{kind}/{name if kind == 'set' else slug(name)}.json"
             if isinstance(stated, dict):
                 stated = stated.get("packages")
-            _compare(
-                say, f"views.{key}.{name}", stated, _length(files, f"{kind}/{file}")
-            )
+            _compare(say, f"views.{key}.{name}", stated, _length(files, path), path)
     for name in COUNTS_OF_VIEWS:
         if name in counts and name in views:
-            _compare(
-                say, f"counts.{name}", counts[name], views[name], f"views.{name} is"
-            )
+            _compare(say, f"counts.{name}", counts[name], views[name], f"views.{name}")
     # The build failures, counted as the page counts them from the attention
     # view: packages whose own build failed (on a platform: failed there,
     # where nixpkgs lists the package).
@@ -269,38 +272,67 @@ def _check_views(files, manifest, names, slug, say):
         for entry in _entries(files.get("views/attention.json"))
         if any(build.get("status") == "failed" for build in _builds(entry))
     ]
+    attention = "views/attention.json"
     if "buildFailures" in counts:
         _compare(
-            say,
-            "counts.buildFailures",
-            counts["buildFailures"],
-            len(failed),
-            "the attention view has",
+            say, "counts.buildFailures", counts["buildFailures"], len(failed), attention
         )
-    for platform, stated in (counts.get("buildFailuresOn") or {}).items():
+    on = _named(counts, "buildFailuresOn", "counts.buildFailuresOn", say)
+    for platform, stated in on.items():
+        if not isinstance(platform, str):
+            say("manifest", f"counts.buildFailuresOn: {platform!r} isn't a platform")
+            continue
         actual = sum(_failing_on(entry, platform) for entry in failed)
-        _compare(
-            say,
-            f"counts.buildFailuresOn.{platform}",
-            stated,
-            actual,
-            "the attention view has",
-        )
+        _compare(say, f"counts.buildFailuresOn.{platform}", stated, actual, attention)
 
 
-def _compare(say, what, stated, actual, source="its view has"):
+def _compare(say, stated_in, stated, actual, counted_from):
     """Report a count the manifest states that differs from the actual one.
+
+    The sentence reads "views.attention is 1; counted from
+    views/attention.json: 2".
 
     Args:
         say: A function taking a problem's kind and its sentence.
-        what: Where the manifest states the count ("views.attention").
+        stated_in: Where the manifest states the count ("views.attention").
         stated: The count the manifest states.
-        actual: The count it should state.
-        source: What the actual count comes from, ending the sentence
-            "... but <source> <actual>".
+        actual: The count worked out from the data.
+        counted_from: What the actual count was worked out from: a file or
+            another of the manifest's fields.
     """
     if stated != actual:
-        say("manifest", f"{what} is {stated!r}, but {source} {actual}")
+        say(
+            "manifest",
+            f"{stated_in} is {stated!r}; counted from {counted_from}: {actual}",
+        )
+
+
+def _named(container, key, where, say):
+    """Read one of the manifest's objects of counts by name.
+
+    Args:
+        container: The manifest's object holding it ("views", "counts").
+        key: Its key there ("teams", "buildFailuresOn").
+        where: How problems name it ("views.teams").
+        say: A function taking a problem's kind and its sentence.
+
+    Returns:
+        The object, or an empty one when it's missing. When it's there but
+        isn't an object, that's reported, and it's read as empty.
+    """
+    value = container.get(key)
+    if value is not None and not isinstance(value, dict):
+        say("manifest", f"{where} is a {type(value).__name__}, not an object")
+    return _object(value)
+
+
+def _object(value):
+    """The value when it's an object (a dict), else an empty one.
+
+    For data that should be an object but may not be: reading it then finds
+    nothing, rather than failing.
+    """
+    return value if isinstance(value, dict) else {}
 
 
 def _entries(data):
@@ -308,15 +340,15 @@ def _entries(data):
 
     A view with no entries isn't written, so data may be None.
     """
-    packages = data.get("packages") if isinstance(data, dict) else None
+    packages = _object(data).get("packages")
     if not isinstance(packages, list):
         return []
     return [entry for entry in packages if isinstance(entry, dict)]
 
 
-def _length(files, view):
-    """How many entries views/<view>.json has (0 when it isn't written)."""
-    return len(_entries(files.get(f"views/{view}.json")))
+def _length(files, path):
+    """How many entries the view at path has (0 when it isn't written)."""
+    return len(_entries(files.get(path)))
 
 
 def _builds(entry):
@@ -332,7 +364,8 @@ def _listed_on(entry, system):
 
     As docs/data.md describes `platforms`: null means no restriction;
     otherwise the family's flag (linux, darwin) must be true, and when
-    `systems` is there, the system must be among them.
+    `systems` is there, the system must be among them. Platforms of the
+    wrong kind count as not listed: the safe reading for a count.
 
     Args:
         entry: A view's entry.
@@ -344,6 +377,8 @@ def _listed_on(entry, system):
     if not isinstance(platforms, dict):
         return False
     systems = platforms.get("systems")
+    if systems is not None and not isinstance(systems, list):
+        return False
     family = system.rsplit("-", 1)[-1]
     return bool(platforms.get(family)) and (systems is None or system in systems)
 

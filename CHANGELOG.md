@@ -112,8 +112,7 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   or a build missing a field raised an error before anything was written.
   It now reports each of them in the log (`rows/0.json, row 3: no name`),
   and a fault in the check itself is logged too (`Data shape: the check
-  itself failed: ...`) without stopping the write. Found by an outside
-  review.
+  itself failed at shape.py:120: ...`) without stopping the write.
 
 - The data's shape check takes a null `nixVersion`, as a list entry
   nixpkgs no longer has is written (`nixStatus` `missing`): its first sync

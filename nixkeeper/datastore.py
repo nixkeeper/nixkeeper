@@ -21,7 +21,7 @@ import os
 import re
 import shutil
 import sys
-import zlib
+import traceback
 from datetime import UTC, datetime, timedelta
 
 from . import causes, config, shape
@@ -35,6 +35,7 @@ from .changes import (
     on_branch,
     waiting_for_channel,
 )
+from .naming import shard_of, slug
 from .sources import vulnerabilities_digest
 from .sources.nixpkgs import available_on
 
@@ -78,12 +79,6 @@ def shard_count(rows):
     """How many shards for rows: about SHARD_ROWS a shard, rounded up to a
     power of two (1 for a few hundred, 256 for all of nixpkgs)."""
     return 1 << max(0, math.ceil(math.log2(max(1, rows / SHARD_ROWS))))
-
-
-def shard_of(name, count):
-    """The shard a row is in: a stable hash of its name, so adding a package
-    changes only its own shard."""
-    return zlib.crc32(name.encode()) % count
 
 
 def elided(row, run):
@@ -557,12 +552,6 @@ def status(row):
     return letter + ("v" if is_vulnerable(row) else "")
 
 
-def slug(name):
-    """A team's or list's name as a file name: "Security review" ->
-    "security-review" (viewSlug in page/logic.js)."""
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-
-
 # The systems unbuilt_where looks at: each Linux system apart, Darwin as one.
 UNBUILT_KEYS = ("x86_64-linux", "aarch64-linux", "darwin")
 
@@ -981,9 +970,12 @@ def _check_shape(written):
         written: The data about to be written, as files builds it.
     """
     try:
-        shape.report(shape.problems(written, slug))
+        shape.report(shape.problems(written))
     except Exception as e:  # reporting only: never stop a write
-        print(f"Data shape: the check itself failed: {e!r}", file=sys.stderr)
+        # Where it broke, to find the bug without running it again.
+        frame = traceback.extract_tb(e.__traceback__)[-1]
+        where = f"{os.path.basename(frame.filename)}:{frame.lineno}"
+        print(f"Data shape: the check itself failed at {where}: {e!r}", file=sys.stderr)
 
 
 def write(

@@ -2,6 +2,7 @@
 which list each is on."""
 
 from . import config
+from .naming import slug
 
 # The list of packages tracked through meta.maintainers; the other lists are
 # named in package-lists/default.nix.
@@ -87,14 +88,12 @@ def add_lists(rows, names):
 
 def add_list_teams(rows, nixpkgs):
     """A named list called as a nixpkgs team is (its name as a file name:
-    gaming for Gaming, as datastore.slug has it) joins that team: its
+    gaming for Gaming, as naming.slug has it) joins that team: its
     packages count as the team's too, on the team's page (?team=Gaming), in
     its counts and in the team filter, beside those nixpkgs lists under the
     team (meta.teams). For packages a team looks after that nixpkgs doesn't
     list it on. Those a list adds are also in "teamsByList", so the page
     can say where the team came from; a package both ways stays nixpkgs'."""
-    from .datastore import slug  # datastore imports more of nixkeeper
-
     teams = {}
     for pkg in nixpkgs.values():
         for team in (pkg.get("meta") or {}).get("teams") or []:
