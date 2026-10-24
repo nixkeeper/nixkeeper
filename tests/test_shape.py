@@ -67,9 +67,14 @@ class Rows(unittest.TestCase):
     def test_null_where_allowed_only(self):
         self.assertEqual(shape.row_problems(row("a", platforms=None)), [])
         self.assertEqual(
-            shape.row_problems(row("a", nixVersion=None)),
-            ["nixVersion is NoneType, not str"],
+            shape.row_problems(row("a", homepage=1)),
+            ["homepage is int, not str or null"],
         )
+
+    def test_a_list_entry_nixpkgs_no_longer_has(self):
+        # space-station-14-launcher, renamed ss14-launcher (2026-10-24's sync).
+        missing = row("a", attrs=[], nixStatus="missing", nixVersion=None)
+        self.assertEqual(shape.row_problems(missing), [])
 
     def test_twice_or_in_another_shard(self):
         data = files([row("a")], count=2)

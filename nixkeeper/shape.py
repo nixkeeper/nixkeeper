@@ -41,7 +41,8 @@ ROW = {
     "devel": ((bool,), SOMETIMES),
     # Versions
     "nixStatus": ((str,), ALWAYS),
-    "nixVersion": ((str,), SOMETIMES),
+    # null for a list entry nixpkgs doesn't have (nixStatus "missing").
+    "nixVersion": ((str, None), SOMETIMES),
     "refVersion": ((str, None), SOMETIMES),
     "refFromMaster": ((bool,), SOMETIMES),
     "refFromPR": ((bool,), SOMETIMES),

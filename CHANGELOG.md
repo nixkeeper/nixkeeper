@@ -92,6 +92,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- The data's shape check takes a null `nixVersion`, as a list entry
+  nixpkgs no longer has is written (`nixStatus` `missing`): its first sync
+  said `space-station-14-launcher: nixVersion is NoneType, not str`, the
+  gaming list's entry for a package nixpkgs renamed `ss14-launcher`
+  (NixOS/nixpkgs#576621). The gaming list names it so now, with the flake's
+  nixpkgs updated (2026-10-23) to know the name.
+
 - `docs/data.md` names `refFromPR` (a row's `refVersion` from an update
   PR), which rows have had without it being described.
 
