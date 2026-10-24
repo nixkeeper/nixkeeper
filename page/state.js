@@ -5,7 +5,6 @@
 // selects, the search) and draws the page from it. Other parameters
 // (owner, repo) are left alone. And the rules that follow the selected
 // platform.
-
 import {
   buildsWith as buildsOn,
   hasFailure as failureOn,
@@ -16,6 +15,7 @@ import {
   attentionRank as rankOn,
   teamsParam,
 } from './logic.js';
+import { store } from './store.js';
 
 // The page's tables (FILTERS, SORTS, PLATFORMS, REFINES, AGES), by their
 // keys: app.js gives them once (they hold the list's rules), for what here
@@ -195,4 +195,21 @@ export function scopeHref({ set = null, pkg = null, view = null, filter = null, 
   if (filter && known.FILTERS[filter]?.param) params.set('filter', known.FILTERS[filter].param);
   const query = params.toString();
   return location.pathname + (query ? `?${query}` : '');
+}
+
+// null, or a nixpkgs team (meta.teams, by its short name; any case):
+// ?team=gaming is a page of the team's packages here.
+// ?team= besides one team: teams left out (-Geospatial), and none (not
+// through a team: logic.js parseTeams).
+// ?maintainer='s handles left out (-iedame), lowercase.
+export const isTeam = (name) => name.toLowerCase() === state.teamFilter.toLowerCase();
+
+// The team's name as nixpkgs writes it ("Qt-KDE"), or as the address has it.
+export const teamName = () =>
+  store.packages.flatMap((p) => p.teams || []).find(isTeam) || state.teamFilter;
+
+export function maintainerHref(handle) {
+  const params = new URLSearchParams(new URL(scopeHref({}), location.href).search);
+  params.set('maintainer', handle);
+  return `${location.pathname}?${params.toString()}`;
 }

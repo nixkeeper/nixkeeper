@@ -13,8 +13,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   (`page/logic.js`), a package panel's sections (`page/panel.js`), how it
   reads its data (`page/data.js`, with `fetch` stood in for), its address
   (`page/state.js`), a package's panel (`page/package-view.js`, the parts
-  that are HTML) and the overview (`page/overview.js`) with Node's own test
-  runner
+  that are HTML), the overview (`page/overview.js`) and a maintainer's page
+  (`page/maintainer-view.js`) with Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -40,7 +40,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   from the `data` branch. `logic.js` holds its rules (statuses, versions,
   ages, safe links, the tab icon's signals) without the page, so they can be
   tested; `overview.js` the overview (the cards, trends, causes, sets,
-  fixes, nixpkgs in numbers); `package-view.js` a package's panel
+  fixes, nixpkgs in numbers); `maintainer-view.js` a maintainer's or team's
+  page (You can merge these, Can be closed) and the maintainers page; `package-view.js` a package's panel
   (Details, Updates, Builds),
   given what it needs of the page (`panelPage` in `app.js`: a package's
   address, hiding it, drawing again); `panel.js` its sections
@@ -51,7 +52,7 @@ happen. For what nixkeeper does and how to set up your own, see the
   the filters, sort and paging in one object (`state`), read from the
   address and written back (`readState`, `writeState`), and a view's
   address (`scopeHref`, with the tables `app.js` gives it in `known`);
-  `store.js` what's
+  `prefs.js` what this browser keeps (localStorage); `store.js` what's
   loaded of the data, in one object (`store`); `app.js` imports them,
   changes the state, fills the store and draws the page. Native ES modules, no build step: `index.html`
   preloads each (`modulepreload`), so a new module goes there too. `favicon*.svg` (the mark, and the live status

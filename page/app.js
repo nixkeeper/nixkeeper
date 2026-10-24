@@ -61,8 +61,19 @@ import {
   waitingForChannel,
   withRunStamps,
 } from './logic.js';
+import {
+  closeHtml,
+  hiddenPrPrints,
+  isPrHidden,
+  maintainerItem,
+  maintainersHtml,
+  maintainerView,
+  mergeHtml,
+  saveHiddenPrs,
+} from './maintainer-view.js';
 import { highlightShown, overviewHtml } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
+import { remember, stored } from './prefs.js';
 import {
   attentionRank,
   buildsWith,
@@ -73,6 +84,7 @@ import {
   readState,
   scopeHref,
   state,
+  teamName,
   writeState,
 } from './state.js';
 import { store } from './store.js';
@@ -182,12 +194,6 @@ const FIRST_ROWS = 50;
 // null, or a list from package-lists/ ("maintained", "gaming-team", ...):
 // ?list=gaming-team is a page of just that list's packages, to share.
 const inList = (pkg) => !state.listFilter || (pkg.lists || []).includes(state.listFilter);
-// null, or a nixpkgs team (meta.teams, by its short name; any case):
-// ?team=gaming is a page of the team's packages here.
-// ?team= besides one team: teams left out (-Geospatial), and none (not
-// through a team: logic.js parseTeams).
-// ?maintainer='s handles left out (-iedame), lowercase.
-const isTeam = (name) => name.toLowerCase() === state.teamFilter.toLowerCase();
 // What the address keeps by people: its teams, and maintainers left out.
 const inPeople = (pkg) =>
   teamsKeep(
@@ -195,9 +201,6 @@ const inPeople = (pkg) =>
     { include: state.teamFilter, leftOut: state.teamsLeftOut, none: state.noTeam },
     shownHandle(),
   ) && maintainersKeep(pkg, state.maintainersLeftOut);
-// The team's name as nixpkgs writes it ("Qt-KDE"), or as the address has it.
-const teamName = () =>
-  store.packages.flatMap((p) => p.teams || []).find(isTeam) || state.teamFilter;
 // Every list some package is on: "maintained" first, as the sync sorts them.
 function allLists() {
   // With every package, the view has only some: the manifest has them all.
@@ -906,21 +909,6 @@ function writeViewToUrl() {
 // this keeps it, and the page's default from the data, in the browser
 // (localStorage: nothing is sent anywhere) and applies changes.
 const SITE_PALETTE = `nixkeeper-site-palette:${location.pathname}`;
-const stored = (key) => {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null; // storage blocked: nothing is remembered
-  }
-};
-const remember = (key, value) => {
-  try {
-    if (value) localStorage.setItem(key, value);
-    else localStorage.removeItem(key);
-  } catch {
-    // storage blocked: it lasts until the page is left
-  }
-};
 
 // "Hide until it changes": in this browser only (localStorage), each hidden
 // package by name with what it needed attention for then (attentionPrint).
@@ -969,26 +957,6 @@ function setHidden(pkg, hide) {
   update({ keepPage: true });
 }
 
-// "You can merge these"'s Hide, as the packages': in this browser only,
-// each hidden PR by number with what it was then (prPrint), back as soon as
-// that differs. Entries for PRs no longer in the list are dropped once it's
-// in (loadMerge).
-const HIDDEN_PRS_KEY = 'nixkeeper-hidden-prs';
-const hiddenPrPrints = (() => {
-  try {
-    return JSON.parse(stored(HIDDEN_PRS_KEY) || '{}') || {};
-  } catch {
-    return {};
-  }
-})();
-let showHiddenPrs = false;
-const isPrHidden = (pr) => hiddenPrPrints[pr.number] === prPrint(pr);
-function saveHiddenPrs() {
-  remember(
-    HIDDEN_PRS_KEY,
-    Object.keys(hiddenPrPrints).length ? JSON.stringify(hiddenPrPrints) : '',
-  );
-}
 function setPrHidden(number, hide) {
   const pr = (store.mergeList || []).find((p) => p.number === number);
   if (!pr) return;
@@ -1381,12 +1349,6 @@ function loadMaintainers() {
     });
 }
 
-// views/merge.json: the PRs maintainers can merge now with the merge bot
-// (nixkeeper/sources/prs_digest.py: mergeable), for "You can merge these" in
-// a maintainer's or team's view. Loaded once, when one is first shown.
-let mergeAll = false; // every one shown, not the first MERGE_SHOWN
-const MERGE_SHOWN = 5;
-const MERGE_COMMAND = '@NixOS/nixpkgs-merge-bot merge';
 function loadMerge() {
   if (store.mergeLoading) return;
   store.mergeLoading = readJson('views/merge.json', { otherwise: { prs: [] } })
@@ -1402,154 +1364,6 @@ function loadMerge() {
     .catch(() => {
       store.mergeLoading = null; // tried again with the next view
     });
-}
-
-// "You can merge these": in @handle's view, the PRs they can merge (their
-// own first); in a team's, those touching the packages nixpkgs lists under
-// the team (meta.teams: its members are their maintainers, so the merge bot
-// counts them), not those a list of the same name adds (teamsByList: their
-// own maintainers merge those), with who can. Nothing when there are none,
-// or before views/merge.json is in.
-function mergeHtml(path, handle) {
-  const mine = path.startsWith('views/maintainer/') && handle && handle !== 'none';
-  const team = path.startsWith('views/team/');
-  if (!mine && !team) return '';
-  if (!store.mergeList) {
-    loadMerge();
-    return '';
-  }
-  const who = handle.toLowerCase();
-  const theirs = team && teamName();
-  const mergers = team
-    ? new Set(store.packages.filter((p) => !p.teamsByList?.includes(theirs)).map((p) => p.name))
-    : null;
-  const own = (p) => mine && p.author.toLowerCase() === who;
-  // Their own first, then those for a vulnerable package, then the
-  // longest waiting (the list's own order).
-  const prs = store.mergeList
-    .filter((p) =>
-      mine ? p.who.some((w) => w.toLowerCase() === who) : p.packages.some((n) => mergers.has(n)),
-    )
-    .sort((a, b) => own(b) - own(a) || Boolean(b.vulnerable) - Boolean(a.vulnerable));
-  if (!prs.length) return '';
-  // Those hidden here (Hide), left out unless shown again, greyed.
-  const hiddenN = prs.filter(isPrHidden).length;
-  const listed = showHiddenPrs ? prs : prs.filter((p) => !isPrHidden(p));
-  const hiddenToggle = hiddenN
-    ? html`<button type="button" class="merge-hidden-toggle" aria-pressed="${showHiddenPrs}" title="PRs you hid here, in this browser, until they change (a newer version, or a CVE)">${fmt(hiddenN)} hidden · ${showHiddenPrs ? 'hide them' : 'show them'}</button>`
-    : '';
-  if (!listed.length)
-    return html`<section class="merge-block merge-all-hidden"><p class="merge-how">You've hidden ${hiddenN === 1 ? 'the PR' : html`the ${fmt(hiddenN)} PRs`} ready to merge here. ${hiddenToggle}</p></section>`;
-  const shown = mergeAll ? listed : listed.slice(0, MERGE_SHOWN);
-  const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
-  const waited = (iso) => {
-    const d = days(iso);
-    return d < 1 ? 'opened today' : `waiting ${d} day${d === 1 ? '' : 's'}`;
-  };
-  const people = (list) => list.map((h) => `@${h}`).join(', ');
-  const line = (p) => {
-    const facts = [
-      own(p) ? html`<b>your own PR</b>` : `by @${p.author}`,
-      html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">${waited(p.created)}</span>`,
-      p.base !== 'master' && html`into <span class="mono">${p.base}</span>`,
-      p.approvedBy?.length && `approved by ${people(p.approvedBy)}`,
-      p.vulnerable &&
-        html`<span class="merge-warn" title="The package counts as vulnerable: worth reviewing this first">for a vulnerable package</span>`,
-      p.behind &&
-        html`<span class="merge-warn" title="Merged as it is, the package would still be outdated: worth updating the PR first">behind: upstream has ${p.behind}</span>`,
-      team && `${people(p.who)} can merge it`,
-    ].filter(Boolean);
-    const hidden = isPrHidden(p);
-    return html`<li${hidden ? raw(' class="is-hidden"') : ''}><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><button type="button" class="merge-hide" data-pr="${p.number}" title="${hidden ? 'Shown again here' : 'Leave it out of this list, in this browser only, until it changes: a newer version in its title, or a CVE'}">${hidden ? 'Show it again' : 'Hide'}</button><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
-  };
-  const n = listed.length;
-  const what = mine
-    ? html`You can merge ${n === 1 ? 'this PR' : html`these ${fmt(n)} PRs`}`
-    : html`${fmt(n)} PR${n === 1 ? '' : 's'} on the team's packages, ready to merge`;
-  // The merge bot also asks that whoever comments be in
-  // @NixOS/nixpkgs-maintainers (nixpkgs' ci/README.md): not public, so said.
-  const why = mine
-    ? 'CI passed, and you maintain every package it touches: if you’re in @NixOS/nixpkgs-maintainers, the merge bot merges it for you'
-    : 'CI passed, and the people named under each maintain every package it touches: the merge bot merges it for any of them in @NixOS/nixpkgs-maintainers';
-  const more =
-    listed.length > MERGE_SHOWN
-      ? html`<button type="button" class="merge-more">${mergeAll ? 'Show fewer' : `Show all ${fmt(listed.length)}`}</button>`
-      : '';
-  return html`<section class="merge-block" aria-labelledby="mergeHead">
-    <h3 id="mergeHead">${what} <span class="scope-hint">${why}</span> ${hiddenToggle}</h3>
-    <ul class="merge-list">${shown.map(line)}</ul>
-    ${more}
-    <p class="merge-how">Review it, then comment on the PR: <code>${MERGE_COMMAND}</code>
-      <button type="button" class="merge-copy" data-copy="${MERGE_COMMAND}" title="Copy the comment">Copy</button>
-      <a class="files-link" href="https://github.com/NixOS/nixpkgs/blob/master/ci/README.md" target="_blank" rel="noopener">how the merge bot works ↗</a></p>
-  </section>`;
-}
-
-// On a maintainer's or a team's page: the open update PRs nixpkgs is
-// already past, on its packages (the rows' supersededPRs): "Can be closed".
-// Hide as for "You can merge these" (in this browser, until it changes).
-const CLOSE_SHOWN = 5;
-let closeAll = false;
-function closeHtml(path, handle) {
-  const mine = path.startsWith('views/maintainer/') && handle && handle !== 'none';
-  const team = path.startsWith('views/team/');
-  if (!mine && !team) return '';
-  const who = (handle || '').toLowerCase();
-  const theirs = team && teamName();
-  const seen = new Set();
-  const prs = store.packages
-    .filter((p) => !team || !p.teamsByList?.includes(theirs))
-    .flatMap((p) => (p.supersededPRs || []).map((pr) => ({ ...pr, pkg: p.name })))
-    .filter((pr) => !seen.has(pr.number) && seen.add(pr.number))
-    .sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : 0));
-  if (!prs.length) return '';
-  const hiddenN = prs.filter(isPrHidden).length;
-  const listed = showHiddenPrs ? prs : prs.filter((p) => !isPrHidden(p));
-  if (!listed.length) return '';
-  const shown = closeAll ? listed : listed.slice(0, CLOSE_SHOWN);
-  const days = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 86400000));
-  const line = (p) => {
-    const own = mine && p.author.toLowerCase() === who;
-    const facts = [
-      own ? html`<b>your own PR</b>` : `by @${p.author}`,
-      html`<span title="Opened ${new Date(p.created).toLocaleDateString()}">open ${fmt(days(p.created))} days</span>`,
-      p.init
-        ? html`nixpkgs has it now (<span class="mono">${p.now}</span>), added another way`
-        : html`nixpkgs has <span class="mono">${p.now}</span>`,
-      p.draft && 'a draft',
-    ].filter(Boolean);
-    const hidden = isPrHidden(p);
-    return html`<li${hidden ? raw(' class="is-hidden"') : ''}><a class="files-link" href="https://github.com/NixOS/nixpkgs/pull/${p.number}" target="_blank" rel="noopener">${p.title}</a> <span class="merge-n">#${p.number}</span><button type="button" class="merge-hide" data-pr="${p.number}" title="${hidden ? 'Shown again here' : 'Leave it out of this list, in this browser only, until it changes'}">${hidden ? 'Show it again' : 'Hide'}</button><span class="merge-facts">${facts.map((f, i) => html`${i ? ' · ' : ''}${f}`)}</span></li>`;
-  };
-  const n = listed.length;
-  // Init PRs for a package nixpkgs has now among them (prs_digest.mark_superseded).
-  const inits = listed.filter((p) => p.init).length;
-  const kind = !inits ? 'update PR' : inits === n ? 'init PR' : 'PR';
-  const why = !inits
-    ? 'nixpkgs already has their version or a newer one'
-    : inits === n
-      ? 'nixpkgs has the package they add now'
-      : 'nixpkgs already has their version or a newer one, or the package they add';
-  const more =
-    listed.length > CLOSE_SHOWN
-      ? html`<button type="button" class="merge-more" data-close-more>${closeAll ? 'Show fewer' : `Show all ${fmt(listed.length)}`}</button>`
-      : '';
-  return html`<section class="merge-block close-block" aria-labelledby="closeHead">
-    <h3 id="closeHead">${n === 1 ? `This ${kind} can` : html`These ${fmt(n)} ${kind}s can`} be closed <span class="scope-hint">${why}${hiddenN && !showHiddenPrs ? html` · ${fmt(hiddenN)} hidden` : ''}</span></h3>
-    <ul class="merge-list">${shown.map(line)}</ul>
-    ${more}
-    <p class="merge-how">${
-      !inits
-        ? 'Close it with a word on why (nixpkgs has a newer version), or update it to the newest.'
-        : inits === n
-          ? "Close it with a word on why (nixpkgs has the package now), or turn it into an update of nixpkgs' package."
-          : 'Close it with a word on why (nixpkgs has a newer version, or has the package now), or update it to the newest.'
-    }${
-      store.community && store.manifest.views?.superseded
-        ? html` <a class="files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded">All ${fmt(store.manifest.views.superseded)} packages with one, in all of nixpkgs →</a>`
-        : ''
-    }</p>
-  </section>`;
 }
 
 function loadNames() {
@@ -1951,7 +1765,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     // Maintainers, not packages: paged by their own count (maintainersHtml).
     if (!keepPage) state.pageNum = 1;
     shown = [];
-    content.innerHTML = maintainersHtml();
+    content.innerHTML = maintainersHtml(pagerHtml);
     writeViewToUrl();
     return;
   }
@@ -2167,7 +1981,7 @@ function listHeaderHtml() {
       ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(state.setFilter)}${profileOf(state.setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(state.setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
       ${teamPicker('Any team')}${teamOutChips()}
     </div>
-    ${mergeHtml(path, handle)}
+    ${mergeHtml(path, handle, loadMerge)}
     ${closeHtml(path, handle)}
     ${
       // One package: its row says it all, the tiles would only count to 1.
@@ -2229,31 +2043,6 @@ function maintainerMatchesHtml(query) {
     <div class="other-label">${typed && total > others.length ? 'Other maintainers' : 'Maintainers'} matching @${typed}${total > found.length ? html`, the first ${found.length}` : ''}</div>
     <ul class="maint-list">${others.map(maintainerItem)}</ul>
   </div>`;
-}
-
-// One maintainer: their handle (opening their packages) and counts.
-function maintainerItem([handle, count, outdated, failing]) {
-  return html`<li><a class="files-link" href="${maintainerHref(handle)}" data-maintainer="${handle}">@${handle}</a><span class="maint-n">${fmt(count)} ${count === 1 ? 'package' : 'packages'}${outdated ? html` · <span class="warn-text">${fmt(outdated)} outdated</span>` : ''}${failing ? html` · <span class="danger-text">${fmt(failing)} failing</span>` : ''}</span></li>`;
-}
-function maintainerHref(handle) {
-  const params = new URLSearchParams(new URL(scopeHref({}), location.href).search);
-  params.set('maintainer', handle);
-  return `${location.pathname}?${params.toString()}`;
-}
-
-// ?view=maintainers: every maintainer, by handle, a page at a time; the
-// search narrows them (an @ in front or not).
-function maintainersHtml() {
-  if (!store.maintainersList) return html`<div class="empty">Loading the maintainers…</div>`;
-  const query = document.getElementById('search').value.trim();
-  const list = query
-    ? maintainerMatches(store.maintainersList, query, Infinity).found
-    : store.maintainersList;
-  if (!list.length) return html`<div class="empty">No maintainer matches “${query}”.</div>`;
-  const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
-  state.pageNum = Math.min(state.pageNum, pages);
-  const page = list.slice((state.pageNum - 1) * state.pageSize, state.pageNum * state.pageSize);
-  return html`<ul class="maint-list maint-page">${page.map(maintainerItem)}</ul>${pagerHtml(list.length, pages)}`;
 }
 
 function moreMatchesHtml() {
@@ -2978,17 +2767,17 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('button.merge-hidden-toggle')) {
-    showHiddenPrs = !showHiddenPrs;
+    maintainerView.showHiddenPrs = !maintainerView.showHiddenPrs;
     renderScope();
     return;
   }
   if (e.target.closest('button[data-close-more]')) {
-    closeAll = !closeAll;
+    maintainerView.closeAll = !maintainerView.closeAll;
     renderScope();
     return;
   }
   if (e.target.closest('button.merge-more')) {
-    mergeAll = !mergeAll;
+    maintainerView.mergeAll = !maintainerView.mergeAll;
     renderScope();
     return;
   }
