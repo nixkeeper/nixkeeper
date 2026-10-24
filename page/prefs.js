@@ -48,4 +48,7 @@ export function pruneHidden(list) {
     remember(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
 }
 
-export const isHidden = (pkg) => hiddenPrints[pkg.name] === attentionPrint(pkg, store.checkedAt);
+// Its print worked out only for one hidden here: the filters ask for every
+// package, and working out each print took 55 ms over 13,913.
+export const isHidden = (pkg) =>
+  pkg.name in hiddenPrints && hiddenPrints[pkg.name] === attentionPrint(pkg, store.checkedAt);

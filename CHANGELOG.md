@@ -90,6 +90,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   nothing asked (`is:` before its value, a space) draws nothing, and the
   list waits 250 ms (was 150) after the last key. Typing `is:builds f`
   at 0.15 s a key: 22 long tasks, 6.9 s in all, before; 3, 0.25 s, after.
+- **Each redraw while typing is quicker too** (about 115 ms to under
+  50): the search box was parsed again for every package (the
+  maintainer's page filter asks for its text), and "Hide until it
+  changes" worked out every package's print to find the few hidden; now
+  the box is parsed once for each value, and a print only for a package
+  hidden here.
 - **One option highlighted in the search menu**: the pointer moves it, as
   the arrows do, rather than one hovered and another picked by the keys
   both looking selected.

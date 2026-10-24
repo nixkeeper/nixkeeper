@@ -280,7 +280,15 @@ export function writeQuery(st, text, { FILTERS, PLATFORMS } = known) {
 }
 
 // The search box's free text: what's searched for by name, or @handle.
-export const searchText = () => parseQuery(document.getElementById('search').value).text;
+// Parsed once for each value the box has: the filters ask for it for every
+// package (inPeople's shownHandle), and parsing at each took 150 ms a
+// redraw with qualifiers typed.
+let parsedBox = { value: null, text: '' };
+export const searchText = () => {
+  const { value } = document.getElementById('search');
+  if (value !== parsedBox.value) parsedBox = { value, text: parseQuery(value).text };
+  return parsedBox.text;
+};
 
 // The box written from the state, with text as its free text (the box's
 // own, by default). Not while it's being typed in (what's typed stays),
