@@ -1006,7 +1006,7 @@ def write(
     """
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     tmp_dir = out_dir + ".tmp"
-    _restore_interrupted_swap(out_dir)
+    restore_interrupted_swap(out_dir)  # its caller holds the lock
     shutil.rmtree(tmp_dir, ignore_errors=True)  # leftover from a failed run
     os.makedirs(tmp_dir)
     written = files(index, entries, history, fixed, events)
@@ -1025,7 +1025,7 @@ def _swap_in(new_dir, out_dir):
     The old folder is moved aside before the new one is moved in, rather
     than deleted first: the data is then missing only between two renames,
     not while a whole folder is deleted, and a run that dies between them
-    leaves the old data in <out_dir>.old, which _restore_interrupted_swap
+    leaves the old data in <out_dir>.old, which restore_interrupted_swap
     puts back.
 
     Args:
@@ -1040,15 +1040,29 @@ def _swap_in(new_dir, out_dir):
     shutil.rmtree(old_dir, ignore_errors=True)
 
 
-def _restore_interrupted_swap(out_dir):
-    """Put the last data back if a swap was interrupted.
+def restore_interrupted_swap(out_dir=None):
+    """Tidy up after a swap that a run didn't finish.
+
+    Only to be called with the data folder's lock held (lock.held calls it):
+    it moves folders, and another run in the middle of _swap_in would then
+    see them change under it.
 
     A run that died between _swap_in's two renames leaves no data folder
-    and the last data in <out_dir>.old: that data is moved back, so the
-    run that follows reads it as the previous run's.
+    and the last data in <out_dir>.old: that data is moved back, so the run
+    that follows reads it as the previous run's. A run that died after
+    both renames leaves the data folder and a stale <out_dir>.old: the old
+    folder is removed.
+
+    Args:
+        out_dir: The data folder (the configured one by default).
     """
+    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     old_dir = out_dir + ".old"
-    if not os.path.exists(out_dir) and os.path.isdir(old_dir):
+    if not os.path.isdir(old_dir):
+        return
+    if os.path.exists(out_dir):
+        shutil.rmtree(old_dir, ignore_errors=True)
+    else:
         os.rename(old_dir, out_dir)
 
 
@@ -1066,7 +1080,7 @@ def update(index, entries, out_dir=None):
         out_dir: The data folder (the configured one by default).
     """
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
-    _restore_interrupted_swap(out_dir)
+    restore_interrupted_swap(out_dir)  # its caller holds the lock
     written = files(index, entries)
     _check_shape(written)
     for name, data in written.items():
@@ -1095,6 +1109,7 @@ def _remove_extra_shards(out_dir, count):
     """
     rows_dir = os.path.join(out_dir, "rows")
     for name in os.listdir(rows_dir) if os.path.isdir(rows_dir) else []:
+        # SHARD_FILE matches a shard's path in data/, as the checks see it.
         shard = SHARD_FILE.fullmatch(f"rows/{name}")
         if shard and int(shard.group(1)) >= count:
             os.remove(os.path.join(rows_dir, name))
@@ -1122,7 +1137,6 @@ def load(out_dir=None):
     Repology entries: entries()), whichever format it was written in; an
     empty one if there's none or it can't be read."""
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
-    _restore_interrupted_swap(out_dir)
     try:
         index = _load(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):

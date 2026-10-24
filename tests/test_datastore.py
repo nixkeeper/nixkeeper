@@ -4,7 +4,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-from nixkeeper import datastore
+from nixkeeper import datastore, lock
 from nixkeeper.datastore import data_file, write
 
 ENTRIES = [{"repo": "nix_unstable", "version": "1.18.5"}]
@@ -257,10 +257,9 @@ class Output(unittest.TestCase):
         self.assertEqual(datastore.saved_entries(self.out), {})
         self.assertEqual(datastore.saved_entries(os.path.join(self.dir.name, "x")), {})
 
-    def test_a_swap_cut_short_leaves_the_last_data(self):
-        # A run that dies between moving the old data aside and moving the
-        # new data in: the last data waits in data.old, and the next run
-        # (reading the previous data, or writing) puts it back.
+    def cut_short(self):
+        """A swap that dies between moving the old data aside and moving
+        the new data in: the last data waits in data.old."""
         write({"packages": [{"name": "last"}]}, {}, self.out)
         real_rename = os.rename
 
@@ -276,20 +275,35 @@ class Output(unittest.TestCase):
             write({"packages": [{"name": "new"}]}, {}, self.out)
         self.assertFalse(os.path.exists(self.out))
         self.assertTrue(os.path.isdir(self.out + ".old"))
-        rows = datastore.load(self.out)["packages"]
+
+    def test_a_swap_cut_short_is_undone_under_the_lock(self):
+        self.cut_short()
+        with lock.held(self.out):
+            rows = datastore.load(self.out)["packages"]
         self.assertEqual([row["name"] for row in rows], ["last"])
         self.assertFalse(os.path.exists(self.out + ".old"))
+
+    def test_load_reads_only(self):
+        # Without the lock, a swap may be under way: load changes nothing.
+        self.cut_short()
+        self.assertEqual(datastore.load(self.out), {"packages": []})
+        self.assertFalse(os.path.exists(self.out))
+        self.assertTrue(os.path.isdir(self.out + ".old"))
+
+    def test_a_stale_old_folder_is_removed(self):
+        # A run that died after both renames, before removing data.old.
+        write({"packages": [{"name": "new"}]}, {}, self.out)
+        os.makedirs(self.out + ".old")
+        with lock.held(self.out):
+            pass
+        self.assertFalse(os.path.exists(self.out + ".old"))
+        self.assertEqual(datastore.load(self.out)["packages"][0]["name"], "new")
 
     def test_update_removes_shards_past_the_new_count(self):
         write({"packages": [{"name": f"pkg{i}"} for i in range(1200)]}, {}, self.out)
         self.assertEqual(
             sorted(os.listdir(os.path.join(self.out, "rows"))),
-            [
-                "0.json",
-                "1.json",
-                "2.json",
-                "3.json",
-            ],
+            [f"{n}.json" for n in range(4)],
         )
         datastore.update({"packages": [{"name": "pkg0"}]}, {}, self.out)
         self.assertEqual(os.listdir(os.path.join(self.out, "rows")), ["0.json"])

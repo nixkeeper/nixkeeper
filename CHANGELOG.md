@@ -107,11 +107,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
-- The data folder no longer goes missing while a sync writes it: the old
-  data moves aside before the new moves in (it was deleted first), so
-  `nixkeeper serve` or the NixOS service never finds no data while a whole
-  folder is deleted. A run that dies between the two moves leaves the old
-  data in `data.old`, and the next run puts it back.
+- While a sync writes the data folder, the data is missing only for the
+  moment between two renames, rather than while the old folder is
+  deleted: the old data moves aside before the new moves in. A run that
+  dies between the two moves leaves the old data in `data.old`, and the
+  next run puts it back once it holds the folder's lock.
 - The hourly checks remove the shard files (`rows/<n>.json`) past the
   data's shard count, left over when there are fewer rows than at the
   last sync. Readers never opened them, but the folder now matches what a
