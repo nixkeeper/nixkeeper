@@ -52,6 +52,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- **The overview has one search box**, the one at the top (with its menu),
+  rather than a second one under the tiles: the team picker and "browse
+  every maintainer" stay there. Maintainers are found by handle on
+  "browse every maintainer", the box narrowing them as you type.
 - The page in modules: the overview in `page/overview.js`, a maintainer's
   page in `page/maintainer-view.js`, the list in `page/list.js` and its
   filters in `page/filters.js`, each view wiring its own controls, a

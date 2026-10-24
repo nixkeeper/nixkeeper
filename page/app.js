@@ -268,26 +268,16 @@ async function fullRow(pkg) {
 // With every package: load the view the address asks for (viewPath) into
 // `packages`, unless it's there already. A maintainer, team or list with no
 // file has no packages here. Throws if a view can't be loaded.
-// Typing @someone in the overview's own box: the overview stays (that box
-// with it), showing the maintainers who match, until one is picked, Enter
-// is pressed or the box is left; the top search opens theirs at once.
-const typingHandleOnOverview = () =>
-  store.shownView === 'overview' &&
-  document.activeElement?.id === 'overviewSearch' &&
-  searchText().trim().startsWith('@');
-
 async function ensureView() {
-  const path = typingHandleOnOverview()
-    ? 'overview'
-    : viewPath({
-        pkg: state.pkgParam,
-        query: searchText(),
-        team: state.teamFilter,
-        list: state.listFilter,
-        set: state.setFilter,
-        view: state.viewParam,
-        cause: state.causeFilter,
-      });
+  const path = viewPath({
+    pkg: state.pkgParam,
+    query: searchText(),
+    team: state.teamFilter,
+    list: state.listFilter,
+    set: state.setFilter,
+    view: state.viewParam,
+    cause: state.causeFilter,
+  });
   // Something else shown instead (a package, a maintainer...): ?set= and
   // ?view= no longer apply, and nothing on the page would take them off
   // again (a set's filter would hide every row: the other views leave out
@@ -716,9 +706,6 @@ function renderScope() {
   const query = searchText();
   const more = el.querySelector('.overview-more');
   if (more) more.hidden = Boolean(query.trim());
-  // Typed in the top search: the overview's box says the same.
-  const box = document.getElementById('overviewSearch');
-  if (box && box !== document.activeElement && box.value !== query) box.value = query;
 }
 
 // Show a view: set (a generated set), pkg (one package), neither: what needs
@@ -1091,24 +1078,6 @@ function showMyTeam(show) {
   update();
 }
 
-// The overview's own search box: the page's search, from there.
-document.addEventListener('input', (e) => {
-  if (e.target.id !== 'overviewSearch') return;
-  const search = document.getElementById('search');
-  // Its text with the filters the top box says (the overview's box holds a
-  // name or @handle only).
-  search.value = writeQuery(state, e.target.value);
-  search.dispatchEvent(new Event('input'));
-});
-// Enter, or leaving it, with @someone typed there: their packages.
-document.addEventListener('keydown', (e) => {
-  if (e.target.id !== 'overviewSearch' || e.key !== 'Enter') return;
-  if (e.target.value.trim().startsWith('@')) e.target.blur();
-});
-document.addEventListener('focusout', (e) => {
-  if (e.target.id !== 'overviewSearch') return;
-  if (e.target.value.trim().startsWith('@')) setTimeout(update); // after a click lands
-});
 document.addEventListener('change', (e) => {
   if (e.target.id !== 'teamPick') return;
   // A team's packages, from all of nixpkgs (not within a set or a package).

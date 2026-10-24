@@ -32,10 +32,6 @@ export function platformSplit(on) {
   return html`<span class="card-sub" title="Packages whose own build fails there: ${systems}. A package failing on both Linux systems counts once for Linux; on Linux and Darwin (macOS), once for each. Narrow the list by platform under its tiles.">Linux ${fmt(on.linux)} · Darwin ${fmt(on.darwin || 0)}</span>`;
 }
 
-// A magnifying glass, for the overview's search (currentColor).
-export const SEARCH_ICON =
-  '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.75"/><path d="m10.5 10.5 3.5 3.5"/></svg>';
-
 // The overview's cards: the manifest's count, which list they open
 // (?view=, ?filter=), and history.json's key.
 export const CARDS = [
@@ -407,11 +403,7 @@ export function overviewHtml() {
     <h2 class="scope-label">Fully checked${trends ? `, last ${trendSpan(points)} days` : ''} · each opens its list${trends ? '' : html` <span class="scope-hint">(trends from the second daily sync)</span>`}</h2>
     <div class="cards">${cards}</div>${trends ? marksHtml(points) : ''}
 
-    <div class="find" role="search">
-      <label class="find-box"><span class="find-icon" aria-hidden="true">${raw(SEARCH_ICON)}</span>
-        <input type="search" id="overviewSearch" class="find-input" placeholder="Find a package, or @maintainer" aria-label="Find a package, or @maintainer" value="${document.getElementById('search').value}"></label>
-      ${teamPicker('Browse a team…')}
-    </div>
+    <div class="find">${teamPicker('Browse a team…')}</div>
     <p class="find-more">or <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">browse every maintainer</a></p>
     <div class="overview-more">${highlightsHtml()}${causesHtml()}${fixedHtml()}${setsHtml(sets)}${numbersHtml()}</div>`;
 }

@@ -1084,56 +1084,13 @@ button.checked:focus-visible {
 .hl-all:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
-/* The overview's search: large and centred, the team picker beside it. */
+/* The overview's team picker, centred under the cards (the top box is the
+   search). */
 .find {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
-  width: min(100%, 720px);
+  width: min(100%, 360px);
   margin: 14px auto 10px;
-}
-.find-box {
-  position: relative;
-  flex: 3 1 320px;
-  display: flex;
-  align-items: center;
-}
-.find-icon {
-  position: absolute;
-  left: 14px;
-  display: flex;
-  color: var(--ink-faint);
-  pointer-events: none;
-}
-.find-input {
-  width: 100%;
-  height: 44px;
-  font: inherit;
-  font-size: 15px;
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--hairline-strong);
-  border-radius: 10px;
-  padding: 0 14px 0 40px;
-  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.find-input::placeholder {
-  color: var(--ink-faint);
-}
-.find-input:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
-}
-.find-input:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.find-box:focus-within .find-icon {
-  color: var(--accent);
 }
 .tiles {
   display: grid;

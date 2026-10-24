@@ -46,12 +46,11 @@ list. From the top:
   (a staging-next day links its PR). nixkeeper's own releases aren't
   marked: the footer says the version, and one that changes counting has
   its own mark.
-- **A search box** (a package's name, or `@handle`) and a team picker. While
-  searching, the matches take the place of what follows, which comes back
-  once the search is cleared. Typing `@` and part of a handle suggests the
-  maintainers whose handle matches, with their counts (the overview stays
-  while you type: a click or Enter opens theirs); "browse every maintainer"
-  (`?view=maintainers`) lists them all by handle, the search narrowing them.
+- **A team picker**, and "browse every maintainer" (`?view=maintainers`),
+  listing them all by handle, the search box narrowing them as you type.
+  The search box at the top searches from here too: a package's name lists
+  the matches in all of nixpkgs in place of what follows, which comes back
+  once the search is cleared; `@handle` opens a maintainer's packages.
 - **The newest and longest-standing** build failures, outdated packages
   (not those whose update is merged and only waits for the channel) and
   update failures (a switch on each), and "show all" for the whole list.
