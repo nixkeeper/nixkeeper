@@ -986,7 +986,7 @@
   "sopwith"
   "source2viewer-cli"
   "space-cadet-pinball"
-  "space-station-14-launcher"
+  "ss14-launcher"
   "spaghettikart"
   "speed-dreams"
   "spicy"
