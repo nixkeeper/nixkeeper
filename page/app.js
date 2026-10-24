@@ -10,6 +10,7 @@ import {
   renderLists,
   renderStats,
   rowHtml,
+  searchValues,
   wireList,
 } from './list.js';
 import {
@@ -44,7 +45,14 @@ import {
 import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
-import { parseQuery, readBox, searchText, showQuery, writeQuery } from './search.js';
+import {
+  parseQuery,
+  readBox,
+  searchText,
+  showQuery,
+  wireSearchMenu,
+  writeQuery,
+} from './search.js';
 import { failedBuilds, PAGE_SIZES, readState, scopeHref, state, writeState } from './state.js';
 import { store } from './store.js';
 import { fmt } from './ui.js';
@@ -993,6 +1001,8 @@ const pageHooks = {
 wireList(pageHooks);
 wireOverview(pageHooks);
 wireMaintainerView(pageHooks);
+// The search box's menu: the qualifiers, then their values with counts.
+wireSearchMenu(searchValues);
 
 // The search's matches in all of nixpkgs: the next ones, or every one again
 // (moreMatchesHtml).
@@ -1115,6 +1125,8 @@ document.addEventListener('keydown', (e) => {
   const search = document.getElementById('search');
   if (e.key === '/' && !e.target.closest('input, textarea') && !search.disabled) {
     e.preventDefault();
+    // The caret at the end: the menu offers what comes next.
+    search.setSelectionRange(search.value.length, search.value.length);
     search.focus();
   } else if (
     // Typing with the list focused (a row): into the search, as it filters

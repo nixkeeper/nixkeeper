@@ -9,7 +9,7 @@ globalThis.document = { getElementById: () => ({ value: '' }) };
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { KNOWN } = await import('../../page/filters.js');
-const { parseQuery, queryFields, writeQuery } = await import('../../page/search.js');
+const { parseQuery, queryFields, suggest, writeQuery } = await import('../../page/search.js');
 const { readState } = await import('../../page/state.js');
 
 // A query's state: what it sets, the rest as when it says nothing.
@@ -100,5 +100,44 @@ describe('writeQuery', () => {
     assert.equal(st.activeFilter, 'all');
     assert.equal(st.refines.size, 0);
     assert.equal(st.sortMode, 'pressing');
+  });
+});
+
+describe('suggest', () => {
+  const values = {
+    is: [
+      { value: 'outdated', label: 'outdated', count: 120 },
+      { value: 'builds', label: 'build failures', count: 33 },
+      { value: 'broken', label: 'marked broken', count: 4 },
+    ],
+    team: [
+      { value: 'Security review', count: 12 },
+      { value: 'gaming', count: 40 },
+    ],
+  };
+  const texts = (found) => found?.items.map((i) => i.text);
+  test("a word's start: the qualifiers it begins", () => {
+    assert.deepEqual(texts(suggest('wine o', 6, values)), ['on:', 'ofteam:', 'order:']);
+    assert.equal(suggest('wine o', 6, values).start, 5);
+    assert.deepEqual(texts(suggest('-t', 2, values)), ['-team:']);
+  });
+  test('after a qualifier: its values, by what they begin with or are called', () => {
+    assert.deepEqual(texts(suggest('is:b', 4, values)), ['is:builds', 'is:broken']);
+    assert.deepEqual(texts(suggest('is:fail', 7, values)), ['is:builds']); // "build failures"
+    const found = suggest('is:', 3, values);
+    assert.equal(found.items[0].count, 120);
+    assert.equal(found.items[0].done, true);
+  });
+  test('a value with spaces, quoted', () => {
+    assert.deepEqual(texts(suggest('team:sec', 8, values)), ['team:"Security review"']);
+  });
+  test('nothing for a name, an @handle, or a word typed whole', () => {
+    assert.equal(suggest('python3', 7, values), null);
+    assert.equal(suggest('@alice', 6, values), null);
+    assert.equal(suggest('is:builds', 9, values), null);
+  });
+  test('the word at the caret, not the last one', () => {
+    const found = suggest('is:b wine', 4, values);
+    assert.deepEqual([found.start, found.end], [0, 4]);
   });
 });

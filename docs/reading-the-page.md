@@ -251,6 +251,12 @@ left as typed and said under the box ("no is:biulds: is:builds?"), the box
 outlined; the rest of what's typed applies. Escape clears the name or
 `@handle`, and keeps the filters.
 
+A menu under the box offers what can be typed: entering the box, or after
+a space, the qualifiers; after one (`is:`, `on:`, `team:`...), its values,
+with how many of the list's packages each has. The arrows move in it,
+Enter or Tab picks the one moved to (Enter alone still searches), a click
+picks, and Escape closes it.
+
 The words are the address's own:
 
 | Words | Sets | In the address |

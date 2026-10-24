@@ -36,6 +36,7 @@ import {
   inPickedSet,
   isVulnerable,
   midway,
+  NAME_STATUSES,
   nameSet,
   neverBuiltOn,
   nothingCompared,
@@ -60,7 +61,7 @@ import {
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
 import { isHidden, remember } from './prefs.js';
-import { searchText } from './search.js';
+import { REFINE_WORDS, searchText } from './search.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';
 import { store } from './store.js';
 import {
@@ -151,7 +152,7 @@ export const teamOutChips = () =>
 // with how many of the list's packages it is (as the tiles count: the
 // other filters but this one), the commonest first; those with none left
 // out, but the one picked.
-export function becausePick() {
+export function becauseCounts() {
   const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && failedBecause(p),
   );
@@ -160,6 +161,10 @@ export function becausePick() {
     const why = failedBecause(p);
     counts[why] = (counts[why] || 0) + 1;
   }
+  return counts;
+}
+export function becausePick() {
+  const counts = becauseCounts();
   const label = (key) => (key === 'noLog' ? 'build, no log' : FAILED_BECAUSE[key]?.short || key);
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
   if (state.becauseFilter && !keys.includes(state.becauseFilter)) keys.push(state.becauseFilter);
@@ -174,7 +179,7 @@ export function becausePick() {
 // (from their logs, nixkeeper-hydra), each with how many of the list's
 // packages have a failed build for it (on the platform picked), the
 // commonest first; as becausePick.
-export function buildFailedPick() {
+export function buildFailedCounts() {
   const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && failedBuilds(p).length,
   );
@@ -182,6 +187,10 @@ export function buildFailedPick() {
   for (const p of base)
     for (const why of buildFailedBecause(p, state.platformFilter))
       counts[why] = (counts[why] || 0) + 1;
+  return counts;
+}
+export function buildFailedPick() {
+  const counts = buildFailedCounts();
   // Not before nixkeeper-hydra read any: nothing to pick from.
   if (!Object.keys(counts).some((k) => k !== 'unread') && !state.buildFailedFilter) return '';
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
@@ -1572,4 +1581,65 @@ export function wireList(page) {
     state.activeFilter = tile.dataset.filter === state.activeFilter ? 'all' : tile.dataset.filter;
     page.update();
   });
+}
+
+// What the search box's menu offers after each qualifier (search.js's
+// suggest), with how many of the list each would keep where the page
+// counts them already: the tiles (as renderStats), the platforms, sets
+// and maintainers (the facets), the reasons (their picks), the teams. No
+// counts on the overview, which lists no packages.
+export function searchValues() {
+  const counted = store.packages.length > 0;
+  const base = store.packages.filter(
+    (p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p),
+  );
+  const facets = counted ? facetOptions() : { sets: [], by: [], platforms: {} };
+  const tiles = Object.entries(FILTERS)
+    .filter(([, f]) => f.param)
+    .map(([key, f]) => ({
+      value: f.param,
+      label: f.label,
+      ...(counted ? { count: base.filter((p) => f.test(p) && refined(p, key)).length } : {}),
+    }));
+  const refines = Object.entries(REFINE_WORDS).map(([key, word]) => ({
+    word,
+    label: REFINES[key]?.label || key,
+  }));
+  const words = (prefix) =>
+    refines
+      .filter((r) => r.word.startsWith(`${prefix}:`))
+      .map((r) => ({ value: r.word.slice(prefix.length + 1), label: r.label }));
+  const reasons = (counts, names) =>
+    Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([value, count]) => ({ value, label: names(value), count }));
+  const teams = Object.entries(store.manifest?.views?.teams || {})
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    .map(([value, count]) => ({ value, count }));
+  return {
+    is: [...tiles, ...words('is')],
+    '-is': words('-is'),
+    has: [...words('has'), { value: 'newer', label: 'a newer version known' }],
+    '-has': [...words('-has'), { value: 'newer', label: 'no newer version known' }],
+    age: Object.entries(AGES).map(([value, label]) => ({ value, label: `older than ${label}` })),
+    on: Object.entries(PLATFORMS).map(([key, p]) => ({
+      value: p.param,
+      label: p.label,
+      ...(counted ? { count: facets.platforms[key] } : {}),
+    })),
+    in: facets.sets.map(([value, count]) => ({ value, count })),
+    by: facets.by.map(([value, count]) => ({ value, count })),
+    team: [...teams, { value: 'none', label: 'not via a team' }],
+    '-team': teams,
+    build: counted
+      ? reasons(buildFailedCounts(), (k) => BUILD_FAILED[k]?.short || k)
+      : Object.entries(BUILD_FAILED).map(([value, r]) => ({ value, label: r.short })),
+    update: counted
+      ? reasons(becauseCounts(), (k) => FAILED_BECAUSE[k]?.short || k)
+      : Object.entries(FAILED_BECAUSE).map(([value, r]) => ({ value, label: r.short })),
+    status: Object.entries(NAME_STATUSES).map(([value, label]) => ({ value, label })),
+    ofteam: teams,
+    sort: Object.entries(SORTS).map(([value, label]) => ({ value, label })),
+    order: [{ value: 'reverse', label: 'the other way round' }],
+  };
 }

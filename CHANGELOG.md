@@ -19,6 +19,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   understood is said under the box with what was likely meant ("no
   is:biulds: is:builds?"). Addresses are as before; `?q=` takes the words
   too. The syntax in reading-the-page.md.
+- **A menu under the search box**, as GitHub's: on entering the box, or
+  after a space, the qualifiers (`is:`, `on:`, `age:`...); after one, its
+  values with how many packages each has (`is:builds` 1,242, `on:darwin`
+  636), teams and package sets included. Arrows move in it, Enter or Tab
+  picks, Escape closes it. The box is wider, and more so while typed in,
+  as the header has room.
 - **The update a build has failed since**: a failure at another version
   than it last built at says so in the builds panel, "at 1.2.4, since its
   update (#575734) · last built at 1.1.0", with the PR when nixkeeper-prs'

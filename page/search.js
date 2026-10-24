@@ -7,6 +7,7 @@
 // package) stays the address's: not in the box.
 
 import {
+  html,
   maintainersParam,
   NAME_STATUSES,
   parseMaintainers,
@@ -16,7 +17,7 @@ import {
 import { known, state } from './state.js';
 
 // The refines (REFINES keys), as qualifiers.
-const REFINE_WORDS = {
+export const REFINE_WORDS = {
   unmaintained: '-has:maintainer',
   notbroken: '-is:broken',
   notonmaster: '-is:merged',
@@ -142,10 +143,8 @@ export function parseQuery(query, { FILTERS, SORTS, PLATFORMS, REFINES, AGES } =
       );
       continue;
     }
-    if (!value) {
-      problem(token, `${key}: needs a value`);
-      continue;
-    }
+    // Not finished yet (is:): nothing set, and nothing to say.
+    if (!value) continue;
     const word = `${neg}${key}:${value}`;
     if ((key === 'is' || key === 'has') && refine(word)) continue;
     if (key === 'is' && !neg && tileParams[value]) fields.activeFilter = tileParams[value];
@@ -261,4 +260,177 @@ export function readBox() {
   const { fields, problems } = parseQuery(document.getElementById('search').value);
   Object.assign(state, queryFields(fields));
   return problems;
+}
+
+// The qualifiers the menu offers at a word's start, each with what it does.
+export const QUALIFIERS = [
+  ['is:', 'a tile, or what a package is'],
+  ['-is:', 'what a package is not'],
+  ['has:', 'an open PR, a newer version...'],
+  ['-has:', 'without one'],
+  ['age:', 'failing or outdated for longer than'],
+  ['on:', 'a platform'],
+  ['in:', 'a package set'],
+  ['by:', 'a maintainer, within the list'],
+  ['team:', "a team's packages"],
+  ['-team:', 'a team left out'],
+  ['-maintainer:', 'a maintainer left out'],
+  ['build:', 'why a build failed'],
+  ['update:', 'why an update failed'],
+  ['status:', 'in all of nixpkgs: their status'],
+  ['ofteam:', 'in all of nixpkgs: their team'],
+  ['sort:', 'the order'],
+  ['order:', 'the other way round'],
+];
+
+// What the menu offers for the word at caret in text: { start, end (the
+// word's span), items: [{ text (to put there), label, count?, done (a
+// whole qualifier: false for a key still wanting its value) }] }, or null.
+// At a word's start, the qualifiers it begins; after one, its values
+// (values: { is: [{ value, label?, count? }], ... }, from list.js) that
+// begin with, or are labelled with, what's typed. A name or @handle: none.
+export function suggest(text, caret, values, shown = 12) {
+  const start = text.lastIndexOf(' ', caret - 1) + 1;
+  const space = text.indexOf(' ', caret);
+  const end = space < 0 ? text.length : space;
+  const word = text.slice(start, end);
+  if (word.startsWith('@')) return null;
+  const m = word.match(/^(-?[A-Za-z]+):(.*)$/);
+  if (m) {
+    const key = m[1].toLowerCase();
+    const typed = m[2].replace(/^"/, '').replace(/"$/, '').toLowerCase();
+    const items = (values[key] || [])
+      .filter(
+        (v) =>
+          v.value.toLowerCase().startsWith(typed) ||
+          (typed && v.label?.toLowerCase().includes(typed)),
+      )
+      .slice(0, shown)
+      .map((v) => ({
+        text: `${m[1]}:${/\s/.test(v.value) ? `"${v.value}"` : v.value}`,
+        label: v.label || '',
+        ...(v.count != null ? { count: v.count } : {}),
+        done: true,
+      }));
+    // Typed whole already, and the only one: nothing to offer.
+    if (items.length === 1 && items[0].text.toLowerCase() === word.toLowerCase()) return null;
+    return items.length ? { start, end, items } : null;
+  }
+  const typed = word.toLowerCase();
+  const items = QUALIFIERS.filter(([k]) => k.startsWith(typed)).map(([k, label]) => ({
+    text: k,
+    label,
+    done: false,
+  }));
+  // A word that begins none is a name: no menu.
+  return items.length ? { start, end, items } : null;
+}
+
+// The box's menu (a combobox's listbox, #searchMenu): what suggest offers
+// for the word being typed. Arrows move in it, Enter or Tab picks the one
+// moved to (not before: Enter on a name stays a search), a click picks,
+// Escape closes it (the box's own Escape next time). It opens on focus
+// and wherever the caret goes, as on GitHub: in an empty box, or after a
+// space, it lists the qualifiers. values: () => the values (list.js's
+// searchValues).
+export function wireSearchMenu(values) {
+  const box = document.getElementById('search');
+  const menu = document.getElementById('searchMenu');
+  let found = null;
+  let active = -1;
+  const close = () => {
+    found = null;
+    active = -1;
+    menu.hidden = true;
+    menu.innerHTML = '';
+    box.setAttribute('aria-expanded', 'false');
+    box.removeAttribute('aria-activedescendant');
+  };
+  const draw = () => {
+    menu.innerHTML = found.items
+      .map(
+        (it, i) =>
+          html`<div role="option" id="searchOption${i}" class="search-option" data-i="${i}" aria-selected="${i === active}"><span class="so-text">${it.text}</span><span class="so-label">${it.label}</span>${
+            it.count != null ? html`<span class="so-count">${it.count.toLocaleString()}</span>` : ''
+          }</div>`,
+      )
+      .join('');
+    if (active >= 0) box.setAttribute('aria-activedescendant', `searchOption${active}`);
+    else box.removeAttribute('aria-activedescendant');
+  };
+  // next: on focus or a click, the caret at the end of a word the menu has
+  // nothing for (a name, a whole one): the qualifiers, as the next word.
+  const open = (next = false) => {
+    const text = box.value;
+    const caret = box.selectionStart ?? text.length;
+    found = suggest(text, caret, values());
+    if (!found && next && text && caret === text.length && !text.endsWith(' ')) {
+      const after = suggest(`${text} `, caret + 1, values());
+      if (after) {
+        found = {
+          start: caret,
+          end: caret,
+          items: after.items.map((it) => ({ ...it, text: ` ${it.text}` })),
+        };
+      }
+    }
+    if (!found) return close();
+    active = -1;
+    menu.hidden = false;
+    box.setAttribute('aria-expanded', 'true');
+    draw();
+  };
+  const pick = (i) => {
+    const it = found.items[i];
+    const rest = box.value.slice(found.end).replace(/^ /, '');
+    const head = `${box.value.slice(0, found.start)}${it.text}${it.done ? ' ' : ''}`;
+    box.value = head + rest;
+    box.setSelectionRange(head.length, head.length);
+    // Read as typed (the page's own input listener), then what follows.
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    if (it.done) close();
+    else open();
+  };
+  box.addEventListener('input', () => open());
+  box.addEventListener('focus', () => open(true));
+  // A click places the caret (after focus), and moves it in a focused box.
+  box.addEventListener('click', () => open(true));
+  box.addEventListener('keyup', (e) => {
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) open(true);
+  });
+  box.addEventListener('blur', close);
+  box.addEventListener('keydown', (e) => {
+    if (menu.hidden) {
+      if (e.key === 'ArrowDown') {
+        open(true);
+        if (found) {
+          e.preventDefault();
+          active = 0;
+          draw();
+        }
+      }
+      return;
+    }
+    const n = found.items.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = e.key === 'ArrowDown' ? (active + 1) % n : (active - 1 + n) % n;
+      draw();
+    } else if ((e.key === 'Enter' || e.key === 'Tab') && active >= 0) {
+      e.preventDefault();
+      pick(active);
+    } else if (e.key === 'Escape') {
+      // The menu only: the box's text and filters stay.
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    }
+  });
+  // A press keeps the box focused (no blur), then picks.
+  menu.addEventListener('mousedown', (e) => {
+    const option = e.target.closest('[data-i]');
+    if (!option) return;
+    e.preventDefault();
+    pick(Number(option.dataset.i));
+  });
 }
