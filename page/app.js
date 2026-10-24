@@ -1135,7 +1135,10 @@ document.addEventListener('keydown', (e) => {
     search.dispatchEvent(new Event('input', { bubbles: true }));
   } else if (e.key === 'Escape' && e.target === search && search.value) {
     // The name or @handle cleared, what's typed and not read yet dropped;
-    // the filters stay, as the chips set them.
+    // the filters stay, as the chips set them. Not the browser's own
+    // clearing of a search field: its input event would read the empty
+    // box as no filters.
+    e.preventDefault();
     search.value = writeQuery(state, '');
     clearTimeout(searchTimer);
     showProblems([]);
