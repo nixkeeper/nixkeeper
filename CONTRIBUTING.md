@@ -64,7 +64,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   its menu (suggest, wireSearchMenu; the values and counts
   from list.js's searchValues); `prefs.js` what this browser keeps (localStorage, the rows
   hidden here); `store.js` what's loaded of the data, in one object
-  (`store`); `app.js` imports them, changes the state, fills the store and
+  (`store`); `timing.js` each redraw's parts, with `?debug=timing`;
+  `app.js` imports them, changes the state, fills the store and
   draws the page. Each view wires its own controls (`wireList`,
   `wireOverview`, `wireMaintainerView`), given what they need of the page
   (`pageHooks` in `app.js`); `app.js` keeps the search box's listeners, the
@@ -139,6 +140,8 @@ Around that:
   safe mode)
 - `lock.py`: one run at a time on a data folder (`<data dir>.lock`), for
   every command that writes or copies the data
+- `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
+  each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the
   sync's and the hourly checks'): a row's fields and their types (`ROW`:
   a field added to the rows is added there and to `docs/data.md`, which a
@@ -175,6 +178,12 @@ nix run .#brand           # regenerate assets/brand/ and the page's favicon
 ```
 
 New files must be `git add`ed before Nix sees them.
+
+Where the time goes: a sync's log ends with its phases, the longest first
+(`Phases: 1 min 17 s in all`, then each one's time and share). The page
+logs each redraw's parts in the browser's console with `?debug=timing` in
+its address (`update 46 ms: view 0, browser 0, filter 5, ..., header 23,
+rows 11`; "browser": the page yielding to it between parts).
 
 The package lists and the community rules (update checks, ignore and
 up-to-date rules) are kept sorted by `nix fmt` (keep-sorted), so a

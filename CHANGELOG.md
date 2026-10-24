@@ -11,6 +11,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Where the time goes**: a sync's log ends with how long each of its
+  phases took, the longest first (`Phases: 1 min 17 s in all`, then
+  `41 s 54% vulnerabilities, fixes, families`...), where only Hydra's time
+  was said before. And the page, with `?debug=timing` in its address, logs
+  each redraw's parts in the browser's console (`update 46 ms: view 0,
+  browser 0, filter 5, browser 0, stats 7, header 23, rows 11`).
+
 - **The sync checks its data before writing it**: each row's fields and
   their types, against a table of every field (`nixkeeper/shape.py`), and
   the manifest's counts against the views they count (the views' lengths,

@@ -65,6 +65,7 @@ import {
   writeState,
 } from './state.js';
 import { store } from './store.js';
+import { timer } from './timing.js';
 import { fmt } from './ui.js';
 
 // The footer links to nixkeeper itself; a copy of it on GitHub Pages (its
@@ -440,6 +441,7 @@ const yieldToBrowser = () =>
 
 async function update({ keepPage = false } = {}) {
   const run = ++updateRun;
+  const took = timer('update');
   menuValues = null;
   lastAsked = asking();
   // The box says the filters the chips and selects set (not while typed in).
@@ -454,12 +456,17 @@ async function update({ keepPage = false } = {}) {
     }
   }
   showProblems();
+  took.lap('view');
   await yieldToBrowser();
   if (run !== updateRun) return;
+  took.lap('browser');
   const list = currentFiltered();
+  took.lap('filter');
   await yieldToBrowser();
   if (run !== updateRun) return;
-  await render(list, { keepPage, run });
+  took.lap('browser');
+  await render(list, { keepPage, run, took });
+  took.done();
 }
 
 async function loadIndex() {
@@ -590,7 +597,7 @@ function doneLoading() {
   if (about) about.hidden = false;
 }
 
-async function render(list, { keepPage = false, run = updateRun } = {}) {
+async function render(list, { keepPage = false, run = updateRun, took = timer('render') } = {}) {
   doneLoading();
   // How many packages a change leaves, to hear without looking.
   if (
@@ -601,7 +608,9 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     announce(`${fmt(list.length)} ${list.length === 1 ? 'package' : 'packages'}`, 700);
   rendered = true;
   renderStats();
+  took.lap('stats');
   renderScope();
+  took.lap('header');
   const content = document.getElementById('content');
   if (store.community && store.shownView === 'maintainers') {
     // Maintainers, not packages: paged by their own count (maintainersHtml).
@@ -645,6 +654,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     </tr></thead>
     <tbody id="rows">${shown.slice(0, FIRST_ROWS).map(rowHtml)}</tbody>
   </table></div>${pagerHtml(list.length, pages)}${moreMatchesHtml()}`;
+  took.lap('rows');
   watchErrors();
   // One package shown by its link (?pkg=): its details open at once, the
   // reason the link was followed.
@@ -657,12 +667,14 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   if (shown.length <= FIRST_ROWS) return;
   await yieldToBrowser();
   if (run !== updateRun) return;
+  took.lap('browser');
   document
     .getElementById('rows')
     ?.insertAdjacentHTML(
       'beforeend',
       String(html`${shown.slice(FIRST_ROWS).map((pkg, i) => rowHtml(pkg, FIRST_ROWS + i))}`),
     );
+  took.lap('more rows');
   watchErrors();
 }
 

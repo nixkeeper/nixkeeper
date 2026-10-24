@@ -21,6 +21,7 @@ from . import (
     notify,
     rows,
     scale,
+    timing,
     tracking,
     uptodate,
     version,
@@ -118,6 +119,7 @@ def trend_events(previous, now):
 
 
 def main():
+    phases = timing.Phases()
     now = datetime.now(UTC).isoformat()
     nixpkgs = nixpkgs_source.load_index()
     lists = nixpkgs_source.read_lists()
@@ -147,6 +149,7 @@ def main():
         about.note("nixpkgs", False, "the channel's revision couldn't be read")
     else:
         about.note("nixpkgs", True, revision=revision)
+    phases.lap("nixpkgs: the index, the lists, the channel")
     # Hydra is the slowest source (a request or more per package and
     # platform): asked from here, in the background, while the others are.
     # Each server is still asked one request at a time; only the waiting
@@ -161,6 +164,7 @@ def main():
         wanted, previous, nixpkgs=nixpkgs, now=now, digest=digest, bulk=set(bulk)
     )
     index_rows = rows.build_rows(projects, nixpkgs)
+    phases.lap("Repology")
     # The channel's own versions, where Repology hasn't caught up with it yet.
     if ahead := rows.channel_versions(index_rows, nixpkgs):
         print(
@@ -189,6 +193,7 @@ def main():
     if everything:
         tracking.add_sets(index_rows)
     shown = [row for row in index_rows if not row.get("set")]
+    phases.lap("versions' own sources, branches, lists")
 
     # Repology's verdicts that are wrong for a version (up-to-date rules):
     # before the update checks and master, which can still make it outdated.
@@ -226,9 +231,11 @@ def main():
     )
     if worked:
         inferred.report(worked, on_lists, checks, failed)
+    phases.lap("update checks")
     if not hydra_answers.done():
         print("Waiting for Hydra's answers...", file=sys.stderr)
     broken, fetched = hydra_answers.result()
+    phases.lap("waiting for Hydra")
     hydra.add_builds(index_rows, nixpkgs, previous, now, broken, fetched)
     # Which dependency stopped a build, as the rows are named (to link them).
     rows.name_blockers(index_rows)
@@ -241,6 +248,7 @@ def main():
     following = follows.of(checks)
     follows.apply_versions(index_rows, following, now, from_community)
     history.add_outdated_since(index_rows, previous, now)
+    phases.lap("builds, master, follows")
     ignored, ignored_by_community = community.merge_ignores(
         lists, [row["name"] for row in index_rows]
     )
@@ -257,6 +265,7 @@ def main():
     )
     # When the bot will try each package again, and what it would update to.
     nixpkgs_update.add_queue(index_rows, nixpkgs, updates_digest.load_queue(now))
+    phases.lap("update bot")
     # Open PR/issue counts and open update PRs: from one listing of all of
     # nixpkgs' open ones (github_bulk: nixkeeper-prs' digest's, else listed
     # here), else searched per package (the lists' only). Not for the rows
@@ -300,6 +309,7 @@ def main():
         count_prs(row)
     follows.apply_prs(index_rows, following)  # theirs are the same PRs
     nixpkgs_update.recheck_superseded(outdated)
+    phases.lap("GitHub, staging and staging-next")
     # Since when builds and update attempts have been failing (carried over).
     history.add_failing_since(index_rows, previous, now)
     # A PR merged since a build began failing that touched it: likely its
@@ -325,6 +335,7 @@ def main():
     # homepage): one entry in the overview's lists, and their fixes, next
     # sync, one too.
     rows.add_families(index_rows)
+    phases.lap("vulnerabilities, fixes, families")
     # version: the nixkeeper that made this data, for the page's footer.
     index = {"checkedAt": now, "packages": index_rows, "version": version()}
     if everything:
@@ -386,6 +397,7 @@ def main():
         },
     )
     nixpkgs_source.stop_keeping()
+    phases.lap("writing data/")
     # With every package, what changed for the lists' own packages only.
     notify.notify(
         {**previous, "packages": [r for r in previous["packages"] if r.get("lists")]}
@@ -398,3 +410,5 @@ def main():
         everyone_before=previous,
         lists=lists,
     )
+    phases.lap("notifications")
+    phases.report()
