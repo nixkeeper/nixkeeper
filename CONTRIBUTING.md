@@ -42,8 +42,9 @@ happen. For what nixkeeper does and how to set up your own, see the
   of HTML both use (numbers, dates, icons); `data.js` where the data is and
   how it's read (its files as JSON, the shards' rows once each); `state.js`
   the filters, sort and paging in one object (`state`), read from the
-  address and written back (`readState`, `writeState`); `app.js` imports
-  them, changes the state, keeps what's read and draws the page. Native ES modules, no build step: `index.html`
+  address and written back (`readState`, `writeState`); `store.js` what's
+  loaded of the data, in one object (`store`); `app.js` imports them,
+  changes the state, fills the store and draws the page. Native ES modules, no build step: `index.html`
   preloads each (`modulepreload`), so a new module goes there too. `favicon*.svg` (the mark, and the live status
   icons the page switches between), `nixkeeper-lockup-tight*.svg` (the
   header) and `tokens.css` are copies from

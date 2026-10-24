@@ -81,6 +81,7 @@ import {
   whoDid,
 } from './panel.js';
 import { PAGE_SIZES, readState, state, writeState } from './state.js';
+import { store } from './store.js';
 import { BUILD_FAILED, fmt, GH_ICONS, icon, longDate, shortDay } from './ui.js';
 
 const NIX_REPO = 'nix_unstable';
@@ -104,45 +105,19 @@ addListsLink();
 // filter, search and open panel starts over).
 document.getElementById('homeLink').href = homeHref(location.pathname, location.search);
 
-// The data (docs/data.md, format 2): the list from summary.json (a short
-// entry per package), each package's full row from its shard
-// (rows/<n>.json, of shardCount), loaded when a panel opens.
-let shardCount = 1;
-// With every package (a community instance: index.json's allPackages), the
-// page shows one view of the data at a time (viewPath): `packages` is that
-// view's, `manifest` index.json, with the counts of all of nixpkgs.
-let community = false;
 // The line by the logo on an instance of its own lists (index.html's is
 // for every package).
 const OWN_TAG = 'health of your nixpkgs packages';
-let manifest = null;
-let sources = null; // the daily sync's sources (index.json's "sources")
-let shownView = null; // the path of the view in `packages`
-let wantedView = null; // the one being loaded (the newest asked for wins)
-let names = null; // the name index (names.json), once loaded: [[name, status, set?]]
-let namesLoading = null;
-// facets.json, decoded (decodeFacets): each names entry's maintainers,
-// teams and platforms, by its position there (nameIndex), once loaded for
-// a search's filters. Null if it doesn't line up with names (a sync
-// between the two loads): the search then filters without them.
-let facetIndex = null;
-let facetsLoading = null;
-let nameIndex = null;
-const facetsOf = (entry) => facetIndex[nameIndex.get(entry)];
+// A names entry's maintainers, teams and platforms (store.facetIndex).
+const facetsOf = (entry) => store.facetIndex[store.nameIndex.get(entry)];
 // ?pkg=: one package alone (with every package); ?set=: a generated set;
 // ?view=: a list by name (attention, broken).
 // The ?pkg= its details were opened for, once: a link to a package opens
 // them, and closing them keeps them closed while it's shown.
 let pkgOpenedFor = null;
-let trendPoints = null; // history.json's points, once loaded (the overview's trends)
-let trendEvents = []; // and what marks them (staging-next merges, nixkeeper updates)
-let historyLoading = false;
 const inSet = (pkg) => !state.setFilter || pkg.set === state.setFilter;
 // ?cause=: a group of failed builds sharing an error (views/cause/<key>.json,
 // nixkeeper's causes.py), and what its view file says of it.
-let causeShown = null;
-let packages = [];
-let checkedAt = null;
 // Narrowing any list further, with everything else (?refine=, REFINES keys
 // comma-separated, and ?age=, an AGES key).
 // ?updateFailed=: update failures for one reason (a FAILED_BECAUSE key, or
@@ -214,12 +189,13 @@ const inPeople = (pkg) =>
     shownHandle(),
   ) && maintainersKeep(pkg, state.maintainersLeftOut);
 // The team's name as nixpkgs writes it ("Qt-KDE"), or as the address has it.
-const teamName = () => packages.flatMap((p) => p.teams || []).find(isTeam) || state.teamFilter;
+const teamName = () =>
+  store.packages.flatMap((p) => p.teams || []).find(isTeam) || state.teamFilter;
 // Every list some package is on: "maintained" first, as the sync sorts them.
 function allLists() {
   // With every package, the view has only some: the manifest has them all.
-  if (community)
-    return Object.keys(manifest.views?.lists || {}).sort((a, b) =>
+  if (store.community)
+    return Object.keys(store.manifest.views?.lists || {}).sort((a, b) =>
       a === 'maintained'
         ? -1
         : b === 'maintained'
@@ -227,7 +203,8 @@ function allLists() {
           : a.localeCompare(b, undefined, { sensitivity: 'base' }),
     );
   const seen = [];
-  for (const p of packages) for (const l of p.lists || []) if (!seen.includes(l)) seen.push(l);
+  for (const p of store.packages)
+    for (const l of p.lists || []) if (!seen.includes(l)) seen.push(l);
   return seen.sort((a, b) =>
     a === 'maintained' ? -1 : b === 'maintained' ? 1 : a.localeCompare(b),
   );
@@ -271,7 +248,7 @@ function inPlatform(pkg) {
   if (!onPlatform(pkg, state.platformFilter)) return false;
   // Not built where listed (?view=unbuilt): a platform picked keeps those
   // not built there (Darwin: the Darwin ones), as the refine does.
-  if (shownView === VIEWS.unbuilt) return unbuiltOn(pkg, state.platformFilter);
+  if (store.shownView === VIEWS.unbuilt) return unbuiltOn(pkg, state.platformFilter);
   return state.refines.has('unbuilt') || !unbuiltOn(pkg, state.platformFilter);
 }
 // The sync runs daily; older than this means runs are failing or GitHub has
@@ -403,7 +380,7 @@ const REFINES = {
     label: "Bot won't update it",
     title:
       "Only outdated packages nixpkgs-update won't update by itself: it can't, it skips them on purpose, or it has never tried and they aren't in its queue. No update PR open or merged yet",
-    test: (p) => botWontUpdate(p, Boolean(sources?.queue?.used)),
+    test: (p) => botWontUpdate(p, Boolean(store.sources?.queue?.used)),
   },
 };
 const AGES = {
@@ -449,7 +426,7 @@ const teamOutChips = () =>
 // other filters but this one), the commonest first; those with none left
 // out, but the one picked.
 function becausePick() {
-  const base = packages.filter(
+  const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && failedBecause(p),
   );
   const counts = {};
@@ -472,7 +449,7 @@ function becausePick() {
 // packages have a failed build for it (on the platform picked), the
 // commonest first; as becausePick.
 function buildFailedPick() {
-  const base = packages.filter(
+  const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && failedBuilds(p).length,
   );
   const counts = {};
@@ -521,7 +498,7 @@ function sortPick() {
 // staging-next's evaluation (its sources: "of the cycle merged into
 // master..."), or null.
 const stagingNextWhy = () => {
-  const s = sources?.['branch:staging-next'];
+  const s = store.sources?.['branch:staging-next'];
   return s && !s.used && s.why ? s.why : null;
 };
 
@@ -780,13 +757,13 @@ function stagingNextBlockedNote(pkg) {
   const blocked = pkg.stagingNextBlockedBy;
   if (blocked) {
     const by = [...new Map(blocked.builds.flatMap((b) => b.by).map((x) => [x.name, x])).values()];
-    const names = by.map(
+    const blockers = by.map(
       (x, i) =>
         html`${i ? ', ' : ''}${x.row ? html`<a class="files-link mono" href="${scopeHref({ pkg: x.name })}" data-scope-pkg="${x.name}">${x.name}</a>` : html`<span class="mono">${x.name}</span>`}`,
     );
     const systems = [...new Set(blocked.builds.map((b) => b.system))].join(', ');
     notes.push(
-      html`<div class="master-note">On <span class="mono">staging-next</span>, its build (${systems}) is stopped by ${names}, failing there, in ${evalOf(blocked)}; it builds on master. Unless that's fixed, it's stopped on master too when staging-next is merged.</div>`,
+      html`<div class="master-note">On <span class="mono">staging-next</span>, its build (${systems}) is stopped by ${blockers}, failing there, in ${evalOf(blocked)}; it builds on master. Unless that's fixed, it's stopped on master too when staging-next is merged.</div>`,
     );
   }
   return notes;
@@ -984,9 +961,9 @@ function neverWhere(pkg) {
   if (!failedBuilds(pkg).length) return '';
   const systems = neverBuiltOn(pkg, state.platformFilter);
   const linux = systems.filter((s) => s.endsWith('-linux'));
-  const names = linux.length === LINUX_SYSTEMS.length ? ['linux'] : linux;
-  if (systems.some((s) => s.endsWith('-darwin'))) names.push('darwin');
-  return names.join(', ');
+  const shownSystems = linux.length === LINUX_SYSTEMS.length ? ['linux'] : linux;
+  if (systems.some((s) => s.endsWith('-darwin'))) shownSystems.push('darwin');
+  return shownSystems.join(', ');
 }
 
 function ageTag(pkg, st) {
@@ -1060,7 +1037,7 @@ const stored = (key) => {
     return null; // storage blocked: nothing is remembered
   }
 };
-const store = (key, value) => {
+const remember = (key, value) => {
   try {
     if (value) localStorage.setItem(key, value);
     else localStorage.removeItem(key);
@@ -1092,14 +1069,14 @@ function pruneHidden(list) {
     }
   }
   if (changed)
-    store(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
+    remember(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
 }
-const isHidden = (pkg) => hiddenPrints[pkg.name] === attentionPrint(pkg, checkedAt);
+const isHidden = (pkg) => hiddenPrints[pkg.name] === attentionPrint(pkg, store.checkedAt);
 const notHidden = (pkg) => showHidden || !isHidden(pkg);
 function setHidden(pkg, hide) {
-  if (hide) hiddenPrints[pkg.name] = attentionPrint(pkg, checkedAt);
+  if (hide) hiddenPrints[pkg.name] = attentionPrint(pkg, store.checkedAt);
   else delete hiddenPrints[pkg.name];
-  store(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
+  remember(HIDDEN_KEY, Object.keys(hiddenPrints).length ? JSON.stringify(hiddenPrints) : '');
   announce(hide ? `${pkg.name} hidden until it changes` : `${pkg.name} shown again`);
   update({ keepPage: true });
 }
@@ -1119,10 +1096,13 @@ const hiddenPrPrints = (() => {
 let showHiddenPrs = false;
 const isPrHidden = (pr) => hiddenPrPrints[pr.number] === prPrint(pr);
 function saveHiddenPrs() {
-  store(HIDDEN_PRS_KEY, Object.keys(hiddenPrPrints).length ? JSON.stringify(hiddenPrPrints) : '');
+  remember(
+    HIDDEN_PRS_KEY,
+    Object.keys(hiddenPrPrints).length ? JSON.stringify(hiddenPrPrints) : '',
+  );
 }
 function setPrHidden(number, hide) {
-  const pr = (mergeList || []).find((p) => p.number === number);
+  const pr = (store.mergeList || []).find((p) => p.number === number);
   if (!pr) return;
   if (hide) hiddenPrPrints[number] = prPrint(pr);
   else delete hiddenPrPrints[number];
@@ -1149,7 +1129,7 @@ function applyTheme() {
 // so the next visit starts with it before the data loads.
 function setSitePalette(palette) {
   if (palette === stored(SITE_PALETTE)) return;
-  store(SITE_PALETTE, palette);
+  remember(SITE_PALETTE, palette);
   applyTheme();
 }
 
@@ -1173,7 +1153,7 @@ const statusLabel = (status) => STATUS_LABEL[status] || status;
 // A set kept current in bulk by its own tooling (rPackages: the CRAN
 // import), not one PR per package: what updates it, from index.json's
 // "profiles" (config.SET_PROFILES). Data from before has none: said plainly.
-const profileOf = (set) => manifest?.profiles?.[set] || null;
+const profileOf = (set) => store.manifest?.profiles?.[set] || null;
 const bulkText = (set) =>
   `Kept current in bulk by ${profileOf(set)?.updatedBy || 'its own tooling'}, not one PR per package`;
 const bulkShort = (set) => profileOf(set)?.short || 'updated in bulk';
@@ -1374,8 +1354,8 @@ function sourcesHtml() {
     });
   const noted = (key) =>
     key === 'nixkeeper'
-      ? sources?.versions && checkedAt && { used: true, at: checkedAt }
-      : sources?.[key];
+      ? store.sources?.versions && store.checkedAt && { used: true, at: store.checkedAt }
+      : store.sources?.[key];
   const row = ({ key, label, from, title, says, instead, digest }) => {
     const s = noted(key);
     const name = from
@@ -1403,7 +1383,7 @@ function sourcesHtml() {
     const nix = noted('nixpkgs');
     return html`<p class="pop-title">Where the data is from</p>
     <ul>
-      <li><b>Last sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
+      <li><b>Last sync</b><span title="${store.checkedAt ? when(store.checkedAt) : ''}">${store.checkedAt ? `${timeAgo(store.checkedAt)}, ${when(store.checkedAt)}` : 'not yet'}</span></li>
       ${nix?.used ? html`<li><b>nixpkgs</b><span>${SOURCES[0].says(nix)}</span></li>` : ''}
     </ul>
     <a class="files-link" href="https://status.nixkeeper.com/" target="_blank" rel="noopener">Every source, and how fresh it is ↗</a>
@@ -1411,7 +1391,7 @@ function sourcesHtml() {
   }
   return html`<p class="pop-title">Where the data is from</p>
     <ul>
-      <li><b>Last sync</b><span title="${checkedAt ? when(checkedAt) : ''}">${checkedAt ? `${timeAgo(checkedAt)}, ${when(checkedAt)}` : 'not yet'}</span></li>
+      <li><b>Last sync</b><span title="${store.checkedAt ? when(store.checkedAt) : ''}">${store.checkedAt ? `${timeAgo(store.checkedAt)}, ${when(store.checkedAt)}` : 'not yet'}</span></li>
       <li><b>Hourly checks</b><span>frequent update checks and update PRs, between syncs</span></li>
       ${own}
       ${digests}
@@ -1445,7 +1425,7 @@ async function summaryOf() {
 // failed load isn't kept, so opening it again tries again). null if it
 // couldn't be loaded.
 async function fullRow(pkg) {
-  return fullRowOf(pkg.name, shardCount, (row) => withRunStamps(row, checkedAt));
+  return fullRowOf(pkg.name, store.shardCount, (row) => withRunStamps(row, store.checkedAt));
 }
 
 // With every package: load the view the address asks for (viewPath) into
@@ -1455,7 +1435,7 @@ async function fullRow(pkg) {
 // with it), showing the maintainers who match, until one is picked, Enter
 // is pressed or the box is left; the top search opens theirs at once.
 const typingHandleOnOverview = () =>
-  shownView === 'overview' &&
+  store.shownView === 'overview' &&
   document.activeElement?.id === 'overviewSearch' &&
   document.getElementById('search').value.trim().startsWith('@');
 
@@ -1479,8 +1459,8 @@ async function ensureView() {
   if (state.causeFilter && path !== `views/cause/${state.causeFilter}.json`)
     state.causeFilter = null;
   if (state.viewParam && path !== VIEWS[state.viewParam]) state.viewParam = null;
-  if (path === shownView) return;
-  wantedView = path;
+  if (path === store.shownView) return;
+  store.wantedView = path;
   let found;
   if (path === 'overview') {
     found = []; // the overview lists nothing (renderScope)
@@ -1494,28 +1474,28 @@ async function ensureView() {
   } else {
     const data = await readJson(path, { missing: { packages: [] } });
     found = data.packages;
-    causeShown = path.startsWith('views/cause/') ? data : null;
+    store.causeShown = path.startsWith('views/cause/') ? data : null;
   }
-  if (wantedView !== path) return; // another view was asked for meanwhile
-  packages = found.map((p) => withRunStamps(p, checkedAt));
-  pruneHidden(packages);
-  shownView = path;
+  if (store.wantedView !== path) return; // another view was asked for meanwhile
+  store.packages = found.map((p) => withRunStamps(p, store.checkedAt));
+  pruneHidden(store.packages);
+  store.shownView = path;
 }
 
 // history.json's points, for the overview's trends: loaded once, then the
 // overview is drawn again. Without it (data from before, or not yet), the
 // cards have no line.
 function loadHistory() {
-  if (historyLoading) return;
-  historyLoading = true;
+  if (store.historyLoading) return;
+  store.historyLoading = true;
   readJson('history.json', { otherwise: { points: [] } })
     .then((data) => {
-      trendPoints = data.points || [];
-      trendEvents = data.events || [];
-      if (shownView === 'overview') renderScope();
+      store.trendPoints = data.points || [];
+      store.trendEvents = data.events || [];
+      if (store.shownView === 'overview') renderScope();
     })
     .catch(() => {
-      trendPoints = [];
+      store.trendPoints = [];
     });
 }
 
@@ -1524,42 +1504,38 @@ function loadHistory() {
 // With every package: every maintainer (maintainers.json: [handle, packages,
 // outdated, failing]), loaded when a search starts with @ or the maintainers
 // page opens; then the list is drawn again.
-let maintainersList = null;
-let maintainersLoading = null;
 function loadMaintainers() {
-  if (maintainersLoading) return;
-  maintainersLoading = readJson('maintainers.json', { otherwise: { maintainers: [] } })
+  if (store.maintainersLoading) return;
+  store.maintainersLoading = readJson('maintainers.json', { otherwise: { maintainers: [] } })
     .then((data) => {
-      maintainersList = data.maintainers || [];
+      store.maintainersList = data.maintainers || [];
       update({ keepPage: true });
     })
     .catch(() => {
-      maintainersLoading = null; // tried again with the next search
+      store.maintainersLoading = null; // tried again with the next search
     });
 }
 
 // views/merge.json: the PRs maintainers can merge now with the merge bot
 // (nixkeeper/sources/prs_digest.py: mergeable), for "You can merge these" in
 // a maintainer's or team's view. Loaded once, when one is first shown.
-let mergeList = null;
-let mergeLoading = null;
 let mergeAll = false; // every one shown, not the first MERGE_SHOWN
 const MERGE_SHOWN = 5;
 const MERGE_COMMAND = '@NixOS/nixpkgs-merge-bot merge';
 function loadMerge() {
-  if (mergeLoading) return;
-  mergeLoading = readJson('views/merge.json', { otherwise: { prs: [] } })
+  if (store.mergeLoading) return;
+  store.mergeLoading = readJson('views/merge.json', { otherwise: { prs: [] } })
     .then((data) => {
-      mergeList = data.prs || [];
+      store.mergeList = data.prs || [];
       // Hidden PRs that changed, or left the list: not hidden anymore.
-      const now = new Map(mergeList.map((p) => [String(p.number), prPrint(p)]));
+      const now = new Map(store.mergeList.map((p) => [String(p.number), prPrint(p)]));
       for (const number of Object.keys(hiddenPrPrints))
         if (now.get(number) !== hiddenPrPrints[number]) delete hiddenPrPrints[number];
       saveHiddenPrs();
       update({ keepPage: true });
     })
     .catch(() => {
-      mergeLoading = null; // tried again with the next view
+      store.mergeLoading = null; // tried again with the next view
     });
 }
 
@@ -1573,21 +1549,21 @@ function mergeHtml(path, handle) {
   const mine = path.startsWith('views/maintainer/') && handle && handle !== 'none';
   const team = path.startsWith('views/team/');
   if (!mine && !team) return '';
-  if (!mergeList) {
+  if (!store.mergeList) {
     loadMerge();
     return '';
   }
   const who = handle.toLowerCase();
   const theirs = team && teamName();
-  const names = team
-    ? new Set(packages.filter((p) => !p.teamsByList?.includes(theirs)).map((p) => p.name))
+  const mergers = team
+    ? new Set(store.packages.filter((p) => !p.teamsByList?.includes(theirs)).map((p) => p.name))
     : null;
   const own = (p) => mine && p.author.toLowerCase() === who;
   // Their own first, then those for a vulnerable package, then the
   // longest waiting (the list's own order).
-  const prs = mergeList
+  const prs = store.mergeList
     .filter((p) =>
-      mine ? p.who.some((w) => w.toLowerCase() === who) : p.packages.some((n) => names.has(n)),
+      mine ? p.who.some((w) => w.toLowerCase() === who) : p.packages.some((n) => mergers.has(n)),
     )
     .sort((a, b) => own(b) - own(a) || Boolean(b.vulnerable) - Boolean(a.vulnerable));
   if (!prs.length) return '';
@@ -1656,7 +1632,7 @@ function closeHtml(path, handle) {
   const who = (handle || '').toLowerCase();
   const theirs = team && teamName();
   const seen = new Set();
-  const prs = packages
+  const prs = store.packages
     .filter((p) => !team || !p.teamsByList?.includes(theirs))
     .flatMap((p) => (p.supersededPRs || []).map((pr) => ({ ...pr, pkg: p.name })))
     .filter((pr) => !seen.has(pr.number) && seen.add(pr.number))
@@ -1704,40 +1680,40 @@ function closeHtml(path, handle) {
           ? "Close it with a word on why (nixpkgs has the package now), or turn it into an update of nixpkgs' package."
           : 'Close it with a word on why (nixpkgs has a newer version, or has the package now), or update it to the newest.'
     }${
-      community && manifest.views?.superseded
-        ? html` <a class="files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded">All ${fmt(manifest.views.superseded)} packages with one, in all of nixpkgs →</a>`
+      store.community && store.manifest.views?.superseded
+        ? html` <a class="files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded">All ${fmt(store.manifest.views.superseded)} packages with one, in all of nixpkgs →</a>`
         : ''
     }</p>
   </section>`;
 }
 
 function loadNames() {
-  if (namesLoading) return;
-  namesLoading = readJson('names.json', { otherwise: { names: [] } })
+  if (store.namesLoading) return;
+  store.namesLoading = readJson('names.json', { otherwise: { names: [] } })
     .then((data) => {
-      names = data.names || [];
+      store.names = data.names || [];
       update({ keepPage: true });
     })
     .catch(() => {
-      namesLoading = null; // tried again with the next search
+      store.namesLoading = null; // tried again with the next search
     });
 }
 
 // The search's maintainer, team and platform filters' data (facets.json),
 // on first use: about 120 KB.
 function loadFacets() {
-  if (facetsLoading || !names) return;
-  facetsLoading = readJson('facets.json', { otherwise: null })
+  if (store.facetsLoading || !store.names) return;
+  store.facetsLoading = readJson('facets.json', { otherwise: null })
     .then((data) => {
       const found = data ? decodeFacets(data) : [];
-      if (found.length === names.length) {
-        facetIndex = found;
-        nameIndex = new Map(names.map((entry, i) => [entry, i]));
+      if (found.length === store.names.length) {
+        store.facetIndex = found;
+        store.nameIndex = new Map(store.names.map((entry, i) => [entry, i]));
         update({ keepPage: true });
       }
     })
     .catch(() => {
-      facetsLoading = null; // tried again with the next search
+      store.facetsLoading = null; // tried again with the next search
     });
 }
 
@@ -1756,7 +1732,7 @@ const yieldToBrowser = () =>
 
 async function update({ keepPage = false } = {}) {
   const run = ++updateRun;
-  if (community) {
+  if (store.community) {
     try {
       await ensureView();
     } catch {
@@ -1796,17 +1772,17 @@ async function loadIndex() {
       </div>`;
       return;
     }
-    checkedAt = data.checkedAt || null;
-    sources = data.sources || null;
-    shardCount = data.shardCount;
+    store.checkedAt = data.checkedAt || null;
+    store.sources = data.sources || null;
+    store.shardCount = data.shardCount;
     if (data.allPackages) {
-      community = true;
-      manifest = data;
+      store.community = true;
+      store.manifest = data;
       myHandle = stored('nixkeeper-handle');
       myTeam = stored('nixkeeper-team');
       loadMyCount();
     } else {
-      packages = (await summaryOf()).map((p) => withRunStamps(p, checkedAt));
+      store.packages = (await summaryOf()).map((p) => withRunStamps(p, store.checkedAt));
       // An instance of its own lists, not every package: the line by the
       // logo and the tab's title say so (index.html has nixkeeper.com's;
       // link previews, which run no script, keep it).
@@ -1840,18 +1816,20 @@ function setFavicon(base) {
 function renderStats() {
   // Counts follow the platform and list filters, so "outdated" means
   // outdated on Darwin, or on the gaming-team list, while that's selected.
-  const base = packages.filter((p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p));
+  const base = store.packages.filter(
+    (p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p),
+  );
   setFavicon(base);
   renderLists();
   // With every package, the counts are the list's tiles (renderScope), and
   // the bar's chip is the way into what needs attention.
-  const attention = shownView === 'views/attention.json';
-  const attentionChip = community
+  const attention = store.shownView === 'views/attention.json';
+  const attentionChip = store.community
     ? html`<button class="stat-btn" data-view="attention" aria-pressed="${attention}"
         title="${attention ? 'Back to the overview' : 'Failing, outdated or vulnerable, worst first'}">
-        <b style="color:var(--warn)">${fmt(manifest.views?.attention)}</b> needs attention</button>`
+        <b style="color:var(--warn)">${fmt(store.manifest.views?.attention)}</b> needs attention</button>`
     : '';
-  const buttons = Object.entries(community ? {} : FILTERS).map(([key, f]) => {
+  const buttons = Object.entries(store.community ? {} : FILTERS).map(([key, f]) => {
     if (['broken', 'builds', 'updates'].includes(key)) return ''; // with every package only
     const count = base.filter((p) => f.test(p) && refined(p, key)).length;
     // "vulnerable", "fixes to backport" and "blocked" only show up when
@@ -1861,30 +1839,31 @@ function renderStats() {
     const pressed = state.activeFilter === key;
     return html`<button class="stat-btn" data-filter="${key}" aria-pressed="${pressed}"
       ${!count && key !== 'all' && !pressed ? raw('disabled') : ''}>
-      <b${f.color ? html` style="color:${f.color}"` : ''}>${count}</b> ${key === 'all' && community ? 'here' : f.label}</button>`;
+      <b${f.color ? html` style="color:${f.color}"` : ''}>${count}</b> ${key === 'all' && store.community ? 'here' : f.label}</button>`;
   });
   const stale =
-    !checkedAt || Date.now() - new Date(checkedAt).getTime() > STALE_AFTER_HOURS * 3600e3;
+    !store.checkedAt ||
+    Date.now() - new Date(store.checkedAt).getTime() > STALE_AFTER_HOURS * 3600e3;
   const platformChip = state.platformFilter
     ? html`<button class="plat-filter" data-clear="platform" title="Show all platforms">${PLATFORMS[state.platformFilter].label} only ✕</button>`
     : '';
   // With every package, the list header says which team ("Showing").
   const teamChip =
-    state.teamFilter && !community
+    state.teamFilter && !store.community
       ? html`<button class="plat-filter" data-clear="team" title="Show every team's packages">team: ${teamName()} ✕</button>`
       : '';
   document.getElementById('stats').innerHTML =
-    html`${attentionChip}${buttons}${platformChip}${teamChip}${community ? '' : teamOutChips()}`;
+    html`${attentionChip}${buttons}${platformChip}${teamChip}${store.community ? '' : teamOutChips()}`;
   // Without every package, the list's narrowing under the counts; with
   // every package, it's in the list's header, under the tiles.
   const refine = document.getElementById('refine');
-  refine.hidden = community;
-  refine.innerHTML = community ? '' : refineHtml();
+  refine.hidden = store.community;
+  refine.innerHTML = store.community ? '' : refineHtml();
   const checked = document.getElementById('checked');
   checked.classList.toggle('stale', stale);
   // The exact time on hover: "checked 4h ago" is friendly, but vague.
-  const exact = checkedAt
-    ? `Last full sync: ${new Date(checkedAt).toLocaleString(undefined, {
+  const exact = store.checkedAt
+    ? `Last full sync: ${new Date(store.checkedAt).toLocaleString(undefined, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',
@@ -1896,7 +1875,7 @@ function renderStats() {
   checked.title = stale
     ? `${exact} The daily sync hasn't updated the data in over 2 days. Check where it runs (on GitHub: the Actions tab).`
     : exact;
-  checked.textContent = `checked ${timeAgo(checkedAt)}${stale ? ' — sync may be failing' : ''}`;
+  checked.textContent = `checked ${timeAgo(store.checkedAt)}${stale ? ' — sync may be failing' : ''}`;
   document.getElementById('sourcesPanel').innerHTML = sourcesHtml();
 }
 
@@ -1914,7 +1893,7 @@ let myTeam = null;
 let editingTeam = false;
 const isMyTeam = () =>
   Boolean(myTeam) &&
-  shownView === `views/team/${viewSlug(myTeam)}.json` &&
+  store.shownView === `views/team/${viewSlug(myTeam)}.json` &&
   !document.getElementById('search').value.trim().startsWith('@');
 const isMine = () =>
   Boolean(myHandle) &&
@@ -1949,7 +1928,7 @@ function mineHtml() {
 // "Your team": the visitor's team (a chip opening its packages, ✎ to change
 // it), or a picker to choose it.
 function myTeamHtml() {
-  const teams = Object.keys(manifest.views?.teams || {}).sort((a, b) =>
+  const teams = Object.keys(store.manifest.views?.teams || {}).sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: 'base' }),
   );
   if (!teams.length) return '';
@@ -1958,33 +1937,33 @@ function myTeamHtml() {
       <select id="teamInput" name="team" aria-label="Your team"><option value="">No team</option>${teams.map((t) => html`<option value="${t}"${t === myTeam ? raw(' selected') : ''}>${t}</option>`)}</select>
       <button class="stat-btn" type="submit">Show</button>
     </form>`;
-  if (!myTeam || !manifest.views.teams[myTeam])
+  if (!myTeam || !store.manifest.views.teams[myTeam])
     return html`<button class="stat-btn" type="button" data-team-edit title="Choose your nixpkgs team to find its packages (kept in this browser only)">Your team…</button>`;
   return html`<button class="stat-btn" type="button" data-my-team aria-pressed="${isMyTeam()}"
-      title="${isMyTeam() ? 'Back to the overview' : "The team's packages"}"><b>${fmt(manifest.views.teams[myTeam])}</b> ${myTeam} team</button><button type="button" class="mine-edit" data-team-edit aria-label="Change your team" title="Change your team">✎</button>`;
+      title="${isMyTeam() ? 'Back to the overview' : "The team's packages"}"><b>${fmt(store.manifest.views.teams[myTeam])}</b> ${myTeam} team</button><button type="button" class="mine-edit" data-team-edit aria-label="Change your team" title="Change your team">✎</button>`;
 }
 
 function renderLists() {
   const el = document.getElementById('lists');
-  if (community) {
+  if (store.community) {
     // The visitor's own: their packages and their team. This instance's
     // lists ("maintained", its named lists) mean little to them: not shown,
     // though their addresses (?list=) still work.
     el.innerHTML = html`${mineHtml()}${myTeamHtml()}`;
     return;
   }
-  const names = allLists();
-  if (state.listFilter && !names.includes(state.listFilter)) names.push(state.listFilter); // e.g. a renamed list
-  if (names.length < 2) {
+  const listNames = allLists();
+  if (state.listFilter && !listNames.includes(state.listFilter)) listNames.push(state.listFilter); // e.g. a renamed list
+  if (listNames.length < 2) {
     el.innerHTML = '';
     return;
   }
-  const base = packages.filter((p) => inPlatform(p) && inPeople(p) && refined(p, 'all'));
+  const base = store.packages.filter((p) => inPlatform(p) && inPeople(p) && refined(p, 'all'));
   const listCount = (name) =>
-    community
-      ? manifest.views.lists[name] || 0
+    store.community
+      ? store.manifest.views.lists[name] || 0
       : base.filter((p) => (p.lists || []).includes(name)).length;
-  el.innerHTML = html`<span class="lists-label">lists</span>${names.map((name) => {
+  el.innerHTML = html`<span class="lists-label">lists</span>${listNames.map((name) => {
     const pressed = state.listFilter === name;
     const count = listCount(name);
     return html`<button class="stat-btn" type="button" data-list="${name}" aria-pressed="${pressed}"
@@ -2093,13 +2072,17 @@ function doneLoading() {
 async function render(list, { keepPage = false, run = updateRun } = {}) {
   doneLoading();
   // How many packages a change leaves, to hear without looking.
-  if (rendered && !(community && shownView === 'overview') && shownView !== 'maintainers')
+  if (
+    rendered &&
+    !(store.community && store.shownView === 'overview') &&
+    store.shownView !== 'maintainers'
+  )
     announce(`${fmt(list.length)} ${list.length === 1 ? 'package' : 'packages'}`, 700);
   rendered = true;
   renderStats();
   renderScope();
   const content = document.getElementById('content');
-  if (community && shownView === 'maintainers') {
+  if (store.community && store.shownView === 'maintainers') {
     // Maintainers, not packages: paged by their own count (maintainersHtml).
     if (!keepPage) state.pageNum = 1;
     shown = [];
@@ -2113,7 +2096,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   state.pageNum = keepPage ? Math.min(state.pageNum, pages) : 1;
   writeViewToUrl();
   shown = list.slice((state.pageNum - 1) * state.pageSize, state.pageNum * state.pageSize);
-  if (community && shownView === 'overview') {
+  if (store.community && store.shownView === 'overview') {
     // The overview lists nothing: its header has the ways in (renderScope),
     // and a search finds packages in all of nixpkgs.
     content.innerHTML = moreMatchesHtml();
@@ -2123,12 +2106,12 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     const narrowed =
       state.refines.size || state.ageFilter || state.becauseFilter || state.buildFailedFilter;
     const handle = document.getElementById('search').value.trim();
-    if (community && /^@\S/.test(handle) && !narrowed && state.activeFilter === 'all') {
+    if (store.community && /^@\S/.test(handle) && !narrowed && state.activeFilter === 'all') {
       // No such maintainer (yet: still typing): the ones whose handle matches.
       content.innerHTML = html`<div class="empty">No maintainer is ${handle}.</div>${moreMatchesHtml()}`;
       return;
     }
-    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !document.getElementById('search').value.trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
+    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !document.getElementById('search').value.trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${store.community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
     return;
   }
   content.innerHTML = html`<div class="wrap"><table>
@@ -2209,25 +2192,25 @@ async function openErrors(tr) {
 function renderScope() {
   const el = document.getElementById('scope');
   if (!el) return;
-  el.hidden = !community;
-  if (!community) return;
-  if (shownView === 'maintainers') {
+  el.hidden = !store.community;
+  if (!store.community) return;
+  if (store.shownView === 'maintainers') {
     el.dataset.drawn = '';
     el.innerHTML = html`<div class="scope-view">
       <span class="scope-label">Showing</span>
-      <span class="view-chip">Maintainers · ${fmt(maintainersList?.length)}<a class="view-x" href="${scopeHref({})}" data-scope-home aria-label="Back to the overview" title="Back to the overview">✕</a></span>
+      <span class="view-chip">Maintainers · ${fmt(store.maintainersList?.length)}<a class="view-x" href="${scopeHref({})}" data-scope-home aria-label="Back to the overview" title="Back to the overview">✕</a></span>
       <span class="scope-hint">by handle; the search narrows them, and one opens their packages</span>
     </div>`;
     return;
   }
-  if (shownView !== 'overview') {
+  if (store.shownView !== 'overview') {
     el.dataset.drawn = '';
     el.innerHTML = listHeaderHtml();
     return;
   }
   // Drawn again only when it changes (its history arrives, a team is
   // picked), not while someone types in its search box.
-  const drawn = `${trendPoints?.length ?? -1}:${trendEvents.length}:${state.teamFilter || ''}:${Object.values(highlightShown)}:${allCauses ? 'all' : ''}`;
+  const drawn = `${store.trendPoints?.length ?? -1}:${store.trendEvents.length}:${state.teamFilter || ''}:${Object.values(highlightShown)}:${store.allCauses ? 'all' : ''}`;
   if (el.dataset.drawn !== drawn) {
     el.dataset.drawn = drawn;
     el.innerHTML = overviewHtml();
@@ -2245,7 +2228,7 @@ function renderScope() {
 
 const teamPicker = (label) => {
   // By name, whatever its case (the data's keys sort capitals first).
-  const teams = Object.entries(manifest.views?.teams || {}).sort(([a], [b]) =>
+  const teams = Object.entries(store.manifest.views?.teams || {}).sort(([a], [b]) =>
     a.localeCompare(b, undefined, { sensitivity: 'base' }),
   );
   return teams.length
@@ -2313,7 +2296,7 @@ const highlightShown = {
 };
 
 function highlightsHtml() {
-  const found = manifest.highlights;
+  const found = store.manifest.highlights;
   if (!found) return '';
   const columns = HIGHLIGHTS.map(({ key, label, filter, color }) => {
     const h = found[key] || { count: 0, newest: [], oldest: [] };
@@ -2356,12 +2339,8 @@ const BOT_OWN = new Map([
 const BOT_SHOWN = 8;
 const botCause = (key) => (key === 'noLog' ? 'build, no log' : FAILED_BECAUSE[key]?.short || key);
 
-// Every group of failed builds sharing an error (views/causes.json), once
-// "Show all" asked for them: the card then lists them all.
-let allCauses = null;
-
 function causesHtml() {
-  const c = manifest.causes;
+  const c = store.manifest.causes;
   if (!c?.builds?.length && !Object.keys(c?.bot || {}).length) return '';
   const groups = c.builds.length
     ? html`<section class="hl-card" style="--hl:var(--danger)" aria-label="Same error, many packages">
@@ -2369,13 +2348,13 @@ function causesHtml() {
       <h3 class="hl-title" title="Failed builds grouped by the line of their log that says why (paths, numbers and names left out): one cause, one fix pattern"><span class="hl-label">Same error, many packages</span><span class="hl-n">${fmt(c.packages)}</span></h3>
       <span class="hl-unit">in ${fmt(c.groups)} groups</span>
     </div>
-    <ol class="hl-list">${(allCauses || c.builds).map(
+    <ol class="hl-list">${(store.allCauses || c.builds).map(
       (g) =>
         html`<li><a class="hl-row" href="${scopeHref({ cause: g.key })}" data-scope-cause="${g.key}" title="${g.line}"><span class="status-dot missing" aria-hidden="true"></span><span class="hl-name${g.title ? '' : ' mono'}">${g.title || g.signature}</span>${g.about ? html`<span class="fixed-by">${g.about}</span>` : ''}<span class="hl-age">${fmt(g.count)}</span></a></li>`,
     )}</ol>
     ${
       c.groups > c.builds.length
-        ? html`<button type="button" class="hl-all cause-more" aria-expanded="${!!allCauses}">${allCauses ? 'Show the biggest only' : html`Show all ${fmt(c.groups)} groups`} <span aria-hidden="true">${allCauses ? '↑' : '↓'}</span></button>`
+        ? html`<button type="button" class="hl-all cause-more" aria-expanded="${!!store.allCauses}">${store.allCauses ? 'Show the biggest only' : html`Show all ${fmt(c.groups)} groups`} <span aria-hidden="true">${store.allCauses ? '↑' : '↓'}</span></button>`
         : ''
     }
   </section>`
@@ -2424,7 +2403,7 @@ function causesHtml() {
 // branches.apply_staging_next_blocked), switched in its header as the other
 // lists switch newest and oldest: one list, one height, the cards aligned.
 function blockersHtml() {
-  const b = manifest.blockers;
+  const b = store.manifest.blockers;
   const sn = b?.stagingNext?.top?.length ? b.stagingNext : null;
   if (!b?.count && !sn) return '';
   const onNext = sn && highlightShown.blockers === 'stagingNext';
@@ -2447,12 +2426,12 @@ function blockersHtml() {
       }
     </div>
     <ol class="hl-list">${shown.top.map(
-      ([name, isRow, packages, builds]) =>
+      ([name, isRow, stopped, builds]) =>
         html`<li>${
           isRow
             ? html`<a class="hl-row" href="${scopeHref({ pkg: name })}" data-scope-pkg="${name}">`
             : raw('<span class="hl-row">')
-        }<span class="status-dot missing" aria-hidden="true"></span><span class="hl-name mono">${name}</span><span class="hl-age" title="Stops ${fmt(packages)} ${packages === 1 ? 'package' : 'packages'} (${fmt(builds)} ${builds === 1 ? 'build' : 'builds'})${onNext ? ' on staging-next' : ''}">stops ${fmt(packages)}</span>${raw(isRow ? '</a>' : '</span>')}</li>`,
+        }<span class="status-dot missing" aria-hidden="true"></span><span class="hl-name mono">${name}</span><span class="hl-age" title="Stops ${fmt(stopped)} ${stopped === 1 ? 'package' : 'packages'} (${fmt(builds)} ${builds === 1 ? 'build' : 'builds'})${onNext ? ' on staging-next' : ''}">stops ${fmt(stopped)}</span>${raw(isRow ? '</a>' : '</span>')}</li>`,
     )}</ol>
     ${
       onNext
@@ -2528,15 +2507,15 @@ const BACKFILL_PENDING = 1000;
 // count: unstable has the fix. Not on data from before nixkeeper-vulnerabilities
 // (no count).
 function backportCardNote() {
-  const n = manifest.counts?.backport;
+  const n = store.manifest.counts?.backport;
   if (n == null) return '';
-  const release = manifest.sources?.tracker?.release;
+  const release = store.manifest.sources?.tracker?.release;
   const to = release ? `to ${release}` : 'to the newest release';
   return html`<span class="card-sub" title="Fixed on nixpkgs unstable (a new version, or a patch named after the CVE), while the newest release is still affected: fixes to backport there, a tile in this card's list. Not counted above: unstable has the fix.">${n ? `${fmt(n)} fixed, to backport ${to}` : `none to backport ${to}`}</span>`;
 }
 
 function backfillNote() {
-  const updates = manifest.sources?.updates;
+  const updates = store.manifest.sources?.updates;
   if (!updates?.used || !(updates.pending > BACKFILL_PENDING)) return '';
   return html`<span class="card-sub card-note" title="nixkeeper-updates is still reading nixpkgs-update's past attempts: update failures that were there all along keep turning up, so this count rises until it's done">update failures still being read: ${fmt(updates.pending)} attempts to go</span>`;
 }
@@ -2555,15 +2534,15 @@ const TREND_EVENTS = {
 const MARKED = new Set(['staging-next', 'counting']);
 // The events on the days the trends show, with where they fall.
 function shownEvents(points) {
-  return trendEvents
+  return store.trendEvents
     .filter((e) => TREND_EVENTS[e.kind])
     .map((e) => ({ ...e, x: dayPosition(points, e.day) }))
     .filter((e) => e.x != null);
 }
 
 function overviewHtml() {
-  const c = manifest.counts || {};
-  const views = manifest.views || {};
+  const c = store.manifest.counts || {};
+  const views = store.manifest.views || {};
   const sets = Object.entries(views.sets || {}).map(([name, v]) => [
     name,
     typeof v === 'number' ? { packages: v, failed: 0, broken: 0 } : v,
@@ -2572,12 +2551,12 @@ function overviewHtml() {
   const inSets = c.inSets ?? c.pending ?? 0;
   const total = (c.tracked || 0) + inSets;
   const share = total ? (100 * (c.tracked || 0)) / total : 0;
-  const points = (trendPoints || []).slice(-TREND_DAYS);
+  const points = (store.trendPoints || []).slice(-TREND_DAYS);
   const trends = points.length >= TREND_MIN_POINTS;
   // Build failures from before the count was kept apart: the newest and
   // longest-standing lists' count of them.
   const count = (key) =>
-    key === 'buildFailures' && c[key] == null ? manifest.highlights?.failing?.count : c[key];
+    key === 'buildFailures' && c[key] == null ? store.manifest.highlights?.failing?.count : c[key];
   const cards = CARDS.filter((card) => !card.optional || count(card.key) != null).map((card) => {
     // The days that have this count (the split ones are newer than the rest).
     const mine = points.filter((p) => p[card.key] != null);
@@ -2651,7 +2630,7 @@ const creditText = (c) =>
   `${c.likely ? 'Likely fixed by' : 'By'} #${c.pr}${c.author ? `, opened by @${c.author}` : ''}${c.mergedBy ? `, merged by @${c.mergedBy}` : ''}`;
 
 function fixedHtml() {
-  const fixed = manifest.fixed;
+  const fixed = store.manifest.fixed;
   if (!fixed) return '';
   const cards = FIXED.map(({ key, label }) => {
     const f = fixed[key] || { count: 0, newest: [] };
@@ -2689,11 +2668,11 @@ const SET_BAR_TITLE =
 // queue counts). Each says what it means, and opens its list when there is
 // one. Only those the data has.
 function numbersHtml() {
-  const n = manifest.numbers;
+  const n = store.manifest.numbers;
   if (!n) return '';
-  const m = manifest.merge;
-  const prs = sources?.prs;
-  const queue = sources?.queue;
+  const m = store.manifest.merge;
+  const prs = store.sources?.prs;
+  const queue = store.sources?.queue;
   const link = (href, text) => html` <a class="files-link" href="${href}">${text} →</a>`;
   const items = [
     prs?.prs != null && [
@@ -2706,10 +2685,10 @@ function numbersHtml() {
       'ready for the merge bot',
       html`PRs waiting for their own maintainers (${fmt(m.maintainers)} people could each merge one), ${fmt(m.over90)} for over three months. Yours: "You can merge these", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>`,
     ],
-    manifest.close?.prs != null && [
-      fmt(manifest.close.prs),
+    store.manifest.close?.prs != null && [
+      fmt(store.manifest.close.prs),
       'update PRs nixpkgs is past',
-      html`it already has their version or a newer one: they can be closed (${fmt(manifest.close.bot)} of them the update bot's)${manifest.close.init ? `, and ${fmt(manifest.close.init)} init PRs for a package it has now` : ''}. Yours: "Can be closed", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>${link(scopeHref({ view: 'superseded' }), 'all of them')}`,
+      html`it already has their version or a newer one: they can be closed (${fmt(store.manifest.close.bot)} of them the update bot's)${store.manifest.close.init ? `, and ${fmt(store.manifest.close.init)} init PRs for a package it has now` : ''}. Yours: "Can be closed", on <a class="files-link" href="${scopeHref({ view: 'maintainers' })}" data-card-view="maintainers">your page</a>${link(scopeHref({ view: 'superseded' }), 'all of them')}`,
     ],
     [
       fmt(n.behind),
@@ -2727,15 +2706,15 @@ function numbersHtml() {
       'builds not built on Hydra',
       `${fmt(n.failing)} failing themselves · ${fmt(n.blocked || 0)} blocked by a failing dependency · ${fmt(n.unfinished || 0)} unfinished (timed out or aborted) · of ${fmt(n.builds)} in master's evaluation, every platform, sets included`,
     ],
-    manifest.views?.unbuilt != null && [
-      fmt(manifest.views.unbuilt),
+    store.manifest.views?.unbuilt != null && [
+      fmt(store.manifest.views.unbuilt),
       'not built where listed',
       html`nixpkgs lists them for a platform Hydra doesn't build them on${link(scopeHref({ view: 'unbuilt' }), 'see them')}`,
     ],
-    manifest.counts?.tracked > 0 && [
-      `${Math.round((100 * (manifest.counts.tracked - manifest.counts.outdated)) / manifest.counts.tracked)}%`,
+    store.manifest.counts?.tracked > 0 && [
+      `${Math.round((100 * (store.manifest.counts.tracked - store.manifest.counts.outdated)) / store.manifest.counts.tracked)}%`,
       'up to date',
-      `of the ${fmt(manifest.counts.tracked)} packages outside the sets: nixpkgs has the newest version (${fmt(manifest.counts.outdated)} outdated)`,
+      `of the ${fmt(store.manifest.counts.tracked)} packages outside the sets: nixpkgs has the newest version (${fmt(store.manifest.counts.outdated)} outdated)`,
     ],
     [
       fmt(n.unmaintained),
@@ -2783,14 +2762,14 @@ function setsHtml(sets) {
 
 function listHeaderHtml() {
   const handle = document.getElementById('search').value.trim().replace(/^@/, '');
-  const path = shownView || '';
+  const path = store.shownView || '';
   // The tiles count the view shown, with the platform, list and team
   // filters, as the count chips do (renderStats).
-  const base = packages.filter(
+  const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && notHidden(p),
   );
   // Hidden here ("Hide until it changes"), by the same filters.
-  const hiddenHere = packages.filter(
+  const hiddenHere = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && inSet(p) && isHidden(p),
   ).length;
   const shownCount = base.filter((p) => refined(p)).length;
@@ -2814,7 +2793,7 @@ function listHeaderHtml() {
           : path.startsWith('views/set/')
             ? state.setFilter
             : path.startsWith('views/cause/')
-              ? causeShown?.title || 'Failing with the same error'
+              ? store.causeShown?.title || 'Failing with the same error'
               : path === 'views/broken.json'
                 ? 'Marked broken'
                 : path === 'views/blocked.json'
@@ -2835,11 +2814,11 @@ function listHeaderHtml() {
           ? html`<button type="button" class="hidden-toggle" aria-pressed="${showHidden}" title="Packages you hid here, in this browser, until what they need attention for changes">${fmt(hiddenHere)} hidden · ${showHidden ? 'hide them' : 'show them'}</button>`
           : ''
       }<button type="button" class="close-all" title="Close every open package (Esc)" hidden>Close all</button>
-      ${path.startsWith('views/cause/') && causeShown ? html`<span class="scope-hint cause-line" title="The error line these builds share (paths, numbers and names vary)"><code>${causeShown.line}</code></span>` : ''}
+      ${path.startsWith('views/cause/') && store.causeShown ? html`<span class="scope-hint cause-line" title="The error line these builds share (paths, numbers and names vary)"><code>${store.causeShown.line}</code></span>` : ''}
       ${
         // Marked broken's neighbour: listed for a platform, never built there.
-        path === 'views/broken.json' && manifest.views?.unbuilt
-          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'unbuilt' })}" title="Packages nixpkgs lists for a platform Hydra doesn't build them on: usually a dependency isn't available there">also: ${fmt(manifest.views.unbuilt)} not built where listed →</a>`
+        path === 'views/broken.json' && store.manifest.views?.unbuilt
+          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'unbuilt' })}" title="Packages nixpkgs lists for a platform Hydra doesn't build them on: usually a dependency isn't available there">also: ${fmt(store.manifest.views.unbuilt)} not built where listed →</a>`
           : path === 'views/superseded.json'
             ? html`<span class="scope-hint">an open update PR nixpkgs is already past (it has the PR’s version or a newer one): each package’s details link it</span>`
             : path === 'views/unbuilt.json'
@@ -2850,8 +2829,8 @@ function listHeaderHtml() {
         // "PR to close" on in another list: the whole of nixpkgs' are a view.
         state.refines.has('superseded') &&
         path !== 'views/superseded.json' &&
-        manifest.views?.superseded
-          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded" title="Every package with an open update PR nixpkgs is already past, up to date or not">also: ${fmt(manifest.views.superseded)} in all of nixpkgs →</a>`
+        store.manifest.views?.superseded
+          ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded" title="Every package with an open update PR nixpkgs is already past, up to date or not">also: ${fmt(store.manifest.views.superseded)} in all of nixpkgs →</a>`
           : ''
       }
       ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(state.setFilter)}${profileOf(state.setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(state.setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
@@ -2938,16 +2917,18 @@ function showView({ set = null, pkg = null, view = null, filter = null, cause = 
 // With every package, under a search for @someone: the maintainers whose
 // handle matches, the closest first, each opening their packages.
 function maintainerMatchesHtml(query) {
-  if (!maintainersList) {
+  if (!store.maintainersList) {
     loadMaintainers();
     return html`<div class="more-matches"><div class="other-label">Looking up maintainers…</div></div>`;
   }
   const typed = query.trim().slice(1).toLowerCase();
-  const { found, total } = maintainerMatches(maintainersList, query, 20);
+  const { found, total } = maintainerMatches(store.maintainersList, query, 20);
   // On the overview (typing in its box), the handle itself too: nothing
   // else shows it yet.
   const others =
-    shownView === 'overview' ? found : found.filter(([handle]) => handle.toLowerCase() !== typed);
+    store.shownView === 'overview'
+      ? found
+      : found.filter(([handle]) => handle.toLowerCase() !== typed);
   if (!others.length) return '';
   return html`<div class="more-matches">
     <div class="other-label">${typed && total > others.length ? 'Other maintainers' : 'Maintainers'} matching @${typed}${total > found.length ? html`, the first ${found.length}` : ''}</div>
@@ -2968,9 +2949,11 @@ function maintainerHref(handle) {
 // ?view=maintainers: every maintainer, by handle, a page at a time; the
 // search narrows them (an @ in front or not).
 function maintainersHtml() {
-  if (!maintainersList) return html`<div class="empty">Loading the maintainers…</div>`;
+  if (!store.maintainersList) return html`<div class="empty">Loading the maintainers…</div>`;
   const query = document.getElementById('search').value.trim();
-  const list = query ? maintainerMatches(maintainersList, query, Infinity).found : maintainersList;
+  const list = query
+    ? maintainerMatches(store.maintainersList, query, Infinity).found
+    : store.maintainersList;
   if (!list.length) return html`<div class="empty">No maintainer matches “${query}”.</div>`;
   const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
   state.pageNum = Math.min(state.pageNum, pages);
@@ -2980,11 +2963,16 @@ function maintainersHtml() {
 
 function moreMatchesHtml() {
   const query = document.getElementById('search').value;
-  if (community && !state.pkgParam && shownView !== 'maintainers' && /^@\S/.test(query.trim()))
+  if (
+    store.community &&
+    !state.pkgParam &&
+    store.shownView !== 'maintainers' &&
+    /^@\S/.test(query.trim())
+  )
     return maintainerMatchesHtml(query);
-  if (!community || state.pkgParam || query.trim().length < 2 || query.trim().startsWith('@'))
+  if (!store.community || state.pkgParam || query.trim().length < 2 || query.trim().startsWith('@'))
     return '';
-  if (!names) {
+  if (!store.names) {
     loadNames();
     return html`<div class="more-matches"><div class="other-label">Searching all of nixpkgs…</div></div>`;
   }
@@ -3002,9 +2990,9 @@ function moreMatchesHtml() {
     matchLimit = MATCHES_SHOWN;
   }
   const { found: all, total } = nameMatches(
-    names,
+    store.names,
     query,
-    new Set(packages.map((p) => p.name)),
+    new Set(store.packages.map((p) => p.name)),
     Infinity,
   );
   if (!total) return '';
@@ -3024,7 +3012,7 @@ function moreMatchesHtml() {
       team: state.matchTeam,
       platform: state.platformFilter,
     },
-    facetIndex ? facetsOf : null,
+    store.facetIndex ? facetsOf : null,
   );
   const shownHere = kept.slice(0, matchLimit);
   const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
@@ -3039,7 +3027,7 @@ function moreMatchesHtml() {
       ? [...statuses, [state.statusFilter, 0]]
       : statuses;
   return html`<div class="more-matches">
-    <div class="other-label">${total.toLocaleString()} ${shownView === 'overview' ? '' : 'more '}${total === 1 ? 'package matches' : 'packages match'} in all of nixpkgs${narrowed ? html`, ${kept.length.toLocaleString()} with these filters` : ''}</div>
+    <div class="other-label">${total.toLocaleString()} ${store.shownView === 'overview' ? '' : 'more '}${total === 1 ? 'package matches' : 'packages match'} in all of nixpkgs${narrowed ? html`, ${kept.length.toLocaleString()} with these filters` : ''}</div>
     ${
       // Shown whenever one is picked, even for one match: else a filter
       // from an earlier search would hide it, with no way to undo it.
@@ -3048,7 +3036,7 @@ function moreMatchesHtml() {
             ([v, n]) => facetOption(v, setLabel(v), n, state.inFilter),
           )}</select></label><label class="refine-age" title="Only the matches with this status, as their dot says. Each with how many match.">Status <select data-status><option value="">any status</option>${statusChoices.map(
             ([v, n]) => facetOption(v, NAME_STATUSES[v], n, state.statusFilter),
-          )}</select></label>${facetIndex ? matchFacetsHtml(by, teams, platforms) : ''}${
+          )}</select></label>${store.facetIndex ? matchFacetsHtml(by, teams, platforms) : ''}${
             narrowed
               ? html`<button type="button" class="refine-btn" data-clear-matches title="Back to every match: any set, status, maintainer, team and platform">Clear filters</button>`
               : ''
@@ -3254,14 +3242,14 @@ const staleText = (info, what) =>
 // "vulnerable", coloured by the worst severity known, who says so on hover.
 function vulnBadge(pkg) {
   if (!isVulnerable(pkg)) return '';
-  const sources = vulnSources(pkg);
-  const insecureOnly = sources.length === 1 && pkg.markedInsecure?.length;
+  const saidBy = vulnSources(pkg);
+  const insecureOnly = saidBy.length === 1 && pkg.markedInsecure?.length;
   const found = vulnSummary(pkg);
   const severity = found?.severity;
   const n = found?.n;
   const title = insecureOnly
     ? `nixpkgs marks it insecure: ${pkg.markedInsecure.join(' · ')}`
-    : `Vulnerable, says ${sources.join(', ')}${n ? `: ${n} ${n === 1 ? 'CVE or advisory' : 'CVEs or advisories'}` : ''}${severity ? ` (worst: ${severity})` : ''}`;
+    : `Vulnerable, says ${saidBy.join(', ')}${n ? `: ${n} ${n === 1 ? 'CVE or advisory' : 'CVEs or advisories'}` : ''}${severity ? ` (worst: ${severity})` : ''}`;
   return html`<span class="badge vuln${severity ? ` sev-${severity}` : ''}" title="${title}">${insecureOnly ? 'insecure' : 'vulnerable'}</span>`;
 }
 
@@ -3552,7 +3540,7 @@ const UPDATE_OUTCOME = {
 // package outdated here, the bot's picking can be wrong. Not in the queue:
 // it sees nothing to update to. Nothing without the queue.
 function queueHtml(pkg) {
-  if (!sources?.queue?.used) return '';
+  if (!store.sources?.queue?.used) return '';
   const q = pkg.queued;
   const queueLink = html`<a class="files-link" href="https://nixpkgs-update-logs.nixos.org/~supervisor/queue.html" target="_blank" rel="noopener">queue ↗</a>`;
   if (!q) {
@@ -3667,7 +3655,7 @@ function fillUpdate(pkg, el) {
 
 // A blocking package's address, where the page has every package
 // (panel.js's buildLine links it).
-const blockerHref = (name) => (community ? scopeHref({ pkg: name }) : null);
+const blockerHref = (name) => (store.community ? scopeHref({ pkg: name }) : null);
 
 function fillBuilds(pkg, el) {
   const stale = staleNote(
@@ -3807,7 +3795,7 @@ function fillDetail(pkg, el, entries) {
   // With every package, a row no list has keeps the newest repositories
   // only (nixkeeper/datastore.py, kept_entries): the rest are on Repology.
   const notKept =
-    community && !pkg.lists?.length && pkg.repoCount > others.length
+    store.community && !pkg.lists?.length && pkg.repoCount > others.length
       ? pkg.repoCount - others.length
       : 0;
   const compared = others.length + notKept;
@@ -4303,7 +4291,7 @@ const passesOthers = (p, q) =>
 
 function currentFiltered() {
   const q = document.getElementById('search').value;
-  facetBase = packages.filter((p) => passesOthers(p, q));
+  facetBase = store.packages.filter((p) => passesOthers(p, q));
   const list = facetBase.filter((p) => inPlatform(p) && inNameSet(p) && byMaintainer(p));
   return sortedList(list, state.sortReverse ? -1 : 1);
 }
@@ -4486,7 +4474,7 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   const hidePr = e.target.closest('button.merge-hide');
   if (hidePr) {
     const number = Number(hidePr.dataset.pr);
-    const pr = (mergeList || []).find((p) => p.number === number);
+    const pr = (store.mergeList || []).find((p) => p.number === number);
     if (pr) setPrHidden(number, !isPrHidden(pr));
     return;
   }
@@ -4595,7 +4583,7 @@ document.getElementById('lists').addEventListener('submit', (e) => {
   e.preventDefault();
   myTeam = e.target.team.value || null;
   editingTeam = false;
-  store('nixkeeper-team', myTeam);
+  remember('nixkeeper-team', myTeam);
   if (myTeam) showMyTeam(true);
   else renderLists();
 });
@@ -4606,7 +4594,7 @@ document.getElementById('lists').addEventListener('submit', (e) => {
   myHandle = handle || null;
   myCount = null;
   editingHandle = false;
-  store('nixkeeper-handle', myHandle);
+  remember('nixkeeper-handle', myHandle);
   if (myHandle) {
     loadMyCount();
     showMine(true);
@@ -4655,16 +4643,16 @@ document.addEventListener('change', (e) => {
 document.addEventListener('click', async (e) => {
   const button = e.target.closest('.cause-more');
   if (!button) return;
-  if (allCauses) {
-    allCauses = null;
+  if (store.allCauses) {
+    store.allCauses = null;
   } else {
     try {
-      allCauses = (await readJson('views/causes.json')).groups || [];
+      store.allCauses = (await readJson('views/causes.json')).groups || [];
     } catch {
       return; // the biggest stay
     }
   }
-  if (shownView === 'overview') renderScope();
+  if (store.shownView === 'overview') renderScope();
 });
 
 // "/" jumps to the filter, as on GitHub; Escape in it clears it.
@@ -4702,9 +4690,9 @@ document
   .addEventListener('click', () => showThemePanel(document.getElementById('themePanel').hidden));
 document.getElementById('themePanel').addEventListener('change', (e) => {
   const { name, value } = e.target;
-  if (name === 'palette') store('nixkeeper-palette', value);
+  if (name === 'palette') remember('nixkeeper-palette', value);
   // Auto is no choice: the system's setting.
-  if (name === 'mode') store('nixkeeper-mode', value === 'auto' ? null : value);
+  if (name === 'mode') remember('nixkeeper-mode', value === 'auto' ? null : value);
   applyTheme();
 });
 document
