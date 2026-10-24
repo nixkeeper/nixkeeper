@@ -38,8 +38,8 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
-- The page in modules: a package panel's sections in `page/panel.js` (pure,
-  with node tests), shared pieces of HTML in `page/ui.js`, reading the data
+- The page in modules: a package's panel in `page/package-view.js`, its
+  sections in `page/panel.js` (pure, with node tests), shared pieces of HTML in `page/ui.js`, reading the data
   in `page/data.js`, the filters, sort and paging in one object with the
   address read and written in `page/state.js` (both with node tests), what's
   loaded of the data in one object in `page/store.js`, preloaded with

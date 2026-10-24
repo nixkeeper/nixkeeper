@@ -11,8 +11,9 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `tests/`: offline tests, one file per module (nothing reaches the
   network: sources are faked). `tests/js/` tests the page's rules
   (`page/logic.js`), a package panel's sections (`page/panel.js`), how it
-  reads its data (`page/data.js`, with `fetch` stood in for) and its address
-  (`page/state.js`) with Node's own test runner
+  reads its data (`page/data.js`, with `fetch` stood in for), its address
+  (`page/state.js`) and a package's panel (`page/package-view.js`, the
+  parts that are HTML) with Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -37,9 +38,12 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
   from the `data` branch. `logic.js` holds its rules (statuses, versions,
   ages, safe links, the tab icon's signals) without the page, so they can be
-  tested; `panel.js` a package panel's sections (vulnerabilities, builds,
-  On GitHub), from the package alone, tested too; `ui.js` the small pieces
-  of HTML both use (numbers, dates, icons); `data.js` where the data is and
+  tested; `package-view.js` a package's panel (Details, Updates, Builds),
+  given what it needs of the page (`panelPage` in `app.js`: a package's
+  address, hiding it, drawing again); `panel.js` its sections
+  (vulnerabilities, builds, On GitHub), from the package alone, tested
+  too; `ui.js` the small pieces of HTML and text they and the list share
+  (numbers, dates, icons, why a build failed); `data.js` where the data is and
   how it's read (its files as JSON, the shards' rows once each); `state.js`
   the filters, sort and paging in one object (`state`), read from the
   address and written back (`readState`, `writeState`); `store.js` what's

@@ -1,6 +1,7 @@
 // The page's shared pieces of HTML: numbers, dates, icons, why a build
 // failed. Used by app.js and panel.js.
-import { raw } from './logic.js';
+import { daysText, raw } from './logic.js';
+import { store } from './store.js';
 
 // GitHub's own icons (Octicons, (c) GitHub, MIT licence), 14px, in the
 // text's colour: an open PR, a draft, a merged one, an open issue. In the
@@ -141,3 +142,104 @@ export const icon = (name) =>
   raw(
     `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`,
   );
+
+export const hydraBuildUrl = (build) =>
+  `https://hydra.nixos.org/build/${encodeURIComponent(build)}`;
+
+// Where an update merged into staging or staging-next is, and what it waits
+// for: staging-next's merge into master (about every two to three weeks),
+// or before that, the next staging-next.
+export function stagingWait(pr) {
+  return pr.on === 'staging-next'
+    ? `reaches master when staging-next is merged into it${pr.cycle ? ` (#${pr.cycle.n}, open since ${shortDay(pr.cycle.cut.slice(0, 10))})` : ''}`
+    : 'goes to staging-next when the next one is cut from staging, then to master with it';
+}
+
+// Repology's unique with nothing to compare (nothingCompared).
+export const ONLY_NIXPKGS_TEXT =
+  "Only nixpkgs packages it, and nixkeeper has no update check for it: there's nothing to compare its version with";
+
+// nixpkgs' 0-unsupported (rows.UNSUPPORTED): not built in its default
+// configuration, so no version to compare.
+export const UNSUPPORTED_TEXT =
+  "nixpkgs doesn't build it in its default configuration (0-unsupported: for the CUDA it defaults to, say), so there's no version to compare";
+
+// A set kept current in bulk by its own tooling (rPackages: the CRAN
+// import), not one PR per package: what updates it, from index.json's
+// "profiles" (config.SET_PROFILES). Data from before has none: said plainly.
+export const profileOf = (set) => store.manifest?.profiles?.[set] || null;
+
+export const bulkText = (set) =>
+  `Kept current in bulk by ${profileOf(set)?.updatedBy || 'its own tooling'}, not one PR per package`;
+
+// No longer on CRAN or in the Bioconductor release nixpkgs pins (the row's
+// "archived", sources/cran_digest.py).
+export const ARCHIVED_TITLE =
+  "No longer on CRAN or in the Bioconductor release nixpkgs pins: CRAN archived it (it failed CRAN's checks and wasn't fixed, or its maintainer left), or Bioconductor dropped it";
+
+export const archivedText = (pkg) =>
+  `${ARCHIVED_TITLE}. ${pkg.markedBroken ? 'nixpkgs marks it broken.' : "nixpkgs doesn't mark it broken: likely broken anyway, or due for removal."}`;
+
+export const LOOKUP_FAILED =
+  "Repology couldn't be reached on the last sync, and there's no earlier data";
+
+export const UNVERSIONED_TITLE =
+  "Not software with releases to compare (a system component): its builds are what's checked";
+
+// A source the last sync couldn't refresh ("builds", "update", "upstream"):
+// what's shown is from before `since`. null if it refreshed fine.
+export const notRefreshed = (pkg, source) => pkg.notRefreshed?.[source] || null;
+
+export const staleText = (info, what) =>
+  `${what} since ${longDate(info.since)} (${daysText(info.since)}): ${info.reason}`;
+
+// Whether Hydra built this at all: not for unfree packages, nor ones nixpkgs
+// keeps off Hydra (hydraPlatforms).
+export function hydraBuildsIt(pkg) {
+  return !pkg.unfree && pkg.builds.some((b) => b.status !== 'notBuilt');
+}
+
+// Why the bot's attempt failed ("failedBecause"), as the log says: short in
+// the list, said in full in the panel. None recognised: "other".
+export const FAILED_BECAUSE = {
+  unavailable: {
+    short: 'unavailable',
+    text: "nixpkgs won't build it where the bot builds (x86_64-linux): it or a dependency is broken, insecure or not for that platform",
+  },
+  patch: {
+    short: 'patch',
+    text: "nixpkgs' changes to the source (patches, substitutions) don't apply to the new version",
+  },
+  dependency: {
+    short: 'dependency',
+    text: "the new version needs a dependency nixpkgs doesn't give it: missing, or too old",
+  },
+  hash: {
+    short: 'hash',
+    text: "the bot couldn't work out a hash: of vendored dependencies, mostly, which failed to fetch or build",
+  },
+  source: { short: 'source', text: "the new version's source couldn't be fetched" },
+  // restates: its text only says the pill again ("Failed: updateScript"),
+  // so the panel leaves it out (the log lines say the rest).
+  updateScript: {
+    short: 'updateScript',
+    text: "the package's updateScript failed",
+    restates: true,
+  },
+  tests: { short: 'tests', text: 'the new version built, but its tests failed' },
+  noLog: { short: 'build', text: 'the build failed, and nix kept no log of why' },
+  build: { short: 'build', text: 'the new version failed to build', restates: true },
+  request: {
+    short: 'request',
+    text: "a request of the bot's failed (to GitHub, mostly), not the package",
+  },
+  // The bot's own machine (its build users, its nix daemon): not the
+  // package. Worth telling nixpkgs-update's maintainers while it's recent
+  // (REPORT_DAYS); an older one was a past outage, fixed since (2026-09-28:
+  // four hours, 1,306 attempts), which the bot's next round clears.
+  bot: {
+    short: 'bot',
+    text: "the bot's machine failed (its build users group, or its nix daemon), not the package",
+    report: true,
+  },
+};

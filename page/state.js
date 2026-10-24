@@ -5,10 +5,13 @@
 // the page from it. Other parameters (owner, repo) are left alone.
 
 import {
+  buildsWith as buildsOn,
+  hasFailure as failureOn,
   maintainersParam,
   NAME_STATUSES,
   parseMaintainers,
   parseTeams,
+  attentionRank as rankOn,
   teamsParam,
 } from './logic.js';
 
@@ -141,3 +144,12 @@ export function writeState(st, query, params, { FILTERS, PLATFORMS }, page = st.
   const out = params.toString().replaceAll('%40', '@').replaceAll('%2C', ',');
   return out ? `?${out}` : '';
 }
+
+// The rules that follow the platform filter (logic.js), on the selected one.
+export const hasFailure = (pkg) => failureOn(pkg, state.platformFilter);
+
+export const buildsWith = (pkg, status) => buildsOn(pkg, status, state.platformFilter);
+
+export const failedBuilds = (pkg) => buildsWith(pkg, 'failed');
+
+export const attentionRank = (pkg) => rankOn(pkg, state.platformFilter);
