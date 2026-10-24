@@ -9,7 +9,7 @@ globalThis.document = { getElementById: () => ({ value: '' }) };
 globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { KNOWN } = await import('../../page/filters.js');
-const { needsList, parseQuery, queryFields, suggest, writeQuery } = await import(
+const { matchNote, needsList, parseQuery, queryFields, suggest, writeQuery } = await import(
   '../../page/search.js'
 );
 const { readState } = await import('../../page/state.js');
@@ -102,6 +102,42 @@ describe('writeQuery', () => {
     assert.equal(st.activeFilter, 'all');
     assert.equal(st.refines.size, 0);
     assert.equal(st.sortMode, 'pressing');
+  });
+});
+
+describe('ofteam:', () => {
+  const teams = { ...KNOWN, TEAMS: ['Python', 'Security review'] };
+  test('a team as the data writes it, whatever the case', () => {
+    assert.equal(parseQuery('ofteam:python', teams).fields.matchTeam, 'Python');
+    assert.equal(parseQuery('ofteam:"security review"', teams).fields.matchTeam, 'Security review');
+  });
+  test('one the data has no team for, said with the closest', () => {
+    const { fields, problems } = parseQuery('ofteam:pyton', teams);
+    assert.equal(fields.matchTeam, undefined);
+    assert.deepEqual(problems, [
+      { token: 'ofteam:pyton', message: 'no ofteam:pyton', suggestion: 'ofteam:Python' },
+    ]);
+  });
+  test('before the data says its teams, as typed', () => {
+    assert.equal(parseQuery('ofteam:python').fields.matchTeam, 'python');
+  });
+});
+
+describe('matchNote', () => {
+  const st = (q) => queryFields(parseQuery(q).fields);
+  test('status: or ofteam: with no name', () => {
+    assert.equal(
+      matchNote(st('ofteam:Python'), ''),
+      'ofteam: narrows the matches in all of nixpkgs: add a name',
+    );
+    assert.equal(
+      matchNote(st('status:outdated ofteam:Python'), '@fabaff'),
+      'status: and ofteam: narrow the matches in all of nixpkgs: add a name',
+    );
+  });
+  test('nothing with a name, or with neither word', () => {
+    assert.equal(matchNote(st('ofteam:Python'), 'firefox'), null);
+    assert.equal(matchNote(st('is:builds'), ''), null);
   });
 });
 

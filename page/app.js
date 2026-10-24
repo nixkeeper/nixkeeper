@@ -46,6 +46,7 @@ import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
 import {
+  matchNote,
   needsList,
   parseQuery,
   readBox,
@@ -54,7 +55,15 @@ import {
   wireSearchMenu,
   writeQuery,
 } from './search.js';
-import { failedBuilds, PAGE_SIZES, readState, scopeHref, state, writeState } from './state.js';
+import {
+  failedBuilds,
+  known,
+  PAGE_SIZES,
+  readState,
+  scopeHref,
+  state,
+  writeState,
+} from './state.js';
 import { store } from './store.js';
 import { fmt } from './ui.js';
 
@@ -111,6 +120,8 @@ const MATCHES_SHOWN = 50;
 const MATCHES_MORE = 200;
 let matchLimit = MATCHES_SHOWN;
 let matchQuery = '';
+// What the matches last counted, for the search box's menu (searchValues).
+let matchCounts = null;
 // The table shows pageSize rows at a time: drawing stays fast whatever the
 // data's size, and the page keeps working with Ctrl+F and screen readers
 // (no virtual scrolling). ?page= in the address, past the first; ?per= for
@@ -280,6 +291,13 @@ async function ensureView() {
     cause: state.causeFilter,
   };
   let path = viewPath(asked);
+  // ofteam:Python with no name: every match of the team, its own page (as
+  // team:Python).
+  if (path === 'overview' && state.matchTeam && asked.query.trim().length < 2) {
+    state.teamFilter = state.matchTeam;
+    state.matchTeam = null;
+    path = viewPath({ ...asked, team: state.teamFilter });
+  }
   // The overview has no list: a word for one (is:builds, age:1y...) opens
   // what needs attention, as a tile does, the box keeping the query.
   if (path === 'overview' && needsList(state)) {
@@ -424,6 +442,7 @@ async function update({ keepPage = false } = {}) {
       return;
     }
   }
+  showProblems();
   await yieldToBrowser();
   if (run !== updateRun) return;
   const list = currentFiltered();
@@ -461,6 +480,8 @@ async function loadIndex() {
     if (data.allPackages) {
       store.community = true;
       store.manifest = data;
+      // The teams ofteam: names (search.js), as the data writes them.
+      known.TEAMS = Object.keys(data.views?.teams || {});
       listView.myHandle = stored('nixkeeper-handle');
       listView.myTeam = stored('nixkeeper-team');
       loadMyCount();
@@ -773,6 +794,7 @@ function maintainerMatchesHtml(query) {
 }
 
 function moreMatchesHtml() {
+  matchCounts = null;
   const query = searchText();
   if (
     store.community &&
@@ -825,6 +847,7 @@ function moreMatchesHtml() {
     },
     store.facetIndex ? facetsOf : null,
   );
+  matchCounts = { sets, statuses, by, teams, platforms };
   const shownHere = kept.slice(0, matchLimit);
   const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
   // python3Packages (an alias, ?in=): offered with its sets' counts together.
@@ -997,7 +1020,7 @@ wireList(pageHooks);
 wireOverview(pageHooks);
 wireMaintainerView(pageHooks);
 // The search box's menu: the qualifiers, then their values with counts.
-wireSearchMenu(searchValues);
+wireSearchMenu(() => searchValues(matchCounts));
 
 // The search's matches in all of nixpkgs: the next ones, or every one again
 // (moreMatchesHtml).
@@ -1023,7 +1046,7 @@ document.getElementById('search').addEventListener('input', () => {
   clearTimeout(searchTimer);
   // Its qualifiers set the filters (search.js), the rest is searched for.
   searchTimer = setTimeout(() => {
-    showProblems(readBox());
+    boxProblems = readBox();
     update();
   }, 150);
 });
@@ -1032,15 +1055,20 @@ document.getElementById('search').addEventListener('input', () => {
 document.getElementById('search').addEventListener('blur', () => {
   if (!parseQuery(document.getElementById('search').value).problems.length) showQuery();
 });
-// What the box couldn't read, under it: "no is:biulds: is:builds?".
-function showProblems(problems) {
+// What the box couldn't read, under it: "no is:biulds: is:builds?"; else,
+// while it's typed in, what a word waits for (matchNote: status: or
+// ofteam: with no name), quieter. After update(): as the state ends up.
+let boxProblems = [];
+function showProblems(problems = boxProblems) {
   const box = document.getElementById('search');
   const el = document.getElementById('searchProblems');
+  const note = problems.length ? null : matchNote(state, searchText());
   box.setAttribute('aria-invalid', String(problems.length > 0));
-  el.hidden = !problems.length;
-  el.textContent = problems
-    .map((p) => `${p.message}${p.suggestion ? `: ${p.suggestion}?` : ''}`)
-    .join(' · ');
+  el.hidden = !problems.length && !note;
+  el.classList.toggle('note', Boolean(note));
+  el.textContent =
+    note ||
+    problems.map((p) => `${p.message}${p.suggestion ? `: ${p.suggestion}?` : ''}`).join(' · ');
 }
 // With every package: the links between views (a generated set, one
 // package, back to what needs attention) and the team picker. A click with
@@ -1130,7 +1158,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     search.value = writeQuery(state, '');
     clearTimeout(searchTimer);
-    showProblems([]);
+    boxProblems = [];
     update();
   }
 });

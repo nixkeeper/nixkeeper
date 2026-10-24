@@ -1586,10 +1586,23 @@ export function wireList(page) {
 // What the search box's menu offers after each qualifier (search.js's
 // suggest), with how many of the list each would keep where the page
 // counts them already: the tiles (as renderStats), the platforms, sets
-// and maintainers (the facets), the reasons (their picks), the teams. No
-// counts on the overview, which lists no packages.
-export function searchValues() {
+// and maintainers (the facets), the reasons (their picks), the teams. The
+// overview lists no packages: its tiles' counts from the manifest, where
+// they're the list's too (not blocked or broken: the list's are fewer),
+// and, under a name, the matches' (matches: what app.js's matches counted,
+// {sets, statuses, by, teams, platforms}, or null), as status: and ofteam:
+// everywhere.
+const MANIFEST_COUNTS = {
+  outdated: 'outdated',
+  failed: 'failed',
+  builds: 'buildFailures',
+  updates: 'updateFailures',
+  vulnerable: 'vulnerable',
+  backport: 'backport',
+};
+export function searchValues(matches = null) {
   const counted = store.packages.length > 0;
+  const manifest = store.manifest?.counts || {};
   const base = store.packages.filter(
     (p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p),
   );
@@ -1599,7 +1612,11 @@ export function searchValues() {
     .map(([key, f]) => ({
       value: f.param,
       label: f.label,
-      ...(counted ? { count: base.filter((p) => f.test(p) && refined(p, key)).length } : {}),
+      ...(counted
+        ? { count: base.filter((p) => f.test(p) && refined(p, key)).length }
+        : manifest[MANIFEST_COUNTS[f.param]] != null
+          ? { count: manifest[MANIFEST_COUNTS[f.param]] }
+          : {}),
     }));
   const refines = Object.entries(REFINE_WORDS).map(([key, word]) => ({
     word,
@@ -1616,6 +1633,9 @@ export function searchValues() {
   const teams = Object.entries(store.manifest?.views?.teams || {})
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(([value, count]) => ({ value, count }));
+  const pairs = (list) => list.map(([value, count]) => ({ value, count }));
+  // The matches' own, on the overview (no list to count).
+  const fromMatches = !counted && matches;
   return {
     is: [...tiles, ...words('is')],
     '-is': words('-is'),
@@ -1625,10 +1645,14 @@ export function searchValues() {
     on: Object.entries(PLATFORMS).map(([key, p]) => ({
       value: p.param,
       label: p.label,
-      ...(counted ? { count: facets.platforms[key] } : {}),
+      ...(counted
+        ? { count: facets.platforms[key] }
+        : fromMatches?.platforms[key] != null
+          ? { count: fromMatches.platforms[key] }
+          : {}),
     })),
-    in: facets.sets.map(([value, count]) => ({ value, count })),
-    by: facets.by.map(([value, count]) => ({ value, count })),
+    in: pairs(fromMatches ? fromMatches.sets : facets.sets),
+    by: pairs(fromMatches ? fromMatches.by : facets.by),
     team: [...teams, { value: 'none', label: 'not via a team' }],
     '-team': teams,
     build: counted
@@ -1637,8 +1661,10 @@ export function searchValues() {
     update: counted
       ? reasons(becauseCounts(), (k) => FAILED_BECAUSE[k]?.short || k)
       : Object.entries(FAILED_BECAUSE).map(([value, r]) => ({ value, label: r.short })),
-    status: Object.entries(NAME_STATUSES).map(([value, label]) => ({ value, label })),
-    ofteam: teams,
+    status: matches
+      ? matches.statuses.map(([value, count]) => ({ value, label: NAME_STATUSES[value], count }))
+      : Object.entries(NAME_STATUSES).map(([value, label]) => ({ value, label })),
+    ofteam: matches?.teams.length ? pairs(matches.teams) : teams,
     sort: Object.entries(SORTS).map(([value, label]) => ({ value, label })),
     order: [{ value: 'reverse', label: 'the other way round' }],
   };

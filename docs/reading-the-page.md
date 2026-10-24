@@ -52,7 +52,8 @@ list. From the top:
   the matches in all of nixpkgs in place of what follows, which comes back
   once the search is cleared; `@handle` opens a maintainer's packages.
   `status:`, `ofteam:`, `on:`, `in:` and `by:` narrow those matches, and
-  `team:` opens a team's packages; a word for a list (`is:builds`,
+  `team:` opens a team's packages, as `ofteam:` does with no name; a word
+  for a list (`is:builds`,
   `age:1y`, `has:pr`...) opens what needs attention with it, as a card
   does.
 - **The newest and longest-standing** build failures, outdated packages
@@ -256,7 +257,9 @@ outlined; the rest of what's typed applies. Escape clears the name or
 
 A menu under the box offers what can be typed: entering the box, or after
 a space, the qualifiers; after one (`is:`, `on:`, `team:`...), its values,
-with how many of the list's packages each has. The arrows move in it,
+with how many of the list's packages each has (on the overview, as its
+cards count them; after a name, `status:`, `ofteam:`, `in:` and `on:`
+with how many of the matches in all of nixpkgs). The arrows move in it,
 Enter or Tab picks the one moved to (Enter alone still searches), a click
 picks, and Escape closes it.
 
@@ -274,7 +277,7 @@ The words are the address's own:
 | `by:fabaff` | by a maintainer, within the list | `?by=` |
 | `team:gaming`, `-team:geospatial`, `team:none` | a team's packages, a team left out, not via a team | `?team=` |
 | `-maintainer:natsukium` | a maintainer left out | `?maintainer=-natsukium` |
-| `status:outdated`, `ofteam:Python` | the matches in all of nixpkgs: their status, their team | `?status=`, `?ofteam=` |
+| `status:outdated`, `ofteam:Python` | the matches in all of nixpkgs: their status, their team (in any case: `ofteam:python`), shown under a name; with none, said under the box | `?status=`, `?ofteam=` |
 | `sort:oldest`, `order:reverse` | the order | `?sort=`, `?order=reverse` |
 
 A value with spaces in quotes (`-team:"Security review"`). An address can

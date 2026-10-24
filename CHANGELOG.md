@@ -62,6 +62,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   packages. A name and the words for the matches in all of nixpkgs
   (`status:`, `ofteam:`, `on:`, `in:`, `by:`) keep the overview. So does
   an old link such as `/?filter=builds`: it opens the list now.
+- **The search menu counts on the overview too**: `is:` as the cards
+  count (outdated 11,550, builds 1,231...), and after a name `status:`,
+  `ofteam:`, `in:` and `on:` with how many of the matches in all of
+  nixpkgs each keeps, as the matches' own selects (on every page for
+  `status:` and `ofteam:`).
+- **`ofteam:` with no name**: on the overview, the team's packages (as
+  `team:`); elsewhere, said under the box while typing ("ofteam: narrows
+  the matches in all of nixpkgs: add a name"), as for `status:`, rather
+  than doing nothing.
 - The page in modules: the overview in `page/overview.js`, a maintainer's
   page in `page/maintainer-view.js`, the list in `page/list.js` and its
   filters in `page/filters.js`, each view wiring its own controls, a
@@ -73,6 +82,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   preloaded with `app.js`. Nothing on the page changes.
 
 ### Fixed
+
+- **`ofteam:` in any case**: `ofteam:python` is the Python team's, as
+  `team:` already was, rather than matching nothing; a team that doesn't
+  exist is said under the box ("no ofteam:pyton: ofteam:Python?").
 
 - "Master already has 1.2.4 (..., built by Hydra)" only when Hydra's build
   of it didn't fail: "failing to build on Hydra on x86_64-linux" (tgrep), or

@@ -117,11 +117,18 @@ function closest(word, words) {
   return best && best[1] <= Math.max(1, Math.floor(word.length / 3)) ? best[0] : null;
 }
 
+// A value as the box writes it: in quotes with spaces.
+const quoted = (v) => (/\s/.test(v) ? `"${v}"` : v);
+
 // A query: { fields: those its qualifiers set, text: the rest (a name,
 // @handle), problems: [{ token, message, suggestion? }] }. A value with
 // spaces in quotes (ofteam:"Security review"). known: the page's tables
-// ({ FILTERS, SORTS, PLATFORMS, REFINES, AGES }).
-export function parseQuery(query, { FILTERS, SORTS, PLATFORMS, REFINES, AGES } = known) {
+// ({ FILTERS, SORTS, PLATFORMS, REFINES, AGES }, and TEAMS once the data
+// says them: nixpkgs' teams, as the matches name them).
+export function parseQuery(
+  query,
+  { FILTERS, SORTS, PLATFORMS, REFINES, AGES, TEAMS = [] } = known,
+) {
   const fields = {};
   const text = [];
   const problems = [];
@@ -216,10 +223,20 @@ export function parseQuery(query, { FILTERS, SORTS, PLATFORMS, REFINES, AGES } =
     else if (key === 'status')
       if (NAME_STATUSES[value]) fields.statusFilter = value;
       else problem(token, `no status:${value}`, Object.keys(NAME_STATUSES));
-    else if (key === 'ofteam')
-      if (/^[\w .+-]{1,60}$/.test(value)) fields.matchTeam = value;
-      else problem(token, `no ofteam:${value}`);
-    else if (key === 'sort')
+    else if (key === 'ofteam') {
+      // As the team is written (ofteam:python is Python's): the matches
+      // compare it exactly. Before the data says the teams, as typed.
+      const team = TEAMS.find((t) => t.toLowerCase() === value.toLowerCase());
+      if (team) fields.matchTeam = team;
+      else if (!TEAMS.length && /^[\w .+-]{1,60}$/.test(value)) fields.matchTeam = value;
+      else
+        problem(
+          token,
+          `no ofteam:${value}`,
+          TEAMS.map((t) => `ofteam:${quoted(t)}`),
+          `ofteam:${value}`,
+        );
+    } else if (key === 'sort')
       if (SORTS[value]) fields.sortMode = value;
       else problem(token, `no sort:${value}`, Object.keys(SORTS));
     else if (key === 'order')
@@ -237,7 +254,6 @@ export function parseQuery(query, { FILTERS, SORTS, PLATFORMS, REFINES, AGES } =
 // The query for st's fields, then text: the qualifiers in the table's
 // order, a value with spaces quoted.
 export function writeQuery(st, text, { FILTERS, PLATFORMS } = known) {
-  const quoted = (v) => (/\s/.test(v) ? `"${v}"` : v);
   const words = [];
   if (st.activeFilter !== 'all' && FILTERS[st.activeFilter]?.param)
     words.push(`is:${FILTERS[st.activeFilter].param}`);
@@ -281,6 +297,17 @@ export function readBox() {
   const { fields, problems } = parseQuery(document.getElementById('search').value);
   Object.assign(state, queryFields(fields));
   return problems;
+}
+
+// What st's words for the matches in all of nixpkgs (status:, ofteam:)
+// wait for: a name (two letters or more, not an @handle) to list them.
+// null once there's one, or with neither word.
+export function matchNote(st, text) {
+  const name = text.trim();
+  if (name.length >= 2 && !name.startsWith('@')) return null;
+  const words = [st.statusFilter && 'status:', st.matchTeam && 'ofteam:'].filter(Boolean);
+  if (!words.length) return null;
+  return `${words.join(' and ')} ${words.length > 1 ? 'narrow' : 'narrows'} the matches in all of nixpkgs: add a name`;
 }
 
 // The qualifiers the menu offers at a word's start, each with what it does.

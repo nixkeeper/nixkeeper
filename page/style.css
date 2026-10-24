@@ -254,6 +254,14 @@ header.top {
   box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 14%, transparent);
 }
 /* With a problem said, the menu goes under it. */
+/* What a word waits for (a name): quieter, and only while typed in. */
+.search-problems.note {
+  border-color: var(--hairline-strong);
+  color: var(--ink-soft);
+}
+.search:not(:focus-within) .search-problems.note {
+  display: none;
+}
 .search-problems:not([hidden]) ~ .search-menu {
   top: calc(100% + 34px);
 }
