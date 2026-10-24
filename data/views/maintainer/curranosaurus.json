@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["chalk"],"builds":[],"devel":false,"lists":[],"maintainers":["curranosaurus"],"name":"chalk","nixStatus":"newest","nixVersion":"1.34.9","nixVulnerable":false,"openIssues":0,"openPRs":0,"platforms":{"darwin":true,"linux":true},"project":"chalk","refVersion":"1.34.9","searchTerm":"chalk","unfree":true,"update":null,"updateFailure":false}]}
