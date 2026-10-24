@@ -10,9 +10,9 @@ happen. For what nixkeeper does and how to set up your own, see the
   [The code](#the-code))
 - `tests/`: offline tests, one file per module (nothing reaches the
   network: sources are faked). `tests/js/` tests the page's rules
-  (`page/logic.js`), a package panel's sections (`page/panel.js`) and how
-  it reads its data (`page/data.js`, with `fetch` stood in for) with Node's
-  own test runner
+  (`page/logic.js`), a package panel's sections (`page/panel.js`), how it
+  reads its data (`page/data.js`, with `fetch` stood in for) and its address
+  (`page/state.js`) with Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -40,8 +40,10 @@ happen. For what nixkeeper does and how to set up your own, see the
   tested; `panel.js` a package panel's sections (vulnerabilities, builds,
   On GitHub), from the package alone, tested too; `ui.js` the small pieces
   of HTML both use (numbers, dates, icons); `data.js` where the data is and
-  how it's read (its files as JSON, the shards' rows once each); `app.js`
-  imports them, keeps what's read and draws the page. Native ES modules, no build step: `index.html`
+  how it's read (its files as JSON, the shards' rows once each); `state.js`
+  the filters, sort and paging in one object (`state`), read from the
+  address and written back (`readState`, `writeState`); `app.js` imports
+  them, changes the state, keeps what's read and draws the page. Native ES modules, no build step: `index.html`
   preloads each (`modulepreload`), so a new module goes there too. `favicon*.svg` (the mark, and the live status
   icons the page switches between), `nixkeeper-lockup-tight*.svg` (the
   header) and `tokens.css` are copies from

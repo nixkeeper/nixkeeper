@@ -25,7 +25,6 @@ import {
   isVulnerable,
   maintainerMatches,
   maintainersKeep,
-  maintainersParam,
   matchesSearch,
   matchFacets,
   midway,
@@ -44,8 +43,6 @@ import {
   onMaster,
   onPlatform,
   pageLinks,
-  parseMaintainers,
-  parseTeams,
   problemSince,
   prPrint,
   attentionRank as rankOn,
@@ -57,7 +54,6 @@ import {
   TOP_LEVEL,
   targetVersion,
   teamsKeep,
-  teamsParam,
   themeFor,
   timeAgo,
   trendChange,
@@ -84,6 +80,7 @@ import {
   vulnSection,
   whoDid,
 } from './panel.js';
+import { PAGE_SIZES, readState, state, writeState } from './state.js';
 import { BUILD_FAILED, fmt, GH_ICONS, icon, longDate, shortDay } from './ui.js';
 
 const NIX_REPO = 'nix_unstable';
@@ -134,57 +131,43 @@ let nameIndex = null;
 const facetsOf = (entry) => facetIndex[nameIndex.get(entry)];
 // ?pkg=: one package alone (with every package); ?set=: a generated set;
 // ?view=: a list by name (attention, broken).
-let pkgParam = null;
 // The ?pkg= its details were opened for, once: a link to a package opens
 // them, and closing them keeps them closed while it's shown.
 let pkgOpenedFor = null;
-let viewParam = null;
 let trendPoints = null; // history.json's points, once loaded (the overview's trends)
 let trendEvents = []; // and what marks them (staging-next merges, nixkeeper updates)
 let historyLoading = false;
-let setFilter = null;
-const inSet = (pkg) => !setFilter || pkg.set === setFilter;
+const inSet = (pkg) => !state.setFilter || pkg.set === state.setFilter;
 // ?cause=: a group of failed builds sharing an error (views/cause/<key>.json,
 // nixkeeper's causes.py), and what its view file says of it.
-let causeFilter = null;
 let causeShown = null;
 let packages = [];
 let checkedAt = null;
-let activeFilter = 'all'; // 'all' | 'warn' | 'failed' | 'vuln'
 // Narrowing any list further, with everything else (?refine=, REFINES keys
 // comma-separated, and ?age=, an AGES key).
-let refines = new Set();
-let ageFilter = null;
 // ?updateFailed=: update failures for one reason (a FAILED_BECAUSE key, or
 // other).
-let becauseFilter = null;
 // ?buildFailed=: build failures for one reason (a BUILD_FAILED key).
-let buildFailedFilter = null;
 // ?newer=: whether a newer version is known ("yes": outdated, merged or
 // not; "no": not outdated), with any tile: build failures an update won't
 // fix (?filter=builds&newer=no), say.
-let newerFilter = null;
 // ?errors=1: with Build failures (or Failed), every failing row's build
 // panel open under it, loaded as it scrolls into view (watchErrors).
-let showErrors = false;
-const errorsHere = () => showErrors && (activeFilter === 'builds' || activeFilter === 'failed');
+const errorsHere = () =>
+  state.showErrors && (state.activeFilter === 'builds' || state.activeFilter === 'failed');
 // ?in=: one package set, by the attribute's first part (logic.js nameSet:
 // python313Packages, vimPlugins, top-level); ?by=: one maintainer's
 // packages within the list shown (a handle, lowercase). Counted, with the
 // platforms, over the list's other filters (facetOptions).
-let inFilter = null;
-let byFilter = null;
-const inNameSet = (pkg) => !inFilter || inPickedSet(nameSet(pkg.name), inFilter);
+const inNameSet = (pkg) => !state.inFilter || inPickedSet(nameSet(pkg.name), state.inFilter);
 const byMaintainer = (pkg) =>
-  !byFilter || (pkg.maintainers || []).some((m) => m.toLowerCase() === byFilter);
+  !state.byFilter || (pkg.maintainers || []).some((m) => m.toLowerCase() === state.byFilter);
 // ?status=: the search's matches in all of nixpkgs of one status (a
 // NAME_STATUSES key: what the name index's letter says). How many of them
 // are shown, more on asking (moreMatchesHtml), from MATCHES_SHOWN again
 // with another search or filter (matchQuery: what was asked).
-let statusFilter = null;
 // ?ofteam=: the matches of one team (its name as nixpkgs writes it); the
 // maintainer (?by=) and platform (?platform=) ones are the list's own.
-let matchTeam = null;
 const MATCHES_SHOWN = 50;
 const MATCHES_MORE = 200;
 let matchLimit = MATCHES_SHOWN;
@@ -201,46 +184,37 @@ const SORTS = {
   gap: 'biggest version gap',
   az: 'name A–Z',
 };
-let sortMode = 'pressing';
-let sortReverse = false;
 // The table shows pageSize rows at a time: drawing stays fast whatever the
 // data's size, and the page keeps working with Ctrl+F and screen readers
 // (no virtual scrolling). ?page= in the address, past the first; ?per= for
 // another of PAGE_SIZES (only those: a huge one would draw every package at
 // once), also picked under the table.
-const PAGE_SIZES = [50, 100, 200, 500, 1000];
-const DEFAULT_PAGE_SIZE = 200;
-let pageSize = DEFAULT_PAGE_SIZE;
 // Of those, drawn first, with the counts and tiles: more than a screen's
 // worth; the rest follow a moment later (update).
 const FIRST_ROWS = 50;
-let pageNum = 1;
-let platformFilter = null; // null | 'linux' | 'darwin', combined with activeFilter
 // The rules that follow the platform filter (logic.js), on the selected one.
-const hasFailure = (pkg) => failureOn(pkg, platformFilter);
-const buildsWith = (pkg, status) => buildsOn(pkg, status, platformFilter);
+const hasFailure = (pkg) => failureOn(pkg, state.platformFilter);
+const buildsWith = (pkg, status) => buildsOn(pkg, status, state.platformFilter);
 const failedBuilds = (pkg) => buildsWith(pkg, 'failed');
-const attentionRank = (pkg) => rankOn(pkg, platformFilter);
+const attentionRank = (pkg) => rankOn(pkg, state.platformFilter);
 // null, or a list from package-lists/ ("maintained", "gaming-team", ...):
 // ?list=gaming-team is a page of just that list's packages, to share.
-let listFilter = null;
-const inList = (pkg) => !listFilter || (pkg.lists || []).includes(listFilter);
+const inList = (pkg) => !state.listFilter || (pkg.lists || []).includes(state.listFilter);
 // null, or a nixpkgs team (meta.teams, by its short name; any case):
 // ?team=gaming is a page of the team's packages here.
-let teamFilter = null;
 // ?team= besides one team: teams left out (-Geospatial), and none (not
 // through a team: logic.js parseTeams).
-let teamsLeftOut = [];
-let noTeam = false;
 // ?maintainer='s handles left out (-iedame), lowercase.
-let maintainersLeftOut = [];
-const isTeam = (name) => name.toLowerCase() === teamFilter.toLowerCase();
+const isTeam = (name) => name.toLowerCase() === state.teamFilter.toLowerCase();
 // What the address keeps by people: its teams, and maintainers left out.
 const inPeople = (pkg) =>
-  teamsKeep(pkg, { include: teamFilter, leftOut: teamsLeftOut, none: noTeam }, shownHandle()) &&
-  maintainersKeep(pkg, maintainersLeftOut);
+  teamsKeep(
+    pkg,
+    { include: state.teamFilter, leftOut: state.teamsLeftOut, none: state.noTeam },
+    shownHandle(),
+  ) && maintainersKeep(pkg, state.maintainersLeftOut);
 // The team's name as nixpkgs writes it ("Qt-KDE"), or as the address has it.
-const teamName = () => packages.flatMap((p) => p.teams || []).find(isTeam) || teamFilter;
+const teamName = () => packages.flatMap((p) => p.teams || []).find(isTeam) || state.teamFilter;
 // Every list some package is on: "maintained" first, as the sync sorts them.
 function allLists() {
   // With every package, the view has only some: the manifest has them all.
@@ -293,12 +267,12 @@ const LINUX_SYSTEMS = ['x86_64-linux', 'aarch64-linux'];
 // with "Not built where listed" on, or in its view, which find exactly
 // those.
 function inPlatform(pkg) {
-  if (!platformFilter) return true;
-  if (!onPlatform(pkg, platformFilter)) return false;
+  if (!state.platformFilter) return true;
+  if (!onPlatform(pkg, state.platformFilter)) return false;
   // Not built where listed (?view=unbuilt): a platform picked keeps those
   // not built there (Darwin: the Darwin ones), as the refine does.
-  if (shownView === VIEWS.unbuilt) return unbuiltOn(pkg, platformFilter);
-  return refines.has('unbuilt') || !unbuiltOn(pkg, platformFilter);
+  if (shownView === VIEWS.unbuilt) return unbuiltOn(pkg, state.platformFilter);
+  return state.refines.has('unbuilt') || !unbuiltOn(pkg, state.platformFilter);
 }
 // The sync runs daily; older than this means runs are failing or GitHub has
 // paused the schedule (it does after 60 days without commits).
@@ -413,8 +387,8 @@ const REFINES = {
     title:
       "Only packages nixpkgs lists for a platform Hydra doesn't build them on (no build exists there): usually a dependency isn't available there, or meta.platforms promises too much",
     test: (p) =>
-      platformFilter
-        ? onPlatform(p, platformFilter) && unbuiltOn(p, platformFilter)
+      state.platformFilter
+        ? onPlatform(p, state.platformFilter) && unbuiltOn(p, state.platformFilter)
         : unbuiltWhere(p).length > 0,
   },
   // Where a person is needed: nixpkgs-update won't open the PR.
@@ -440,13 +414,16 @@ const AGES = {
   '3y': '3 years',
   [NEVER_BUILT]: 'never built',
 };
+// What the address can name, for state.js's readState and writeState.
+const KNOWN = { FILTERS, SORTS, PLATFORMS, REFINES, AGES };
 // kind: whose age counts (a FILTERS key): the list's, or a count's own.
-const refined = (p, kind = activeFilter) =>
-  [...refines].every((key) => REFINES[key].test(p)) &&
-  (!newerFilter || (newerFilter === 'yes') === (computeStatus(p) === 'warn')) &&
-  (!becauseFilter || failedBecause(p) === becauseFilter) &&
-  (!buildFailedFilter || buildFailedBecause(p, platformFilter).includes(buildFailedFilter)) &&
-  olderThan(p, ageFilter, kind, Date.now(), platformFilter);
+const refined = (p, kind = state.activeFilter) =>
+  [...state.refines].every((key) => REFINES[key].test(p)) &&
+  (!state.newerFilter || (state.newerFilter === 'yes') === (computeStatus(p) === 'warn')) &&
+  (!state.becauseFilter || failedBecause(p) === state.becauseFilter) &&
+  (!state.buildFailedFilter ||
+    buildFailedBecause(p, state.platformFilter).includes(state.buildFailedFilter)) &&
+  olderThan(p, state.ageFilter, kind, Date.now(), state.platformFilter);
 
 // The maintainer whose page this is (@handle in the search), or null.
 const shownHandle = () => searchHandle(document.getElementById('search').value);
@@ -455,14 +432,14 @@ const shownHandle = () => searchHandle(document.getElementById('search').value);
 // (packages without a team) where no maintainer's page has its button:
 // each a chip to undo it.
 const teamOutChips = () =>
-  html`${maintainersLeftOut.map(
+  html`${state.maintainersLeftOut.map(
     (h) =>
       html`<button type="button" class="plat-filter" data-maintainer-out="${h}" title="Show @${h}'s packages again">not @${h} ✕</button>`,
-  )}${teamsLeftOut.map(
+  )}${state.teamsLeftOut.map(
     (t) =>
       html`<button type="button" class="plat-filter" data-team-out="${t}" title="Show the ${t} team's packages again">not ${t} ✕</button>`,
   )}${
-    noTeam && !shownHandle()
+    state.noTeam && !shownHandle()
       ? html`<button type="button" class="plat-filter" data-team-none title="Show packages with a team again">no team ✕</button>`
       : ''
   }`;
@@ -482,11 +459,11 @@ function becausePick() {
   }
   const label = (key) => (key === 'noLog' ? 'build, no log' : FAILED_BECAUSE[key]?.short || key);
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
-  if (becauseFilter && !keys.includes(becauseFilter)) keys.push(becauseFilter);
+  if (state.becauseFilter && !keys.includes(state.becauseFilter)) keys.push(state.becauseFilter);
   if (!keys.length) return '';
   return html`<label class="refine-age" title="Update failures for one reason, as nixpkgs-update's log says (its last attempt). The counts are of this list, with its other filters">Update failed because <select data-because><option value="">any reason</option>${keys.map(
     (key) =>
-      html`<option value="${key}"${becauseFilter === key ? raw(' selected') : ''}>${label(key)} (${fmt(counts[key] || 0)})</option>`,
+      html`<option value="${key}"${state.becauseFilter === key ? raw(' selected') : ''}>${label(key)} (${fmt(counts[key] || 0)})</option>`,
   )}</select></label>`;
 }
 
@@ -500,21 +477,23 @@ function buildFailedPick() {
   );
   const counts = {};
   for (const p of base)
-    for (const why of buildFailedBecause(p, platformFilter)) counts[why] = (counts[why] || 0) + 1;
+    for (const why of buildFailedBecause(p, state.platformFilter))
+      counts[why] = (counts[why] || 0) + 1;
   // Not before nixkeeper-hydra read any: nothing to pick from.
-  if (!Object.keys(counts).some((k) => k !== 'unread') && !buildFailedFilter) return '';
+  if (!Object.keys(counts).some((k) => k !== 'unread') && !state.buildFailedFilter) return '';
   const keys = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
-  if (buildFailedFilter && !keys.includes(buildFailedFilter)) keys.push(buildFailedFilter);
+  if (state.buildFailedFilter && !keys.includes(state.buildFailedFilter))
+    keys.push(state.buildFailedFilter);
   return html`<label class="refine-age" title="Build failures for one reason, as the build's log on Hydra says. The counts are of this list, with its other filters">Build failed because <select data-build-failed><option value="">any reason</option>${keys.map(
     (key) =>
-      html`<option value="${key}"${buildFailedFilter === key ? raw(' selected') : ''}>${BUILD_FAILED[key]?.short || key} (${fmt(counts[key] || 0)})</option>`,
+      html`<option value="${key}"${state.buildFailedFilter === key ? raw(' selected') : ''}>${BUILD_FAILED[key]?.short || key} (${fmt(counts[key] || 0)})</option>`,
   )}</select></label>`;
 }
 
 // With Build failures or Failed picked: every failing row's errors at once.
 function errorsPick() {
-  if (activeFilter !== 'builds' && activeFilter !== 'failed') return '';
-  return html`<button type="button" class="refine-btn" data-show-errors aria-pressed="${showErrors}" title="${showErrors ? 'On: click to close them' : 'Open every failing package’s builds under it, with the lines from each log: loaded as they scroll into view'}">Show errors</button>`;
+  if (state.activeFilter !== 'builds' && state.activeFilter !== 'failed') return '';
+  return html`<button type="button" class="refine-btn" data-show-errors aria-pressed="${state.showErrors}" title="${state.showErrors ? 'On: click to close them' : 'Open every failing package’s builds under it, with the lines from each log: loaded as they scroll into view'}">Show errors</button>`;
 }
 
 // "Newer version": any, known (?newer=yes), none known (?newer=no).
@@ -524,7 +503,7 @@ function newerPick() {
     ['no', 'none known'],
   ].map(
     ([key, label]) =>
-      html`<option value="${key}"${newerFilter === key ? raw(' selected') : ''}>${label}</option>`,
+      html`<option value="${key}"${state.newerFilter === key ? raw(' selected') : ''}>${label}</option>`,
   )}</select></label>`;
 }
 
@@ -534,8 +513,8 @@ function sortPick() {
     SORTS,
   ).map(
     ([key, label]) =>
-      html`<option value="${key}"${sortMode === key ? raw(' selected') : ''}>${label}</option>`,
-  )}</select></label><button type="button" class="refine-btn sort-dir" data-sort-dir aria-pressed="${sortReverse}" aria-label="Reverse the order" title="${sortReverse ? 'Reversed: click for the usual order' : 'Reverse the order'}">${sortReverse ? '↑' : '↓'}</button>`;
+      html`<option value="${key}"${state.sortMode === key ? raw(' selected') : ''}>${label}</option>`,
+  )}</select></label><button type="button" class="refine-btn sort-dir" data-sort-dir aria-pressed="${state.sortReverse}" aria-label="Reverse the order" title="${state.sortReverse ? 'Reversed: click for the usual order' : 'Reverse the order'}">${state.sortReverse ? '↑' : '↓'}</button>`;
 }
 
 // Why "Breaks on staging-next" finds nothing now, when the sync didn't use
@@ -548,7 +527,7 @@ const stagingNextWhy = () => {
 
 // "Open PR": any, with one (?refine=withpr), without (?refine=nopr).
 function prPick() {
-  const picked = ['withpr', 'nopr'].find((key) => refines.has(key)) || '';
+  const picked = ['withpr', 'nopr'].find((key) => state.refines.has(key)) || '';
   return html`<label class="refine-age" title="Whether an open PR touches it: for one marked broken, maybe its fix; without one, nobody is on it yet">Open PR <select data-pr-pick><option value="">any</option>${[
     'withpr',
     'nopr',
@@ -577,13 +556,13 @@ function facetOptions() {
         : (p.maintainers || []).map((m) => m.toLowerCase()),
   );
   const near = facetBase.filter((p) => inNameSet(p) && byMaintainer(p));
-  const picked = platformFilter;
+  const picked = state.platformFilter;
   const platforms = {};
   for (const key of Object.keys(PLATFORMS)) {
-    platformFilter = key;
+    state.platformFilter = key;
     platforms[key] = near.filter(inPlatform).length;
   }
-  platformFilter = picked;
+  state.platformFilter = picked;
   return { sets, by: by.slice(0, BY_SHOWN), platforms };
 }
 
@@ -597,8 +576,8 @@ function refineHtml() {
   const setCount = (v) =>
     facets.sets.filter(([s]) => inPickedSet(s, v)).reduce((n, [, c]) => n + c, 0);
   const sets =
-    inFilter && !facets.sets.some(([s]) => s === inFilter)
-      ? [...facets.sets, [inFilter, 0]]
+    state.inFilter && !facets.sets.some(([s]) => s === state.inFilter)
+      ? [...facets.sets, [state.inFilter, 0]]
       : facets.sets;
   return html`<div class="refine" role="group" aria-label="Narrow the list">${Object.entries(
     REFINES,
@@ -606,32 +585,32 @@ function refineHtml() {
     .filter(([, r]) => !r.pick)
     .map(
       ([key, r]) =>
-        html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${refines.has(key)}" title="${r.title}${key === 'stagingnext' && stagingNextWhy() ? `. Now: ${stagingNextWhy()}` : ''}${refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
+        html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${state.refines.has(key)}" title="${r.title}${key === 'stagingnext' && stagingNextWhy() ? `. Now: ${stagingNextWhy()}` : ''}${state.refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
     )}${prPick()}${newerPick()}${sortPick()}${errorsPick()}${
     // On a maintainer's page: ?team=none.
     shownHandle()
-      ? html`<button type="button" class="refine-btn" data-no-team aria-pressed="${noTeam}" title="Only packages that list this maintainer themselves: leave out those they maintain only as a member of the package's team (meta.teams)">Not via a team</button>`
+      ? html`<button type="button" class="refine-btn" data-no-team aria-pressed="${state.noTeam}" title="Only packages that list this maintainer themselves: leave out those they maintain only as a member of the package's team (meta.teams)">Not via a team</button>`
       : ''
   }<label class="refine-age" title="How long it's been failing or outdated (the kind picked above, if any); or failing builds that never succeeded on Hydra, which have no date">Older than <select data-age><option value="">any age</option>${Object.entries(
     AGES,
   ).map(
     ([key, label]) =>
-      html`<option value="${key}"${ageFilter === key ? raw(' selected') : ''}>${label}</option>`,
+      html`<option value="${key}"${state.ageFilter === key ? raw(' selected') : ''}>${label}</option>`,
   )}</select></label>${buildFailedPick()}${becausePick()}<label class="refine-age" title="Only packages available on it, and of their builds the ones there (build failures on Darwin, say). Darwin is macOS, as nixpkgs calls it. Each with how many it would show.">On <select data-platform-pick><option value="">any platform</option>${Object.entries(
     PLATFORMS,
   ).map(([key, p]) =>
-    facetOption(key, p.label, facets.platforms[key], platformFilter),
+    facetOption(key, p.label, facets.platforms[key], state.platformFilter),
   )}</select></label>${
-    sets.length > 1 || inFilter
+    sets.length > 1 || state.inFilter
       ? html`<label class="refine-age" title="Only one package set, by the attribute's first part (python313Packages, vimPlugins), or the top-level packages. Each with how many it would show.">In <select data-in><option value="">any set</option>${sets.map(
-          ([v]) => facetOption(v, v === TOP_LEVEL ? 'top level' : v, setCount(v), inFilter),
+          ([v]) => facetOption(v, v === TOP_LEVEL ? 'top level' : v, setCount(v), state.inFilter),
         )}</select></label>`
       : ''
   }${
     // Not on a maintainer's own page: it's theirs already.
     shownHandle()
       ? ''
-      : html`<label class="refine-age" title="Only the packages this maintainer is listed for (meta.maintainers), within this list: type a GitHub handle. The ${fmt(facets.by.length)} with the most here are offered, each with how many.">By <input type="search" class="by-pick" data-by list="byOptions" placeholder="any maintainer" value="${byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="byOptions">${facets.by.map(
+      : html`<label class="refine-age" title="Only the packages this maintainer is listed for (meta.maintainers), within this list: type a GitHub handle. The ${fmt(facets.by.length)} with the most here are offered, each with how many.">By <input type="search" class="by-pick" data-by list="byOptions" placeholder="any maintainer" value="${state.byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="byOptions">${facets.by.map(
           ([h, n]) => html`<option value="${h}">${fmt(n)}</option>`,
         )}</datalist></label>`
   }</div>`;
@@ -1003,7 +982,7 @@ const failingSince = (pkg) =>
 // aarch64-linux, darwin; "" when nowhere.
 function neverWhere(pkg) {
   if (!failedBuilds(pkg).length) return '';
-  const systems = neverBuiltOn(pkg, platformFilter);
+  const systems = neverBuiltOn(pkg, state.platformFilter);
   const linux = systems.filter((s) => s.endsWith('-linux'));
   const names = linux.length === LINUX_SYSTEMS.length ? ['linux'] : linux;
   if (systems.some((s) => s.endsWith('-darwin'))) names.push('darwin');
@@ -1054,96 +1033,16 @@ async function copyTitle(btn) {
 // reload and can be bookmarked or shared. Other parameters (owner, repo) are
 // left alone.
 function readViewFromUrl() {
-  const params = new URLSearchParams(location.search);
-  activeFilter =
-    Object.keys(FILTERS).find(
-      (k) => FILTERS[k].param && FILTERS[k].param === params.get('filter'),
-    ) || 'all';
-  // A maintainer's page: ?maintainer=handle (the search shows @handle);
-  // ?q=@handle, as it was first written, opens it too and becomes that.
-  // -handle in it: their packages left out, on any list.
-  const maintainers = parseMaintainers(params.get('maintainer'));
-  maintainersLeftOut = maintainers.leftOut;
-  document.getElementById('search').value = maintainers.handle
-    ? `@${maintainers.handle}`
-    : params.get('q') || '';
-  sortMode = SORTS[params.get('sort')] ? params.get('sort') : 'pressing';
-  sortReverse = params.get('order') === 'reverse';
-  platformFilter =
-    Object.keys(PLATFORMS).find((k) =>
-      [PLATFORMS[k].param, PLATFORMS[k].also].includes(params.get('platform')),
-    ) || null;
-  // Any name: which lists exist is only known once the data has loaded.
-  listFilter = params.get('list') || null;
-  const teams = parseTeams(params.get('team'));
-  teamFilter = teams.include;
-  teamsLeftOut = teams.leftOut;
-  noTeam = teams.none;
-  setFilter = params.get('set') || null;
-  causeFilter = /^[0-9a-f]{10}$/.test(params.get('cause') || '') ? params.get('cause') : null;
-  pkgParam = params.get('pkg') || null;
-  viewParam = params.get('view') || null;
-  const refineKeys = (params.get('refine') || '').split(',');
-  // refine=direct: ?team=none, as it was first called.
-  if (refineKeys.includes('direct')) noTeam = true;
-  refines = new Set(refineKeys.filter((key) => REFINES[key]));
-  ageFilter = AGES[params.get('age')] ? params.get('age') : null;
-  // Any reason the data may have (checked by the list, not here). ?because=
-  // is its name from before ?buildFailed= came (2026-10-08), still read.
-  const updateFailed = params.get('updateFailed') ?? params.get('because') ?? '';
-  becauseFilter = /^[A-Za-z]{1,30}$/.test(updateFailed) ? updateFailed : null;
-  const buildFailed = params.get('buildFailed') || '';
-  buildFailedFilter = /^[A-Za-z]{1,30}$/.test(buildFailed) ? buildFailed : null;
-  const inSetParam = params.get('in') || '';
-  inFilter = /^[\w.+-]{1,100}$/.test(inSetParam) ? inSetParam : null;
-  const by = (params.get('by') || '').replace(/^@/, '').toLowerCase();
-  byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
-  statusFilter = NAME_STATUSES[params.get('status')] ? params.get('status') : null;
-  newerFilter = ['yes', 'no'].includes(params.get('newer')) ? params.get('newer') : null;
-  showErrors = params.get('errors') === '1';
-  const ofTeam = params.get('ofteam') || '';
-  matchTeam = /^[\w .+-]{1,60}$/.test(ofTeam) ? ofTeam : null;
-  pageNum = Math.max(1, Number.parseInt(params.get('page'), 10) || 1);
-  const per = Number(params.get('per'));
-  pageSize = PAGE_SIZES.includes(per) ? per : DEFAULT_PAGE_SIZE;
+  const read = readState(new URLSearchParams(location.search), KNOWN);
+  Object.assign(state, read.state);
+  document.getElementById('search').value = read.query;
 }
 
 // The address for the current view, on page `page`.
-function viewQuery(page = pageNum) {
+function viewQuery(page = state.pageNum) {
+  const query = document.getElementById('search').value;
   const params = new URLSearchParams(location.search);
-  const q = document.getElementById('search').value.trim();
-  const set = (k, v) => (v ? params.set(k, v) : params.delete(k));
-  set('filter', FILTERS[activeFilter].param);
-  // @handle in the search: ?maintainer=handle; anything else: ?q=.
-  const handle = q.startsWith('@') && q.length > 1 ? q.slice(1) : '';
-  set('maintainer', maintainersParam({ handle, leftOut: maintainersLeftOut }));
-  set('q', handle ? '' : q);
-  set('sort', sortMode === 'pressing' ? '' : sortMode);
-  set('order', sortReverse ? 'reverse' : '');
-  set('platform', platformFilter && PLATFORMS[platformFilter].param);
-  set('list', listFilter);
-  set('team', teamsParam({ include: teamFilter, leftOut: teamsLeftOut, none: noTeam }));
-  set('set', setFilter);
-  set('cause', causeFilter);
-  set('pkg', pkgParam);
-  set('view', viewParam);
-  set('refine', [...refines].join(','));
-  set('age', ageFilter);
-  set('buildFailed', buildFailedFilter);
-  set('updateFailed', becauseFilter);
-  set('in', inFilter);
-  set('by', byFilter);
-  set('status', statusFilter);
-  set('newer', newerFilter);
-  set('errors', showErrors ? '1' : '');
-  set('ofteam', matchTeam);
-  params.delete('because'); // the old name, written as the new one
-  set('page', page > 1 ? page : '');
-  set('per', pageSize !== DEFAULT_PAGE_SIZE ? pageSize : '');
-  // "@" and "," are fine in a query: ?q=@ and ?refine=a,b read better in
-  // a shared link.
-  const query = params.toString().replaceAll('%40', '@').replaceAll('%2C', ',');
-  return location.pathname + (query ? `?${query}` : '');
+  return location.pathname + writeState(state, query, params, KNOWN, page);
 }
 function writeViewToUrl() {
   // replaceState, not pushState: typing a search shouldn't fill the history.
@@ -1564,21 +1463,22 @@ async function ensureView() {
   const path = typingHandleOnOverview()
     ? 'overview'
     : viewPath({
-        pkg: pkgParam,
+        pkg: state.pkgParam,
         query: document.getElementById('search').value,
-        team: teamFilter,
-        list: listFilter,
-        set: setFilter,
-        view: viewParam,
-        cause: causeFilter,
+        team: state.teamFilter,
+        list: state.listFilter,
+        set: state.setFilter,
+        view: state.viewParam,
+        cause: state.causeFilter,
       });
   // Something else shown instead (a package, a maintainer...): ?set= and
   // ?view= no longer apply, and nothing on the page would take them off
   // again (a set's filter would hide every row: the other views leave out
   // what's pending).
-  if (setFilter && path !== `views/set/${setFilter}.json`) setFilter = null;
-  if (causeFilter && path !== `views/cause/${causeFilter}.json`) causeFilter = null;
-  if (viewParam && path !== VIEWS[viewParam]) viewParam = null;
+  if (state.setFilter && path !== `views/set/${state.setFilter}.json`) state.setFilter = null;
+  if (state.causeFilter && path !== `views/cause/${state.causeFilter}.json`)
+    state.causeFilter = null;
+  if (state.viewParam && path !== VIEWS[state.viewParam]) state.viewParam = null;
   if (path === shownView) return;
   wantedView = path;
   let found;
@@ -1932,7 +1832,7 @@ async function loadIndex() {
 
 // The tab's icon shows what needs attention among packages (faviconKey).
 function setFavicon(base) {
-  const key = faviconKey(base, platformFilter);
+  const key = faviconKey(base, state.platformFilter);
   const link = document.getElementById('favicon');
   if (link && !link.href.endsWith(`favicon-${key}.svg`)) link.href = `favicon-${key}.svg`;
 }
@@ -1956,20 +1856,21 @@ function renderStats() {
     const count = base.filter((p) => f.test(p) && refined(p, key)).length;
     // "vulnerable", "fixes to backport" and "blocked" only show up when
     // there's some.
-    if (['vuln', 'backport', 'blocked'].includes(key) && !count && activeFilter !== key) return '';
-    const pressed = activeFilter === key;
+    if (['vuln', 'backport', 'blocked'].includes(key) && !count && state.activeFilter !== key)
+      return '';
+    const pressed = state.activeFilter === key;
     return html`<button class="stat-btn" data-filter="${key}" aria-pressed="${pressed}"
       ${!count && key !== 'all' && !pressed ? raw('disabled') : ''}>
       <b${f.color ? html` style="color:${f.color}"` : ''}>${count}</b> ${key === 'all' && community ? 'here' : f.label}</button>`;
   });
   const stale =
     !checkedAt || Date.now() - new Date(checkedAt).getTime() > STALE_AFTER_HOURS * 3600e3;
-  const platformChip = platformFilter
-    ? html`<button class="plat-filter" data-clear="platform" title="Show all platforms">${PLATFORMS[platformFilter].label} only ✕</button>`
+  const platformChip = state.platformFilter
+    ? html`<button class="plat-filter" data-clear="platform" title="Show all platforms">${PLATFORMS[state.platformFilter].label} only ✕</button>`
     : '';
   // With every package, the list header says which team ("Showing").
   const teamChip =
-    teamFilter && !community
+    state.teamFilter && !community
       ? html`<button class="plat-filter" data-clear="team" title="Show every team's packages">team: ${teamName()} ✕</button>`
       : '';
   document.getElementById('stats').innerHTML =
@@ -2073,7 +1974,7 @@ function renderLists() {
     return;
   }
   const names = allLists();
-  if (listFilter && !names.includes(listFilter)) names.push(listFilter); // e.g. a renamed list
+  if (state.listFilter && !names.includes(state.listFilter)) names.push(state.listFilter); // e.g. a renamed list
   if (names.length < 2) {
     el.innerHTML = '';
     return;
@@ -2084,7 +1985,7 @@ function renderLists() {
       ? manifest.views.lists[name] || 0
       : base.filter((p) => (p.lists || []).includes(name)).length;
   el.innerHTML = html`<span class="lists-label">lists</span>${names.map((name) => {
-    const pressed = listFilter === name;
+    const pressed = state.listFilter === name;
     const count = listCount(name);
     return html`<button class="stat-btn" type="button" data-list="${name}" aria-pressed="${pressed}"
         title="${pressed ? 'Show every list' : `Show only the ${name} list (shareable: it's in the address)`}">
@@ -2144,21 +2045,22 @@ function pagerHtml(total, pages) {
   const sizes =
     total > PAGE_SIZES[0]
       ? html`<label class="page-size">Per page <select data-per aria-label="Packages per page">${PAGE_SIZES.map(
-          (n) => html`<option value="${n}"${n === pageSize ? raw(' selected') : ''}>${n}</option>`,
+          (n) =>
+            html`<option value="${n}"${n === state.pageSize ? raw(' selected') : ''}>${n}</option>`,
         )}</select></label>`
       : '';
   if (pages < 2) return sizes ? html`<nav class="pager" aria-label="Pages">${sizes}</nav>` : '';
-  const first = (pageNum - 1) * pageSize + 1;
-  const last = Math.min(pageNum * pageSize, total);
+  const first = (state.pageNum - 1) * state.pageSize + 1;
+  const last = Math.min(state.pageNum * state.pageSize, total);
   const link = (p, text, label) =>
-    p === pageNum
+    p === state.pageNum
       ? html`<span class="page-btn" aria-current="page">${text}</span>`
       : html`<a class="page-btn" href="${viewQuery(p)}" data-page="${p}"${label ? html` aria-label="${label}"` : ''}>${text}</a>`;
   return html`<nav class="pager" aria-label="Pages">
     <span class="page-count">${first.toLocaleString()}–${last.toLocaleString()} of ${total.toLocaleString()}</span>
-    ${pageNum > 1 ? link(pageNum - 1, '‹', 'Previous page') : ''}
-    ${pageLinks(pageNum, pages).map((p) => (p === null ? html`<span class="page-gap" aria-hidden="true">…</span>` : link(p, String(p), `Page ${p}`)))}
-    ${pageNum < pages ? link(pageNum + 1, '›', 'Next page') : ''}
+    ${state.pageNum > 1 ? link(state.pageNum - 1, '‹', 'Previous page') : ''}
+    ${pageLinks(state.pageNum, pages).map((p) => (p === null ? html`<span class="page-gap" aria-hidden="true">…</span>` : link(p, String(p), `Page ${p}`)))}
+    ${state.pageNum < pages ? link(state.pageNum + 1, '›', 'Next page') : ''}
     ${sizes}
   </nav>`;
 }
@@ -2199,7 +2101,7 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   const content = document.getElementById('content');
   if (community && shownView === 'maintainers') {
     // Maintainers, not packages: paged by their own count (maintainersHtml).
-    if (!keepPage) pageNum = 1;
+    if (!keepPage) state.pageNum = 1;
     shown = [];
     content.innerHTML = maintainersHtml();
     writeViewToUrl();
@@ -2207,10 +2109,10 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   }
   // One update moving many packages: one row (foldFamilies), alike by dot.
   ({ list, folds, inOpen: inOpenFold } = foldFamilies(list, computeStatus, openFolds));
-  const pages = Math.max(1, Math.ceil(list.length / pageSize));
-  pageNum = keepPage ? Math.min(pageNum, pages) : 1;
+  const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
+  state.pageNum = keepPage ? Math.min(state.pageNum, pages) : 1;
   writeViewToUrl();
-  shown = list.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+  shown = list.slice((state.pageNum - 1) * state.pageSize, state.pageNum * state.pageSize);
   if (community && shownView === 'overview') {
     // The overview lists nothing: its header has the ways in (renderScope),
     // and a search finds packages in all of nixpkgs.
@@ -2218,14 +2120,15 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
     return;
   }
   if (!list.length) {
-    const narrowed = refines.size || ageFilter || becauseFilter || buildFailedFilter;
+    const narrowed =
+      state.refines.size || state.ageFilter || state.becauseFilter || state.buildFailedFilter;
     const handle = document.getElementById('search').value.trim();
-    if (community && /^@\S/.test(handle) && !narrowed && activeFilter === 'all') {
+    if (community && /^@\S/.test(handle) && !narrowed && state.activeFilter === 'all') {
       // No such maintainer (yet: still typing): the ones whose handle matches.
       content.innerHTML = html`<div class="empty">No maintainer is ${handle}.</div>${moreMatchesHtml()}`;
       return;
     }
-    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : activeFilter !== 'all' && !document.getElementById('search').value.trim() ? ` the “${FILTERS[activeFilter].label}” filter` : ''}${community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
+    content.innerHTML = html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !document.getElementById('search').value.trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${community ? ' here' : ''}.</div>${moreMatchesHtml()}`;
     return;
   }
   content.innerHTML = html`<div class="wrap"><table>
@@ -2237,8 +2140,8 @@ async function render(list, { keepPage = false, run = updateRun } = {}) {
   watchErrors();
   // One package shown by its link (?pkg=): its details open at once, the
   // reason the link was followed.
-  if (pkgParam && list.length === 1 && pkgOpenedFor !== pkgParam) {
-    pkgOpenedFor = pkgParam;
+  if (state.pkgParam && list.length === 1 && pkgOpenedFor !== state.pkgParam) {
+    pkgOpenedFor = state.pkgParam;
     const tr = document.querySelector('#rows tr.row');
     if (tr) toggle(tr, 'info');
   }
@@ -2324,7 +2227,7 @@ function renderScope() {
   }
   // Drawn again only when it changes (its history arrives, a team is
   // picked), not while someone types in its search box.
-  const drawn = `${trendPoints?.length ?? -1}:${trendEvents.length}:${teamFilter || ''}:${Object.values(highlightShown)}:${allCauses ? 'all' : ''}`;
+  const drawn = `${trendPoints?.length ?? -1}:${trendEvents.length}:${state.teamFilter || ''}:${Object.values(highlightShown)}:${allCauses ? 'all' : ''}`;
   if (el.dataset.drawn !== drawn) {
     el.dataset.drawn = drawn;
     el.innerHTML = overviewHtml();
@@ -2346,7 +2249,7 @@ const teamPicker = (label) => {
     a.localeCompare(b, undefined, { sensitivity: 'base' }),
   );
   return teams.length
-    ? html`<label class="team-pick"><span class="team-pick-label">Team</span> <select id="teamPick"><option value="">${label}</option>${teams.map(([t, count]) => html`<option value="${t}"${teamFilter && t.toLowerCase() === teamFilter.toLowerCase() ? raw(' selected') : ''}>${t} (${fmt(count)})</option>`)}</select></label>`
+    ? html`<label class="team-pick"><span class="team-pick-label">Team</span> <select id="teamPick"><option value="">${label}</option>${teams.map(([t, count]) => html`<option value="${t}"${state.teamFilter && t.toLowerCase() === state.teamFilter.toLowerCase() ? raw(' selected') : ''}>${t} (${fmt(count)})</option>`)}</select></label>`
     : '';
 };
 
@@ -2893,7 +2796,7 @@ function listHeaderHtml() {
   const shownCount = base.filter((p) => refined(p)).length;
   const tiles = Object.entries(TILES).map(([key, label]) => {
     const count = base.filter((p) => FILTERS[key].test(p) && refined(p, key)).length;
-    const pressed = activeFilter === key;
+    const pressed = state.activeFilter === key;
     return html`<button type="button" class="tile" data-filter="${key}" aria-pressed="${pressed}"
       title="${pressed ? 'Show them all again' : `Show only these (${label.toLowerCase()})`}">
       <span class="tile-label">${label}</span><span class="tile-n" style="color:${FILTERS[key].color}">${fmt(count)}</span></button>`;
@@ -2907,9 +2810,9 @@ function listHeaderHtml() {
       : path.startsWith('views/team/')
         ? `${teamName()} team`
         : path.startsWith('views/list/')
-          ? `${listFilter} list`
+          ? `${state.listFilter} list`
           : path.startsWith('views/set/')
-            ? setFilter
+            ? state.setFilter
             : path.startsWith('views/cause/')
               ? causeShown?.title || 'Failing with the same error'
               : path === 'views/broken.json'
@@ -2945,11 +2848,13 @@ function listHeaderHtml() {
       }
       ${
         // "PR to close" on in another list: the whole of nixpkgs' are a view.
-        refines.has('superseded') && path !== 'views/superseded.json' && manifest.views?.superseded
+        state.refines.has('superseded') &&
+        path !== 'views/superseded.json' &&
+        manifest.views?.superseded
           ? html`<a class="scope-hint files-link" href="${scopeHref({ view: 'superseded' })}" data-card-view="superseded" title="Every package with an open update PR nixpkgs is already past, up to date or not">also: ${fmt(manifest.views.superseded)} in all of nixpkgs →</a>`
           : ''
       }
-      ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(setFilter)}${profileOf(setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
+      ${path.startsWith('views/set/') ? html`<span class="scope-hint">${bulkText(state.setFilter)}${profileOf(state.setFilter) ? html` (<a class="files-link" href="${safeUrl(profileOf(state.setFilter).link)}" target="_blank" rel="noopener">in nixpkgs ↗</a>)` : ''}</span>` : ''}
       ${teamPicker('Any team')}${teamOutChips()}
     </div>
     ${mergeHtml(path, handle)}
@@ -2999,27 +2904,27 @@ function scopeHref({ set = null, pkg = null, view = null, filter = null, cause =
 // Show a view: set (a generated set), pkg (one package), neither: what needs
 // attention. The search, filters and page start over.
 function showView({ set = null, pkg = null, view = null, filter = null, cause = null }) {
-  setFilter = set;
-  causeFilter = cause;
-  pkgParam = pkg;
-  viewParam = view;
-  teamFilter = null;
-  teamsLeftOut = [];
-  noTeam = false;
-  maintainersLeftOut = [];
-  listFilter = null;
-  activeFilter = filter || 'all';
-  refines = new Set();
-  ageFilter = null;
-  becauseFilter = null;
-  buildFailedFilter = null;
-  platformFilter = null;
-  inFilter = null;
-  byFilter = null;
-  statusFilter = null;
-  matchTeam = null;
-  newerFilter = null;
-  showErrors = false;
+  state.setFilter = set;
+  state.causeFilter = cause;
+  state.pkgParam = pkg;
+  state.viewParam = view;
+  state.teamFilter = null;
+  state.teamsLeftOut = [];
+  state.noTeam = false;
+  state.maintainersLeftOut = [];
+  state.listFilter = null;
+  state.activeFilter = filter || 'all';
+  state.refines = new Set();
+  state.ageFilter = null;
+  state.becauseFilter = null;
+  state.buildFailedFilter = null;
+  state.platformFilter = null;
+  state.inFilter = null;
+  state.byFilter = null;
+  state.statusFilter = null;
+  state.matchTeam = null;
+  state.newerFilter = null;
+  state.showErrors = false;
   document.getElementById('search').value = '';
   update();
   // From the page's top, as a new page would: scrolling the view's header
@@ -3067,25 +2972,31 @@ function maintainersHtml() {
   const query = document.getElementById('search').value.trim();
   const list = query ? maintainerMatches(maintainersList, query, Infinity).found : maintainersList;
   if (!list.length) return html`<div class="empty">No maintainer matches “${query}”.</div>`;
-  const pages = Math.max(1, Math.ceil(list.length / pageSize));
-  pageNum = Math.min(pageNum, pages);
-  const page = list.slice((pageNum - 1) * pageSize, pageNum * pageSize);
+  const pages = Math.max(1, Math.ceil(list.length / state.pageSize));
+  state.pageNum = Math.min(state.pageNum, pages);
+  const page = list.slice((state.pageNum - 1) * state.pageSize, state.pageNum * state.pageSize);
   return html`<ul class="maint-list maint-page">${page.map(maintainerItem)}</ul>${pagerHtml(list.length, pages)}`;
 }
 
 function moreMatchesHtml() {
   const query = document.getElementById('search').value;
-  if (community && !pkgParam && shownView !== 'maintainers' && /^@\S/.test(query.trim()))
+  if (community && !state.pkgParam && shownView !== 'maintainers' && /^@\S/.test(query.trim()))
     return maintainerMatchesHtml(query);
-  if (!community || pkgParam || query.trim().length < 2 || query.trim().startsWith('@')) return '';
+  if (!community || state.pkgParam || query.trim().length < 2 || query.trim().startsWith('@'))
+    return '';
   if (!names) {
     loadNames();
     return html`<div class="more-matches"><div class="other-label">Searching all of nixpkgs…</div></div>`;
   }
   // Another search, or other filters: from the first ones again.
-  const asked = [query.trim(), inFilter, statusFilter, byFilter, matchTeam, platformFilter].join(
-    '\n',
-  );
+  const asked = [
+    query.trim(),
+    state.inFilter,
+    state.statusFilter,
+    state.byFilter,
+    state.matchTeam,
+    state.platformFilter,
+  ].join('\n');
   if (asked !== matchQuery) {
     matchQuery = asked;
     matchLimit = MATCHES_SHOWN;
@@ -3097,16 +3008,21 @@ function moreMatchesHtml() {
     Infinity,
   );
   if (!total) return '';
-  const narrowed = inFilter || statusFilter || byFilter || matchTeam || platformFilter;
+  const narrowed =
+    state.inFilter ||
+    state.statusFilter ||
+    state.byFilter ||
+    state.matchTeam ||
+    state.platformFilter;
   if (total > 1 || narrowed) loadFacets();
   const { kept, sets, statuses, by, teams, platforms } = matchFacets(
     all,
     {
-      set: inFilter,
-      status: statusFilter,
-      by: byFilter,
-      team: matchTeam,
-      platform: platformFilter,
+      set: state.inFilter,
+      status: state.statusFilter,
+      by: state.byFilter,
+      team: state.matchTeam,
+      platform: state.platformFilter,
     },
     facetIndex ? facetsOf : null,
   );
@@ -3115,12 +3031,12 @@ function moreMatchesHtml() {
   // python3Packages (an alias, ?in=): offered with its sets' counts together.
   const aliasCount = (v) => sets.filter(([s]) => inPickedSet(s, v)).reduce((n, [, c]) => n + c, 0);
   const setChoices =
-    inFilter && !sets.some(([v]) => v === inFilter)
-      ? [...sets, [inFilter, aliasCount(inFilter)]]
+    state.inFilter && !sets.some(([v]) => v === state.inFilter)
+      ? [...sets, [state.inFilter, aliasCount(state.inFilter)]]
       : sets;
   const statusChoices =
-    statusFilter && !statuses.some(([v]) => v === statusFilter)
-      ? [...statuses, [statusFilter, 0]]
+    state.statusFilter && !statuses.some(([v]) => v === state.statusFilter)
+      ? [...statuses, [state.statusFilter, 0]]
       : statuses;
   return html`<div class="more-matches">
     <div class="other-label">${total.toLocaleString()} ${shownView === 'overview' ? '' : 'more '}${total === 1 ? 'package matches' : 'packages match'} in all of nixpkgs${narrowed ? html`, ${kept.length.toLocaleString()} with these filters` : ''}</div>
@@ -3129,9 +3045,9 @@ function moreMatchesHtml() {
       // from an earlier search would hide it, with no way to undo it.
       total > 1 || narrowed
         ? html`<div class="refine match-filters" role="group" aria-label="Narrow the matches"><label class="refine-age" title="Only one package set, by the attribute's first part (python313Packages, vimPlugins), or the top-level packages: the list above too. Each with how many match.">In <select data-in><option value="">any set</option>${setChoices.map(
-            ([v, n]) => facetOption(v, setLabel(v), n, inFilter),
+            ([v, n]) => facetOption(v, setLabel(v), n, state.inFilter),
           )}</select></label><label class="refine-age" title="Only the matches with this status, as their dot says. Each with how many match.">Status <select data-status><option value="">any status</option>${statusChoices.map(
-            ([v, n]) => facetOption(v, NAME_STATUSES[v], n, statusFilter),
+            ([v, n]) => facetOption(v, NAME_STATUSES[v], n, state.statusFilter),
           )}</select></label>${facetIndex ? matchFacetsHtml(by, teams, platforms) : ''}${
             narrowed
               ? html`<button type="button" class="refine-btn" data-clear-matches title="Back to every match: any set, status, maintainer, team and platform">Clear filters</button>`
@@ -3155,19 +3071,21 @@ function moreMatchesHtml() {
 // the most matches offered), a team, a platform; each with its count.
 function matchFacetsHtml(by, teams, platforms) {
   const teamChoices =
-    matchTeam && !teams.some(([t]) => t === matchTeam) ? [...teams, [matchTeam, 0]] : teams;
-  return html`<label class="refine-age" title="Only the matches this maintainer is listed for (meta.maintainers): type a GitHub handle; those with the most matches are offered, each with how many. The list above too.">By <input type="search" class="by-pick" data-by list="matchByOptions" placeholder="any maintainer" value="${byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="matchByOptions">${by
+    state.matchTeam && !teams.some(([t]) => t === state.matchTeam)
+      ? [...teams, [state.matchTeam, 0]]
+      : teams;
+  return html`<label class="refine-age" title="Only the matches this maintainer is listed for (meta.maintainers): type a GitHub handle; those with the most matches are offered, each with how many. The list above too.">By <input type="search" class="by-pick" data-by list="matchByOptions" placeholder="any maintainer" value="${state.byFilter || ''}" autocomplete="off" spellcheck="false"><datalist id="matchByOptions">${by
     .slice(0, BY_SHOWN)
     .map(([h, n]) => html`<option value="${h}">${fmt(n)}</option>`)}</datalist></label>${
     teamChoices.length
       ? html`<label class="refine-age" title="Only the matches of this nixpkgs team (meta.teams). Each with how many match.">Team <select data-match-team><option value="">any team</option>${teamChoices.map(
-          ([t, n]) => facetOption(t, t, n, matchTeam),
+          ([t, n]) => facetOption(t, t, n, state.matchTeam),
         )}</select></label>`
       : ''
   }<label class="refine-age" title="Only the matches available there (meta.platforms). Darwin is macOS. Each with how many match. The list above too.">On <select data-platform-pick><option value="">any platform</option>${Object.entries(
     PLATFORMS,
   ).map(([key, p]) =>
-    facetOption(key, p.label, platforms[key] ?? 0, platformFilter),
+    facetOption(key, p.label, platforms[key] ?? 0, state.platformFilter),
   )}</select></label>`;
 }
 
@@ -3268,7 +3186,7 @@ document.getElementById('content').addEventListener('click', (e) => {
   const pageLink = e.target.closest('a.page-btn');
   if (pageLink && !(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button)) {
     e.preventDefault();
-    pageNum = Number(pageLink.dataset.page);
+    state.pageNum = Number(pageLink.dataset.page);
     // Back to the table's top, the keyboard on its first row, once drawn.
     update({ keepPage: true }).then(() => {
       const content = document.getElementById('content');
@@ -3311,7 +3229,8 @@ document.getElementById('content').addEventListener('click', (e) => {
   const plat = e.target.closest('button.plat');
   if (plat) {
     // Clicking the active platform again shows all platforms.
-    platformFilter = platformFilter === plat.dataset.platform ? null : plat.dataset.platform;
+    state.platformFilter =
+      state.platformFilter === plat.dataset.platform ? null : plat.dataset.platform;
     update();
     return;
   }
@@ -3405,7 +3324,7 @@ function buildCell(pkg) {
   if (failedBuilds(pkg).length) {
     // One reason for all of them (their logs, nixkeeper-hydra): only it, as
     // the update column says its own; the column says the rest.
-    const [why, ...more] = buildFailedBecause(pkg, platformFilter);
+    const [why, ...more] = buildFailedBecause(pkg, state.platformFilter);
     const known = !more.length && why !== 'unread' && BUILD_FAILED[why];
     return hat(
       'missing',
@@ -3829,8 +3748,8 @@ function platformTags(pkg) {
       : any
         ? `${p.title} (nixpkgs doesn't restrict its platforms)`
         : p.title;
-    return html`<button class="plat${unbuilt ? ' unbuilt' : ''}" type="button" data-platform="${key}" aria-pressed="${platformFilter === key}"
-      title="${said}. ${platformFilter === key ? 'Show all platforms' : `Click to show only packages available on ${p.label}`}">${short || p.label}${unbuilt ? html`<span class="sr-only"> (not built by Hydra)</span>` : ''}</button>`;
+    return html`<button class="plat${unbuilt ? ' unbuilt' : ''}" type="button" data-platform="${key}" aria-pressed="${state.platformFilter === key}"
+      title="${said}. ${state.platformFilter === key ? 'Show all platforms' : `Click to show only packages available on ${p.label}`}">${short || p.label}${unbuilt ? html`<span class="sr-only"> (not built by Hydra)</span>` : ''}</button>`;
   });
   // Together, so they wrap as one.
   return tags.length ? html`<span class="plats">${tags}</span>` : '';
@@ -4317,7 +4236,7 @@ function fillDetail(pkg, el, entries) {
   // A team's packages: the team filter (?team=, shareable too).
   for (const btn of el.querySelectorAll('.team-btn')) {
     btn.addEventListener('click', () => {
-      teamFilter = btn.dataset.team;
+      state.teamFilter = btn.dataset.team;
       update();
       document.getElementById('stats').scrollIntoView({ block: 'nearest' });
     });
@@ -4379,14 +4298,14 @@ const passesOthers = (p, q) =>
   inSet(p) &&
   notHidden(p) &&
   refined(p) &&
-  FILTERS[activeFilter].test(p) &&
+  FILTERS[state.activeFilter].test(p) &&
   matchesSearch(p, q);
 
 function currentFiltered() {
   const q = document.getElementById('search').value;
   facetBase = packages.filter((p) => passesOthers(p, q));
   const list = facetBase.filter((p) => inPlatform(p) && inNameSet(p) && byMaintainer(p));
-  return sortedList(list, sortReverse ? -1 : 1);
+  return sortedList(list, state.sortReverse ? -1 : 1);
 }
 
 // The list in the order picked (sortMode), reversed with dir -1; those with
@@ -4398,17 +4317,17 @@ function currentFiltered() {
 function sortedList(list, dir = 1) {
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   // The data arrives sorted by name, and Array.sort is stable.
-  if (sortMode === 'az') return dir > 0 ? list : [...list].reverse();
-  if (sortMode === 'oldest' || sortMode === 'newest') {
+  if (state.sortMode === 'az') return dir > 0 ? list : [...list].reverse();
+  if (state.sortMode === 'oldest' || state.sortMode === 'newest') {
     // How long its problem has lasted (the tile's kind, when one is picked).
-    const keyed = list.map((p) => ({ p, since: problemSince(p, activeFilter) || '' }));
-    const order = sortMode === 'oldest' ? dir : -dir;
+    const keyed = list.map((p) => ({ p, since: problemSince(p, state.activeFilter) || '' }));
+    const order = state.sortMode === 'oldest' ? dir : -dir;
     keyed.sort((a, b) =>
       !a.since || !b.since ? !a.since - !b.since : order * cmp(a.since, b.since),
     );
     return keyed.map((k) => k.p);
   }
-  if (sortMode === 'gap') {
+  if (state.sortMode === 'gap') {
     // The biggest update first (versionGap); numbering changes, then none
     // (no newer version known), last either way.
     const keyed = list.map((p) => ({
@@ -4425,7 +4344,7 @@ function sortedList(list, dir = 1) {
   }
   // Most pressing. The vulnerable ones: worst severity first (in the order
   // they had).
-  if (activeFilter === 'vuln') {
+  if (state.activeFilter === 'vuln') {
     const ranked = list.map((p) => ({ p, rank: severityRank(p) }));
     ranked.sort((a, b) => dir * (a.rank - b.rank));
     return ranked.map((k) => k.p);
@@ -4443,8 +4362,8 @@ function sortedList(list, dir = 1) {
 document.getElementById('stats').addEventListener('click', (e) => {
   const clear = e.target.closest('.plat-filter[data-clear]');
   if (clear) {
-    if (clear.dataset.clear === 'team') teamFilter = null;
-    else platformFilter = null;
+    if (clear.dataset.clear === 'team') state.teamFilter = null;
+    else state.platformFilter = null;
     update();
     return;
   }
@@ -4456,7 +4375,7 @@ document.getElementById('stats').addEventListener('click', (e) => {
     return;
   }
   // Clicking the active filter again goes back to showing everything.
-  activeFilter = btn.dataset.filter === activeFilter ? 'all' : btn.dataset.filter;
+  state.activeFilter = btn.dataset.filter === state.activeFilter ? 'all' : btn.dataset.filter;
   update();
 });
 
@@ -4465,24 +4384,26 @@ document.getElementById('stats').addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   const out = e.target.closest('button[data-team-out]');
   const person = e.target.closest('button[data-maintainer-out]');
-  if (out) teamsLeftOut = teamsLeftOut.filter((t) => t !== out.dataset.teamOut);
+  if (out) state.teamsLeftOut = state.teamsLeftOut.filter((t) => t !== out.dataset.teamOut);
   else if (person)
-    maintainersLeftOut = maintainersLeftOut.filter((h) => h !== person.dataset.maintainerOut);
-  else if (e.target.closest('button[data-team-none]')) noTeam = false;
-  else if (e.target.closest('button[data-no-team]')) noTeam = !noTeam;
+    state.maintainersLeftOut = state.maintainersLeftOut.filter(
+      (h) => h !== person.dataset.maintainerOut,
+    );
+  else if (e.target.closest('button[data-team-none]')) state.noTeam = false;
+  else if (e.target.closest('button[data-no-team]')) state.noTeam = !state.noTeam;
   else return;
   update();
 });
 // Show errors: on or off.
 document.addEventListener('click', (e) => {
   if (!e.target.closest('button[data-show-errors]')) return;
-  showErrors = !showErrors;
+  state.showErrors = !state.showErrors;
   update({ keepPage: true });
 });
 // ↓/↑: the list's order reversed, or back.
 document.addEventListener('click', (e) => {
   if (!e.target.closest('button[data-sort-dir]')) return;
-  sortReverse = !sortReverse;
+  state.sortReverse = !state.sortReverse;
   update();
 });
 // The search's matches in all of nixpkgs: the next ones, or every one again
@@ -4492,11 +4413,11 @@ document.addEventListener('click', (e) => {
     matchLimit += MATCHES_MORE;
     update({ keepPage: true });
   } else if (e.target.closest('button[data-clear-matches]')) {
-    inFilter = null;
-    statusFilter = null;
-    byFilter = null;
-    matchTeam = null;
-    platformFilter = null;
+    state.inFilter = null;
+    state.statusFilter = null;
+    state.byFilter = null;
+    state.matchTeam = null;
+    state.platformFilter = null;
     update();
   }
 });
@@ -4505,33 +4426,34 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-refine]');
   if (!btn) return;
   const key = btn.dataset.refine;
-  if (refines.has(key)) refines.delete(key);
-  else refines.add(key);
+  if (state.refines.has(key)) state.refines.delete(key);
+  else state.refines.add(key);
   update();
 });
 document.addEventListener('change', (e) => {
-  if (e.target.matches('select[data-age]')) ageFilter = e.target.value || null;
-  else if (e.target.matches('select[data-because]')) becauseFilter = e.target.value || null;
+  if (e.target.matches('select[data-age]')) state.ageFilter = e.target.value || null;
+  else if (e.target.matches('select[data-because]')) state.becauseFilter = e.target.value || null;
   else if (e.target.matches('select[data-build-failed]'))
-    buildFailedFilter = e.target.value || null;
-  else if (e.target.matches('select[data-platform-pick]')) platformFilter = e.target.value || null;
-  else if (e.target.matches('select[data-in]')) inFilter = e.target.value || null;
-  else if (e.target.matches('select[data-sort]')) sortMode = e.target.value || 'pressing';
-  else if (e.target.matches('select[data-newer]')) newerFilter = e.target.value || null;
+    state.buildFailedFilter = e.target.value || null;
+  else if (e.target.matches('select[data-platform-pick]'))
+    state.platformFilter = e.target.value || null;
+  else if (e.target.matches('select[data-in]')) state.inFilter = e.target.value || null;
+  else if (e.target.matches('select[data-sort]')) state.sortMode = e.target.value || 'pressing';
+  else if (e.target.matches('select[data-newer]')) state.newerFilter = e.target.value || null;
   else if (e.target.matches('select[data-pr-pick]')) {
-    refines.delete('withpr');
-    refines.delete('nopr');
-    if (e.target.value) refines.add(e.target.value);
-  } else if (e.target.matches('select[data-status]')) statusFilter = e.target.value || null;
-  else if (e.target.matches('select[data-match-team]')) matchTeam = e.target.value || null;
+    state.refines.delete('withpr');
+    state.refines.delete('nopr');
+    if (e.target.value) state.refines.add(e.target.value);
+  } else if (e.target.matches('select[data-status]')) state.statusFilter = e.target.value || null;
+  else if (e.target.matches('select[data-match-team]')) state.matchTeam = e.target.value || null;
   else if (e.target.matches('input[data-by]')) {
     const by = e.target.value.trim().replace(/^@/, '').toLowerCase();
-    byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
+    state.byFilter = /^[\w.-]{1,60}$/.test(by) ? by : null;
   } else if (e.target.matches('select[data-per]')) {
     // The page holding the first row shown before, at the new size.
-    const first = (pageNum - 1) * pageSize;
-    pageSize = Number(e.target.value);
-    pageNum = Math.floor(first / pageSize) + 1;
+    const first = (state.pageNum - 1) * state.pageSize;
+    state.pageSize = Number(e.target.value);
+    state.pageNum = Math.floor(first / state.pageSize) + 1;
     update({ keepPage: true });
     return;
   } else return;
@@ -4585,7 +4507,7 @@ document.getElementById('scope')?.addEventListener('click', (e) => {
   }
   const tile = e.target.closest('button.tile');
   if (!tile) return;
-  activeFilter = tile.dataset.filter === activeFilter ? 'all' : tile.dataset.filter;
+  state.activeFilter = tile.dataset.filter === state.activeFilter ? 'all' : tile.dataset.filter;
   update();
 });
 
@@ -4613,7 +4535,7 @@ document.getElementById('lists').addEventListener('click', (e) => {
   const btn = e.target.closest('.stat-btn[data-list]');
   if (!btn) return;
   // Clicking the active list again shows every list.
-  listFilter = btn.dataset.list === listFilter ? null : btn.dataset.list;
+  state.listFilter = btn.dataset.list === state.listFilter ? null : btn.dataset.list;
   update();
 });
 
@@ -4621,7 +4543,7 @@ document.getElementById('lists').addEventListener('click', (e) => {
 // thousands of packages, each redraw takes a moment.
 let searchTimer;
 document.getElementById('search').addEventListener('input', () => {
-  pkgParam = null; // a search leaves a package shown alone (?pkg=)
+  state.pkgParam = null; // a search leaves a package shown alone (?pkg=)
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => update(), 150);
 });
@@ -4665,7 +4587,7 @@ function showMine(show) {
 function showMyTeam(show) {
   showView({});
   if (!show) return;
-  teamFilter = myTeam;
+  state.teamFilter = myTeam;
   update();
 }
 document.getElementById('lists').addEventListener('submit', (e) => {
@@ -4720,11 +4642,11 @@ document.addEventListener('focusout', (e) => {
 document.addEventListener('change', (e) => {
   if (e.target.id !== 'teamPick') return;
   // A team's packages, from all of nixpkgs (not within a set or a package).
-  teamFilter = e.target.value || null;
-  setFilter = null;
-  causeFilter = null;
-  pkgParam = null;
-  viewParam = null;
+  state.teamFilter = e.target.value || null;
+  state.setFilter = null;
+  state.causeFilter = null;
+  state.pkgParam = null;
+  state.viewParam = null;
   update();
 });
 
