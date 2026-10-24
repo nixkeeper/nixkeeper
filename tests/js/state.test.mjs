@@ -5,7 +5,14 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { DEFAULT_PAGE_SIZE, readState, state, writeState } from '../../page/state.js';
+import {
+  DEFAULT_PAGE_SIZE,
+  known,
+  readState,
+  scopeHref,
+  state,
+  writeState,
+} from '../../page/state.js';
 
 // The page's tables, as far as the address goes (app.js has their rules).
 const KNOWN = {
@@ -89,5 +96,19 @@ describe('writeState', () => {
     const { state: st } = read('?page=3');
     assert.equal(writeState(st, '', new URLSearchParams(), KNOWN, 1), '');
     assert.equal(writeState(st, '', new URLSearchParams(), KNOWN, 4), '?page=4');
+  });
+});
+
+describe('scopeHref', () => {
+  test("a view's address: the others' parameters cleared, the data's own kept", () => {
+    Object.assign(known, KNOWN);
+    globalThis.location = { pathname: '/', search: '?owner=me&filter=vuln&q=wine&page=3&per=50' };
+    assert.equal(
+      scopeHref({ view: 'attention', filter: 'builds' }),
+      '/?owner=me&per=50&view=attention&filter=builds',
+    );
+    assert.equal(scopeHref({ pkg: 'tgrep' }), '/?owner=me&per=50&pkg=tgrep');
+    // A filter with no address of its own (all): none written.
+    assert.equal(scopeHref({ filter: 'all' }), '/?owner=me&per=50');
   });
 });

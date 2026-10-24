@@ -1,6 +1,7 @@
 // The page's shared pieces of HTML: numbers, dates, icons, why a build
 // failed. Used by app.js and panel.js.
-import { daysText, raw } from './logic.js';
+import { daysText, html, raw } from './logic.js';
+import { state } from './state.js';
 import { store } from './store.js';
 
 // GitHub's own icons (Octicons, (c) GitHub, MIT licence), 14px, in the
@@ -242,4 +243,16 @@ export const FAILED_BECAUSE = {
     text: "the bot's machine failed (its build users group, or its nix daemon), not the package",
     report: true,
   },
+};
+
+export const bulkShort = (set) => profileOf(set)?.short || 'updated in bulk';
+
+export const teamPicker = (label) => {
+  // By name, whatever its case (the data's keys sort capitals first).
+  const teams = Object.entries(store.manifest.views?.teams || {}).sort(([a], [b]) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  );
+  return teams.length
+    ? html`<label class="team-pick"><span class="team-pick-label">Team</span> <select id="teamPick"><option value="">${label}</option>${teams.map(([t, count]) => html`<option value="${t}"${state.teamFilter && t.toLowerCase() === state.teamFilter.toLowerCase() ? raw(' selected') : ''}>${t} (${fmt(count)})</option>`)}</select></label>`
+    : '';
 };

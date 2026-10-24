@@ -1,8 +1,10 @@
 // The page's filters, sort and paging, in one object (state), and the
 // address they live in, so a view survives a reload and can be bookmarked
-// or shared: readState and writeState, pure (tests/js/state.test.mjs).
-// app.js changes the state (the chips, the selects, the search) and draws
-// the page from it. Other parameters (owner, repo) are left alone.
+// or shared: readState and writeState, pure (tests/js/state.test.mjs), and
+// a view's address (scopeHref). app.js changes the state (the chips, the
+// selects, the search) and draws the page from it. Other parameters
+// (owner, repo) are left alone. And the rules that follow the selected
+// platform.
 
 import {
   buildsWith as buildsOn,
@@ -14,6 +16,11 @@ import {
   attentionRank as rankOn,
   teamsParam,
 } from './logic.js';
+
+// The page's tables (FILTERS, SORTS, PLATFORMS, REFINES, AGES), by their
+// keys: app.js gives them once (they hold the list's rules), for what here
+// writes an address without being handed them (scopeHref).
+export const known = {};
 
 export const PAGE_SIZES = [50, 100, 200, 500, 1000];
 export const DEFAULT_PAGE_SIZE = 200;
@@ -153,3 +160,39 @@ export const buildsWith = (pkg, status) => buildsOn(pkg, status, state.platformF
 export const failedBuilds = (pkg) => buildsWith(pkg, 'failed');
 
 export const attentionRank = (pkg) => rankOn(pkg, state.platformFilter);
+
+// The address of a view (scopeHref({ set }), { pkg }, {} for what needs
+// attention): the others' parameters cleared, the data's own kept.
+export function scopeHref({ set = null, pkg = null, view = null, filter = null, cause = null }) {
+  const params = new URLSearchParams(location.search);
+  for (const k of [
+    'filter',
+    'q',
+    'maintainer',
+    'sort',
+    'platform',
+    'list',
+    'team',
+    'set',
+    'cause',
+    'pkg',
+    'page',
+    'view',
+    'updateFailed',
+    'buildFailed',
+    'in',
+    'by',
+    'status',
+    'ofteam',
+    'newer',
+    'errors',
+  ])
+    params.delete(k);
+  if (set) params.set('set', set);
+  if (cause) params.set('cause', cause);
+  if (pkg) params.set('pkg', pkg);
+  if (view) params.set('view', view);
+  if (filter && known.FILTERS[filter]?.param) params.set('filter', known.FILTERS[filter].param);
+  const query = params.toString();
+  return location.pathname + (query ? `?${query}` : '');
+}
