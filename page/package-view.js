@@ -668,7 +668,7 @@ export function fillDetail(pkg, el, entries, page) {
       : '';
   const archived = pkg.archived ? html`<div class="stale-note">${archivedText(pkg)}</div>` : '';
   // The verdict at a glance: what it is, the versions, since when, and
-  // which source decided (the chain in docs/design: a check, a version
+  // which source decided (the chain: a check, a version
   // source, an up-to-date rule, master, or Repology), as a badge: ours in
   // the accent's tint, Repology grey, so it shows when Repology isn't the
   // judge.

@@ -4,8 +4,8 @@ the manifest's counts against the files they count. Three readers trust
 the data as it is (the page, nixkeeper-mcp, the notifications): what
 breaks it should stop here, said, rather than be published.
 
-For now the problems are only reported (the sync's log); once the
-published data has none, they stop the sync (docs/design/coding-pillars.md)."""
+For now the problems are only reported (the sync's log); once syncs have
+reported none, they're to stop the sync instead."""
 
 import sys
 import zlib

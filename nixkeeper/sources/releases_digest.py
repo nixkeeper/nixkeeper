@@ -10,7 +10,7 @@ it adds a newer version Repology hasn't seen and never takes Repology's
 verdict away (upstream.apply): measured on 2026-10-09, GitHub and Repology
 agree on 86% of 23,009 packages; where only Repology says outdated, a
 project moved and its old repository stopped as often as Repology matched
-another project (docs/design/github-releases.md in nixkeeper's notes).
+another project.
 
 Not for a package with a rule of its own or the community's (rules win),
 nor Coq and Rocq libraries (SKIPPED_SETS), nor where it can't be
