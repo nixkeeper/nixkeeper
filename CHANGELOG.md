@@ -83,6 +83,17 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- **Typing in the search box is light again**: the menu worked out every
+  qualifier's values, with counts over every package, at each key, click
+  and arrow (55 ms each over 13,913 packages); now one qualifier's when
+  it's typed, kept until the page is drawn again. A key that changes
+  nothing asked (`is:` before its value, a space) draws nothing, and the
+  list waits 250 ms (was 150) after the last key. Typing `is:builds f`
+  at 0.15 s a key: 22 long tasks, 6.9 s in all, before; 3, 0.25 s, after.
+- **One option highlighted in the search menu**: the pointer moves it, as
+  the arrows do, rather than one hovered and another picked by the keys
+  both looking selected.
+
 - **`ofteam:` in any case**: `ofteam:python` is the Python team's, as
   `team:` already was, rather than matching nothing; a team that doesn't
   exist is said under the box ("no ofteam:pyton: ofteam:Python?").

@@ -122,6 +122,14 @@ let matchLimit = MATCHES_SHOWN;
 let matchQuery = '';
 // What the matches last counted, for the search box's menu (searchValues).
 let matchCounts = null;
+// What the box asks, as of the last update(): its filters and text, as
+// written back, and a package shown alone. Typing that leaves it the same
+// (is: before its value, a space) draws nothing again.
+let lastAsked = null;
+const asking = () => `${state.pkgParam || ''}\n${writeQuery(state, searchText().trim())}`;
+// The menu's values (searchValues, each worked out when first asked for),
+// kept until the page is drawn again: not again at every key.
+let menuValues = null;
 // The table shows pageSize rows at a time: drawing stays fast whatever the
 // data's size, and the page keeps working with Ctrl+F and screen readers
 // (no virtual scrolling). ?page= in the address, past the first; ?per= for
@@ -296,6 +304,7 @@ async function ensureView() {
   if (path === 'overview' && state.matchTeam && asked.query.trim().length < 2) {
     state.teamFilter = state.matchTeam;
     state.matchTeam = null;
+    lastAsked = null; // the box says ofteam:, the page team:
     path = viewPath({ ...asked, team: state.teamFilter });
   }
   // The overview has no list: a word for one (is:builds, age:1y...) opens
@@ -431,6 +440,8 @@ const yieldToBrowser = () =>
 
 async function update({ keepPage = false } = {}) {
   const run = ++updateRun;
+  menuValues = null;
+  lastAsked = asking();
   // The box says the filters the chips and selects set (not while typed in).
   showQuery();
   if (store.community) {
@@ -795,6 +806,7 @@ function maintainerMatchesHtml(query) {
 
 function moreMatchesHtml() {
   matchCounts = null;
+  menuValues = null;
   const query = searchText();
   if (
     store.community &&
@@ -848,6 +860,7 @@ function moreMatchesHtml() {
     store.facetIndex ? facetsOf : null,
   );
   matchCounts = { sets, statuses, by, teams, platforms };
+  menuValues = null;
   const shownHere = kept.slice(0, matchLimit);
   const setLabel = (v) => (v === TOP_LEVEL ? 'top level' : v);
   // python3Packages (an alias, ?in=): offered with its sets' counts together.
@@ -1020,7 +1033,10 @@ wireList(pageHooks);
 wireOverview(pageHooks);
 wireMaintainerView(pageHooks);
 // The search box's menu: the qualifiers, then their values with counts.
-wireSearchMenu(() => searchValues(matchCounts));
+wireSearchMenu(() => {
+  menuValues ??= searchValues(matchCounts);
+  return menuValues;
+});
 
 // The search's matches in all of nixpkgs: the next ones, or every one again
 // (moreMatchesHtml).
@@ -1038,8 +1054,10 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Typing redraws the table once it pauses (150 ms), not at every key: with
-// thousands of packages, each redraw takes a moment.
+// Typing redraws the table once it pauses (250 ms, longer than between
+// two keys typed on), not at every key: with thousands of packages, each
+// redraw takes a moment. And only when what's asked changed (asking, as of
+// the last update()).
 let searchTimer;
 document.getElementById('search').addEventListener('input', () => {
   state.pkgParam = null; // a search leaves a package shown alone (?pkg=)
@@ -1047,8 +1065,10 @@ document.getElementById('search').addEventListener('input', () => {
   // Its qualifiers set the filters (search.js), the rest is searched for.
   searchTimer = setTimeout(() => {
     boxProblems = readBox();
-    update();
-  }, 150);
+    // Nothing new asked (is: before its value, a space): no redraw.
+    if (asking() === lastAsked) showProblems();
+    else update();
+  }, 250);
 });
 // Left, the box written as the state says (its words in their usual
 // order), unless something in it isn't understood: that stays, to fix.

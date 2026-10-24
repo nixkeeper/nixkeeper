@@ -1600,24 +1600,42 @@ const MANIFEST_COUNTS = {
   vulnerable: 'vulnerable',
   backport: 'backport',
 };
+// Each worked out once, when first asked for (a getter): the menu asks for
+// one qualifier's values at a time, and the counts walk every package.
+const once = (f) => {
+  let done = false;
+  let value;
+  return () => {
+    if (!done) [done, value] = [true, f()];
+    return value;
+  };
+};
+const lazily = (makers) =>
+  Object.defineProperties(
+    {},
+    Object.fromEntries(
+      Object.entries(makers).map(([k, f]) => [k, { get: once(f), enumerable: true }]),
+    ),
+  );
 export function searchValues(matches = null) {
   const counted = store.packages.length > 0;
   const manifest = store.manifest?.counts || {};
-  const base = store.packages.filter(
-    (p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p),
+  const base = once(() =>
+    store.packages.filter((p) => inPlatform(p) && inList(p) && inPeople(p) && notHidden(p)),
   );
-  const facets = counted ? facetOptions() : { sets: [], by: [], platforms: {} };
-  const tiles = Object.entries(FILTERS)
-    .filter(([, f]) => f.param)
-    .map(([key, f]) => ({
-      value: f.param,
-      label: f.label,
-      ...(counted
-        ? { count: base.filter((p) => f.test(p) && refined(p, key)).length }
-        : manifest[MANIFEST_COUNTS[f.param]] != null
-          ? { count: manifest[MANIFEST_COUNTS[f.param]] }
-          : {}),
-    }));
+  const facets = once(() => (counted ? facetOptions() : { sets: [], by: [], platforms: {} }));
+  const tiles = () =>
+    Object.entries(FILTERS)
+      .filter(([, f]) => f.param)
+      .map(([key, f]) => ({
+        value: f.param,
+        label: f.label,
+        ...(counted
+          ? { count: base().filter((p) => f.test(p) && refined(p, key)).length }
+          : manifest[MANIFEST_COUNTS[f.param]] != null
+            ? { count: manifest[MANIFEST_COUNTS[f.param]] }
+            : {}),
+      }));
   const refines = Object.entries(REFINE_WORDS).map(([key, word]) => ({
     word,
     label: REFINES[key]?.label || key,
@@ -1630,42 +1648,49 @@ export function searchValues(matches = null) {
     Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
       .map(([value, count]) => ({ value, label: names(value), count }));
-  const teams = Object.entries(store.manifest?.views?.teams || {})
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-    .map(([value, count]) => ({ value, count }));
+  const teams = once(() =>
+    Object.entries(store.manifest?.views?.teams || {})
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+      .map(([value, count]) => ({ value, count })),
+  );
   const pairs = (list) => list.map(([value, count]) => ({ value, count }));
   // The matches' own, on the overview (no list to count).
   const fromMatches = !counted && matches;
-  return {
-    is: [...tiles, ...words('is')],
-    '-is': words('-is'),
-    has: [...words('has'), { value: 'newer', label: 'a newer version known' }],
-    '-has': [...words('-has'), { value: 'newer', label: 'no newer version known' }],
-    age: Object.entries(AGES).map(([value, label]) => ({ value, label: `older than ${label}` })),
-    on: Object.entries(PLATFORMS).map(([key, p]) => ({
-      value: p.param,
-      label: p.label,
-      ...(counted
-        ? { count: facets.platforms[key] }
-        : fromMatches?.platforms[key] != null
-          ? { count: fromMatches.platforms[key] }
-          : {}),
-    })),
-    in: pairs(fromMatches ? fromMatches.sets : facets.sets),
-    by: pairs(fromMatches ? fromMatches.by : facets.by),
-    team: [...teams, { value: 'none', label: 'not via a team' }],
+  return lazily({
+    is: () => [...tiles(), ...words('is')],
+    '-is': () => words('-is'),
+    has: () => [...words('has'), { value: 'newer', label: 'a newer version known' }],
+    '-has': () => [...words('-has'), { value: 'newer', label: 'no newer version known' }],
+    age: () =>
+      Object.entries(AGES).map(([value, label]) => ({ value, label: `older than ${label}` })),
+    on: () =>
+      Object.entries(PLATFORMS).map(([key, p]) => ({
+        value: p.param,
+        label: p.label,
+        ...(counted
+          ? { count: facets().platforms[key] }
+          : fromMatches?.platforms[key] != null
+            ? { count: fromMatches.platforms[key] }
+            : {}),
+      })),
+    in: () => pairs(fromMatches ? fromMatches.sets : facets().sets),
+    by: () => pairs(fromMatches ? fromMatches.by : facets().by),
+    team: () => [...teams(), { value: 'none', label: 'not via a team' }],
     '-team': teams,
-    build: counted
-      ? reasons(buildFailedCounts(), (k) => BUILD_FAILED[k]?.short || k)
-      : Object.entries(BUILD_FAILED).map(([value, r]) => ({ value, label: r.short })),
-    update: counted
-      ? reasons(becauseCounts(), (k) => FAILED_BECAUSE[k]?.short || k)
-      : Object.entries(FAILED_BECAUSE).map(([value, r]) => ({ value, label: r.short })),
-    status: matches
-      ? matches.statuses.map(([value, count]) => ({ value, label: NAME_STATUSES[value], count }))
-      : Object.entries(NAME_STATUSES).map(([value, label]) => ({ value, label })),
-    ofteam: matches?.teams.length ? pairs(matches.teams) : teams,
-    sort: Object.entries(SORTS).map(([value, label]) => ({ value, label })),
-    order: [{ value: 'reverse', label: 'the other way round' }],
-  };
+    build: () =>
+      counted
+        ? reasons(buildFailedCounts(), (k) => BUILD_FAILED[k]?.short || k)
+        : Object.entries(BUILD_FAILED).map(([value, r]) => ({ value, label: r.short })),
+    update: () =>
+      counted
+        ? reasons(becauseCounts(), (k) => FAILED_BECAUSE[k]?.short || k)
+        : Object.entries(FAILED_BECAUSE).map(([value, r]) => ({ value, label: r.short })),
+    status: () =>
+      matches
+        ? matches.statuses.map(([value, count]) => ({ value, label: NAME_STATUSES[value], count }))
+        : Object.entries(NAME_STATUSES).map(([value, label]) => ({ value, label })),
+    ofteam: () => (matches?.teams.length ? pairs(matches.teams) : teams()),
+    sort: () => Object.entries(SORTS).map(([value, label]) => ({ value, label })),
+    order: () => [{ value: 'reverse', label: 'the other way round' }],
+  });
 }

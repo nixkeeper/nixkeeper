@@ -474,6 +474,15 @@ export function wireSearchMenu(values) {
       close();
     }
   });
+  // The pointer moves the active option, as the arrows do: one is
+  // highlighted, not one hovered and another moved to.
+  menu.addEventListener('mousemove', (e) => {
+    const i = Number(e.target.closest('[data-i]')?.dataset.i ?? -1);
+    if (i >= 0 && i !== active) {
+      active = i;
+      draw();
+    }
+  });
   // A press keeps the box focused (no blur), then picks.
   menu.addEventListener('mousedown', (e) => {
     const option = e.target.closest('[data-i]');

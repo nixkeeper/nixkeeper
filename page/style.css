@@ -276,7 +276,6 @@ header.top {
   font-size: 13px;
   color: var(--ink);
 }
-.search-option:hover,
 .search-option[aria-selected="true"] {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
