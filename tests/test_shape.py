@@ -83,8 +83,8 @@ class Rows(unittest.TestCase):
         )
         data[other]["packages"].append(row("a"))
         found = shape.problems(data, slug)["rows"]
-        self.assertIn("a: twice", found)
-        self.assertTrue(any("not its own" in t for t in found))
+        self.assertIn("a: appears twice", found)
+        self.assertIn(f"a: in {other}, not in its own shard", found)
 
 
 class Manifest(unittest.TestCase):
@@ -101,8 +101,10 @@ class Manifest(unittest.TestCase):
         data = files([row("a")], views={"attention": [{"name": "a"}, {"name": "gone"}]})
         data["index.json"]["views"]["attention"] = 1
         found = shape.problems(data, slug)
-        self.assertEqual(found["views"], ["views/attention.json: gone isn't a row"])
-        self.assertEqual(found["manifest"], ["views.attention 1, its view 2"])
+        self.assertEqual(found["views"], ["views/attention.json: 'gone' isn't a row"])
+        self.assertEqual(
+            found["manifest"], ["views.attention is 1, but its view has 2"]
+        )
 
     def test_a_teams_count_against_its_view(self):
         data = files([row("a")], views={})
@@ -110,7 +112,7 @@ class Manifest(unittest.TestCase):
         data["views/team/security-review.json"] = {"packages": [{"name": "a"}]}
         self.assertEqual(
             shape.problems(data, slug)["manifest"],
-            ["views.teams.Security review 2, its view 1"],
+            ["views.teams.Security review is 2, but its view has 1"],
         )
 
     def test_an_empty_view_not_written(self):
@@ -119,7 +121,8 @@ class Manifest(unittest.TestCase):
         self.assertEqual(shape.problems(data, slug), {})
         data["index.json"]["views"]["backport"] = 1
         self.assertEqual(
-            shape.problems(data, slug)["manifest"], ["views.backport 1, its view 0"]
+            shape.problems(data, slug)["manifest"],
+            ["views.backport is 1, but its view has 0"],
         )
 
     def test_only_the_systems_nixpkgs_lists(self):
@@ -151,7 +154,75 @@ class Manifest(unittest.TestCase):
         bad = {"buildFailures": 2, "buildFailuresOn": {"darwin": 1, "linux": 1}}
         self.assertEqual(
             shape.problems(files(rows, {"attention": rows}, bad), slug)["manifest"],
-            ["counts.buildFailuresOn.darwin 1, the view's 0"],
+            ["counts.buildFailuresOn.darwin is 1, but the attention view has 0"],
+        )
+
+
+class Malformed(unittest.TestCase):
+    """Bad data is what the check looks for: it's reported, never raised."""
+
+    def test_a_row_without_a_name(self):
+        data = files([row("a")])
+        data["rows/0.json"]["packages"].append({"attrs": []})
+        self.assertEqual(
+            shape.problems(data, slug)["rows"], ["rows/0.json, row 1: no name"]
+        )
+
+    def test_a_manifest_missing_or_without_its_counts(self):
+        self.assertEqual(
+            shape.problems({}, slug),
+            {"manifest": ["index.json is missing or isn't an object"]},
+        )
+        found = shape.problems({"index.json": {}}, slug)["manifest"]
+        self.assertIn("shardCount is None, not a number of shards", found)
+        self.assertIn("packageCount None, rows 0", found)
+
+    def test_views_and_builds_without_what_they_should_have(self):
+        data = files([row("a")], views={"attention": [{}, "not an entry"]})
+        data["views/attention.json"]["packages"].append(
+            {"name": "a", "builds": [{}, {"status": "failed"}, "a build"]}
+        )
+        data["index.json"]["counts"] = {
+            "buildFailures": 0,
+            "buildFailuresOn": {"darwin": 0},
+        }
+        found = shape.problems(data, slug)
+        self.assertIn("views/attention.json: None isn't a row", found["views"])
+        # The failed build without a system counts as a failure, on no
+        # platform in particular.
+        self.assertIn(
+            "counts.buildFailures is 0, but the attention view has 1", found["manifest"]
+        )
+
+    def test_a_file_in_rows_that_isnt_a_shard(self):
+        data = files([row("a")])
+        data["rows/notes.txt"] = "not JSON"
+        self.assertIn(
+            "rows/notes.txt isn't a shard of rows", shape.problems(data, slug)["rows"]
+        )
+
+    def test_a_write_goes_on_if_the_check_itself_fails(self):
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+
+        from nixkeeper import datastore
+
+        index = {"checkedAt": "2026-10-24T00:00:00+00:00", "packages": [row("a")]}
+        with (
+            tempfile.TemporaryDirectory() as d,
+            mock.patch.object(
+                shape, "problems", side_effect=RuntimeError("a bug in the check")
+            ),
+        ):
+            log = io.StringIO()
+            with contextlib.redirect_stderr(log):
+                datastore.write(index, {}, out_dir=f"{d}/data")
+            self.assertTrue(Path(f"{d}/data/index.json").exists())
+        self.assertIn(
+            "Data shape: the check itself failed: RuntimeError('a bug in the check')",
+            log.getvalue(),
         )
 
 

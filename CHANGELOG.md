@@ -107,6 +107,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- The data's shape check could stop a sync on the very mistakes it looks
+  for: a row without a name, a manifest without its counts, a view entry
+  or a build missing a field raised an error before anything was written.
+  It now reports each of them in the log (`rows/0.json, row 3: no name`),
+  and a fault in the check itself is logged too (`Data shape: the check
+  itself failed: ...`) without stopping the write. Found by an outside
+  review.
+
 - The data's shape check takes a null `nixVersion`, as a list entry
   nixpkgs no longer has is written (`nixStatus` `missing`): its first sync
   said `space-station-14-launcher: nixVersion is NoneType, not str`, the

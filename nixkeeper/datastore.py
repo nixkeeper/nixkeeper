@@ -20,6 +20,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import zlib
 from datetime import UTC, datetime, timedelta
 
@@ -970,6 +971,21 @@ def _write_file(path, text):
     os.replace(path + ".tmp", path)
 
 
+def _check_shape(written):
+    """Report what in the data doesn't match its description (shape.py).
+
+    The check only reports for now, so it must never stop a write: should
+    the check itself fail, that failure is logged too, and the write goes on.
+
+    Args:
+        written: The data about to be written, as files builds it.
+    """
+    try:
+        shape.report(shape.problems(written, slug))
+    except Exception as e:  # reporting only: never stop a write
+        print(f"Data shape: the check itself failed: {e!r}", file=sys.stderr)
+
+
 def write(
     index, entries, out_dir=None, history=None, fixed=None, events=None, kept=None
 ):
@@ -985,7 +1001,7 @@ def write(
     shutil.rmtree(tmp_dir, ignore_errors=True)  # leftover from a failed run
     os.makedirs(tmp_dir)
     written = files(index, entries, history, fixed, events)
-    shape.report(shape.problems(written, slug))
+    _check_shape(written)
     for name, data in written.items():
         _write_file(os.path.join(tmp_dir, name), dumps(data))
     for name, data in (kept or {}).items():
@@ -1002,7 +1018,7 @@ def update(index, entries, out_dir=None):
     change a few rows."""
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     written = files(index, entries)
-    shape.report(shape.problems(written, slug))
+    _check_shape(written)
     for name, data in written.items():
         path = os.path.join(out_dir, name)
         text = dumps(data)

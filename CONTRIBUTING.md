@@ -152,7 +152,9 @@ Around that:
 - `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
   each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the
-  sync's and the hourly checks'): a row's fields and their types (`ROW`:
+  sync's and the hourly checks'). It never raises on bad data, which is
+  what it looks for, and a fault in the check itself is logged without
+  stopping the write: a row's fields and their types (`ROW`:
   a field added to the rows is added there and to `docs/data.md`, which a
   test holds to it), and the manifest's counts against the views they
   count. For now its problems are reported in the log (`Data shape: ...`)
@@ -213,6 +215,41 @@ different. The PR template has this as a checklist.
 
 Security problems go through the [security policy](SECURITY.md), not a
 public issue.
+
+### Comments, docstrings and commit titles
+
+Write them for someone who doesn't know nixkeeper yet, in plain, full
+sentences.
+
+- A docstring starts with a one-line summary of what the function does,
+  then a blank line and any details. When the arguments or the result
+  aren't obvious from the names, describe them under `Args:` and
+  `Returns:` (and `Raises:`, when it raises on purpose).
+- A comment explains why: a constraint, an order that matters, a case
+  that isn't obvious. Don't restate what the next line does.
+- Name things in the comment as the code names them (`shown`, the
+  attention view), not by shorthand.
+- Commit and PR titles follow nixpkgs: `<area>: <what changed>`, with the
+  change said plainly (`search: parse the box once per value`, not
+  `typing works out less`). Every commit ends with an `Assisted-by:` line
+  when an AI assistant helped.
+
+For example, from `nixkeeper/shape.py`:
+
+```python
+def row_problems(row):
+    """Check one row's fields against ROW.
+
+    Args:
+        row: The row, as a dict.
+
+    Returns:
+        A list of sentences, one per problem, empty when there are none.
+    """
+```
+
+Older code is being rewritten to this style module by module; new and
+changed code follows it already.
 
 ## Screenshots
 
