@@ -14,8 +14,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   reads its data (`page/data.js`, with `fetch` stood in for), its address
   (`page/state.js`), a package's panel (`page/package-view.js`, the parts
   that are HTML), the overview (`page/overview.js`), a maintainer's page
-  (`page/maintainer-view.js`) and what the list keeps (`page/filters.js`)
-  with Node's own test runner
+  (`page/maintainer-view.js`), what the list keeps (`page/filters.js`) and
+  the list's rows and cells (`page/list.js`) with Node's own test runner
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -53,6 +53,8 @@ happen. For what nixkeeper does and how to set up your own, see the
   the filters, sort and paging in one object (`state`), read from the
   address and written back (`readState`, `writeState`), and a view's
   address (`scopeHref`, with the tables `app.js` gives it in `known`);
+  `list.js` the list (its header with the tiles, refines and facets, Your
+  packages and Your team, each row and its cells, where the data is from);
   `filters.js` what the list keeps (the tiles' filters, refines, sorts,
   platforms, and the list worked out with them); `prefs.js` what this
   browser keeps (localStorage, the rows hidden here); `store.js` what's
