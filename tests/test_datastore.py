@@ -257,6 +257,44 @@ class Output(unittest.TestCase):
         self.assertEqual(datastore.saved_entries(self.out), {})
         self.assertEqual(datastore.saved_entries(os.path.join(self.dir.name, "x")), {})
 
+    def test_a_swap_cut_short_leaves_the_last_data(self):
+        # A run that dies between moving the old data aside and moving the
+        # new data in: the last data waits in data.old, and the next run
+        # (reading the previous data, or writing) puts it back.
+        write({"packages": [{"name": "last"}]}, {}, self.out)
+        real_rename = os.rename
+
+        def dies_on_moving_the_new_data_in(src, dst):
+            if src.endswith(".tmp"):
+                raise OSError("the run died")
+            real_rename(src, dst)
+
+        with (
+            unittest.mock.patch("os.rename", dies_on_moving_the_new_data_in),
+            self.assertRaises(OSError),
+        ):
+            write({"packages": [{"name": "new"}]}, {}, self.out)
+        self.assertFalse(os.path.exists(self.out))
+        self.assertTrue(os.path.isdir(self.out + ".old"))
+        rows = datastore.load(self.out)["packages"]
+        self.assertEqual([row["name"] for row in rows], ["last"])
+        self.assertFalse(os.path.exists(self.out + ".old"))
+
+    def test_update_removes_shards_past_the_new_count(self):
+        write({"packages": [{"name": f"pkg{i}"} for i in range(1200)]}, {}, self.out)
+        self.assertEqual(
+            sorted(os.listdir(os.path.join(self.out, "rows"))),
+            [
+                "0.json",
+                "1.json",
+                "2.json",
+                "3.json",
+            ],
+        )
+        datastore.update({"packages": [{"name": "pkg0"}]}, {}, self.out)
+        self.assertEqual(os.listdir(os.path.join(self.out, "rows")), ["0.json"])
+        self.assertEqual(len(datastore.load(self.out)["packages"]), 1)
+
     def test_update_rewrites_only_what_changed(self):
         rows = [{"name": f"pkg{i}"} for i in range(1200)]
         write({"packages": rows}, {}, self.out)

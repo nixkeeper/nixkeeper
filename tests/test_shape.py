@@ -55,6 +55,32 @@ FAILING_LINUX = row(
 )
 
 
+# What reach finds where a value has no such key or index.
+MISSING = object()
+
+
+def places(value, path=()):
+    """Every place in value, as the path of keys and indexes leading there."""
+    yield path
+    if isinstance(value, dict):
+        children = value.items()
+    elif isinstance(value, list):
+        children = enumerate(value)
+    else:
+        children = ()
+    for key, child in children:
+        yield from places(child, (*path, key))
+
+
+def reach(value, key):
+    """value's child at key, or MISSING when it has none there."""
+    if isinstance(value, dict):
+        return value.get(key, MISSING)
+    if isinstance(value, list) and isinstance(key, int) and key < len(value):
+        return value[key]
+    return MISSING
+
+
 class Rows(unittest.TestCase):
     def test_well_formed(self):
         self.assertEqual(shape.problems(files([row("a"), row("b")], count=2)), {})
@@ -284,27 +310,6 @@ class Malformed(unittest.TestCase):
         kinds = (None, 0, 7, "x", [], ["x", 1], {}, {"name": 1}, True)
         rng = random.Random(334)
 
-        def places(value, path=()):
-            yield path
-            children = (
-                value.items()
-                if isinstance(value, dict)
-                else enumerate(value)
-                if isinstance(value, list)
-                else ()
-            )
-            for key, child in children:
-                yield from places(child, (*path, key))
-
-        MISSING = object()
-
-        def reach(value, key):
-            if isinstance(value, dict):
-                return value.get(key, MISSING)
-            if isinstance(value, list) and isinstance(key, int) and key < len(value):
-                return value[key]
-            return MISSING
-
         every = list(places(valid))
         for attempt in range(500):
             data = copy.deepcopy(valid)
@@ -319,6 +324,24 @@ class Malformed(unittest.TestCase):
                     parent[path[-1]] = rng.choice(kinds)
             with self.subTest(attempt=attempt):
                 self.assertIsInstance(shape.problems(data), dict)
+
+    def test_the_guard_names_the_line_in_shape_py(self):
+        # Raised beneath shape.py, from a function it calls: the log names
+        # the line in shape.py that called it, not the function's own file.
+        def broken(*args):
+            return {}["x"]
+
+        index = {"checkedAt": "2026-10-24T00:00:00+00:00", "packages": [row("a")]}
+        with (
+            tempfile.TemporaryDirectory() as d,
+            mock.patch.object(shape, "_check_rows", broken),
+        ):
+            log = io.StringIO()
+            with contextlib.redirect_stderr(log):
+                datastore.write(index, {}, out_dir=f"{d}/data")
+        self.assertRegex(
+            log.getvalue(), r"the check itself failed at shape\.py:\d+: KeyError\('x'\)"
+        )
 
     def test_a_write_goes_on_if_the_check_itself_fails(self):
         index = {"checkedAt": "2026-10-24T00:00:00+00:00", "packages": [row("a")]}
@@ -348,8 +371,6 @@ class Documented(unittest.TestCase):
 
 class Report(unittest.TestCase):
     def test_how_many_and_the_first_few(self):
-        import io
-
         out = io.StringIO()
         shape.report({"rows": [f"r{n}: twice" for n in range(7)]}, out)
         self.assertEqual(

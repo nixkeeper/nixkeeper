@@ -15,12 +15,11 @@ lookup checks the type of what it reads and reports what doesn't fit
 (the Malformed tests hold it to that).
 """
 
-import re
 import sys
 from types import NoneType
 from typing import NamedTuple
 
-from .naming import shard_of, slug
+from .naming import SHARD_FILE, shard_of, slug
 
 
 class Field(NamedTuple):
@@ -128,7 +127,6 @@ COUNTED_VIEWS = ("attention", "broken", "backport", "blocked", "unbuilt", "super
 COUNTS_OF_VIEWS = ("broken", "backport")
 # How many problems of each kind the log shows. The count covers them all.
 SHOWN = 5
-SHARD = re.compile(r"rows/(\d+)\.json")
 
 
 def row_problems(row):
@@ -182,7 +180,7 @@ def problems(files):
         count = None
     names = _check_rows(files, count, say)
     # Only real shards count: a stray file in rows/ is reported on its own.
-    shards = sum(bool(SHARD.fullmatch(path)) for path in files)
+    shards = sum(bool(SHARD_FILE.fullmatch(path)) for path in files)
     if count is not None and shards != count:
         say("manifest", f"shardCount is {count}, but rows/ has {shards}")
     package_count = manifest.get("packageCount")
@@ -212,7 +210,7 @@ def _check_rows(files, count, say):
     for path, data in files.items():
         if not path.startswith("rows/"):
             continue
-        shard = SHARD.fullmatch(path)
+        shard = SHARD_FILE.fullmatch(path)
         packages = _object(data).get("packages")
         if not shard or not isinstance(packages, list):
             say("rows", f"{path} isn't a shard of rows")

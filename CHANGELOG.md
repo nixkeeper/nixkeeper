@@ -107,6 +107,16 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- The data folder no longer goes missing while a sync writes it: the old
+  data moves aside before the new moves in (it was deleted first), so
+  `nixkeeper serve` or the NixOS service never finds no data while a whole
+  folder is deleted. A run that dies between the two moves leaves the old
+  data in `data.old`, and the next run puts it back.
+- The hourly checks remove the shard files (`rows/<n>.json`) past the
+  data's shard count, left over when there are fewer rows than at the
+  last sync. Readers never opened them, but the folder now matches what a
+  full sync leaves.
+
 - The data's shape check could stop a sync on the very mistakes it looks
   for: a row without a name, a manifest without its counts, a view entry
   or a build missing a field raised an error before anything was written.

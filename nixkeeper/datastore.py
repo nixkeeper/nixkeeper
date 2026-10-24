@@ -35,7 +35,7 @@ from .changes import (
     on_branch,
     waiting_for_channel,
 )
-from .naming import shard_of, slug
+from .naming import SHARD_FILE, shard_of, slug
 from .sources import vulnerabilities_digest
 from .sources.nixpkgs import available_on
 
@@ -986,15 +986,27 @@ def _check_shape(written):
 def write(
     index, entries, out_dir=None, history=None, fixed=None, events=None, kept=None
 ):
-    """Write data/ for index and entries (files; history: the counts
-    history so far, read_history; fixed: the fixes to keep, with_fixed;
-    kept: {file: data} written as they are, None for none: what the sync
-    keeps for its next run, nixpkgs' evaluations, and views/merge.json).
-    Built from scratch in a temporary folder
-    and only then swapped in for out_dir, so removed packages disappear and
-    a failed run leaves the previous data intact."""
+    """Write the whole data folder for a sync, replacing the last one.
+
+    The new data is built in a folder of its own and only then swapped in,
+    so packages removed since the last sync disappear, and a run that
+    fails before the swap leaves the last data as it was.
+
+    Args:
+        index: The manifest, with every row in "packages".
+        entries: Repology's entries, by the rows' "dataFile".
+        out_dir: The data folder (the configured one by default).
+        history: The counts' history so far (read_history), with every
+            package; None leaves history.json out.
+        fixed: The fixes to keep (with_fixed).
+        events: What marks the trends (with_events).
+        kept: Files written as they are, {path: data}, what the sync keeps
+            for its next run (nixpkgs' evaluations, views/merge.json); None
+            for a file leaves it out.
+    """
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     tmp_dir = out_dir + ".tmp"
+    _restore_interrupted_swap(out_dir)
     shutil.rmtree(tmp_dir, ignore_errors=True)  # leftover from a failed run
     os.makedirs(tmp_dir)
     written = files(index, entries, history, fixed, events)
@@ -1004,16 +1016,57 @@ def write(
     for name, data in (kept or {}).items():
         if data is not None:
             _write_file(os.path.join(tmp_dir, name), dumps(data))
-    shutil.rmtree(out_dir, ignore_errors=True)
-    os.rename(tmp_dir, out_dir)
+    _swap_in(tmp_dir, out_dir)
+
+
+def _swap_in(new_dir, out_dir):
+    """Replace the data folder with a new one.
+
+    The old folder is moved aside before the new one is moved in, rather
+    than deleted first: the data is then missing only between two renames,
+    not while a whole folder is deleted, and a run that dies between them
+    leaves the old data in <out_dir>.old, which _restore_interrupted_swap
+    puts back.
+
+    Args:
+        new_dir: The new data folder, complete.
+        out_dir: The data folder it replaces.
+    """
+    old_dir = out_dir + ".old"
+    shutil.rmtree(old_dir, ignore_errors=True)
+    if os.path.exists(out_dir):
+        os.rename(out_dir, old_dir)
+    os.rename(new_dir, out_dir)
+    shutil.rmtree(old_dir, ignore_errors=True)
+
+
+def _restore_interrupted_swap(out_dir):
+    """Put the last data back if a swap was interrupted.
+
+    A run that died between _swap_in's two renames leaves no data folder
+    and the last data in <out_dir>.old: that data is moved back, so the
+    run that follows reads it as the previous run's.
+    """
+    old_dir = out_dir + ".old"
+    if not os.path.exists(out_dir) and os.path.isdir(old_dir):
+        os.rename(old_dir, out_dir)
 
 
 def update(index, entries, out_dir=None):
-    """Rewrite data/ in place for index and entries (files), only the files
-    whose content changed, each written aside first so a failure never
-    leaves one half-written. For partial runs (the hourly checks), which
-    change a few rows."""
+    """Rewrite the data folder in place, for a partial run.
+
+    The hourly checks change a few rows: only the files whose content
+    changed are written, each written aside first so a failure never leaves
+    one half-written. Shards past the new shard count, left from a run
+    with more rows, are removed.
+
+    Args:
+        index: The manifest, with every row in "packages".
+        entries: Repology's entries, by the rows' "dataFile".
+        out_dir: The data folder (the configured one by default).
+    """
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    _restore_interrupted_swap(out_dir)
     written = files(index, entries)
     _check_shape(written)
     for name, data in written.items():
@@ -1026,6 +1079,25 @@ def update(index, entries, out_dir=None):
         except OSError:
             pass
         _write_file(path, text)
+    _remove_extra_shards(out_dir, written["index.json"]["shardCount"])
+
+
+def _remove_extra_shards(out_dir, count):
+    """Remove the shard files numbered count or more.
+
+    Readers only open the shards the manifest's shardCount says, so those
+    are never read; removing them keeps the folder as a full write leaves
+    it.
+
+    Args:
+        out_dir: The data folder.
+        count: The number of shards the data now has.
+    """
+    rows_dir = os.path.join(out_dir, "rows")
+    for name in os.listdir(rows_dir) if os.path.isdir(rows_dir) else []:
+        shard = SHARD_FILE.fullmatch(f"rows/{name}")
+        if shard and int(shard.group(1)) >= count:
+            os.remove(os.path.join(rows_dir, name))
 
 
 def _load(path):
@@ -1050,6 +1122,7 @@ def load(out_dir=None):
     Repology entries: entries()), whichever format it was written in; an
     empty one if there's none or it can't be read."""
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    _restore_interrupted_swap(out_dir)
     try:
         index = _load(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):

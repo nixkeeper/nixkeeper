@@ -23,6 +23,10 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+# A shard's path in data/, its number captured: rows/<number>.json.
+SHARD_FILE = re.compile(r"rows/(\d+)\.json")
+
+
 def shard_of(name, count):
     """Find which shard a row is written in.
 
