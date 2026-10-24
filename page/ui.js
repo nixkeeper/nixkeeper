@@ -256,3 +256,10 @@ export const teamPicker = (label) => {
     ? html`<label class="team-pick"><span class="team-pick-label">Team</span> <select id="teamPick"><option value="">${label}</option>${teams.map(([t, count]) => html`<option value="${t}"${state.teamFilter && t.toLowerCase() === state.teamFilter.toLowerCase() ? raw(' selected') : ''}>${t} (${fmt(count)})</option>`)}</select></label>`
     : '';
 };
+
+// How long an outdated package has been outdated, after its name: orange,
+// or violet when the update is merged and waiting for the channel.
+// Since when a row's builds or update attempts have been failing: the
+// earlier of the two (failingSince, updateFailingSince), or null.
+export const failingSince = (pkg) =>
+  [pkg.failingSince, pkg.updateFailingSince].filter(Boolean).sort()[0] || null;
