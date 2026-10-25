@@ -124,6 +124,15 @@
           url = "https://raw.githubusercontent.com/google/fonts/5174b3333331c966c38f4355d50b03ca1c1df2f9/ofl/oxanium/Oxanium%5Bwght%5D.ttf";
           hash = "sha256-LOAdlG4eH/yNfuz/+9qGI77dY+r4EaIEiMS2mvRbq7A=";
         };
+        # A check's source: only the files it reads, so an edit elsewhere (the
+        # README, a screenshot) doesn't run it again.
+        checkSource =
+          files:
+          lib.fileset.toSource {
+            root = ./.;
+            fileset = lib.fileset.unions files;
+          };
+
         # The brand files page/ has as copies of assets/brand/'s, as globs: the
         # brand app copies them, checks.brand holds each copy to its source.
         brandCopies = [
@@ -299,43 +308,61 @@
               builtins.unsafeDiscardStringContext (builtins.seq nixos.config.system.build.toplevel.drvPath unit)
             );
           formatting = treefmt.config.build.check self;
-          lint = pkgs.runCommand "nixkeeper-lint" { nativeBuildInputs = linters; } ''
-            cd ${self}
-            export HOME=$TMPDIR
-            ruff check --no-cache .
-            mypy --cache-dir "$TMPDIR/mypy"
-            deadnix --fail .
-            statix check .
-            # Named explicitly: on its own actionlint looks for .git, which the
-            # flake source (CI's view of the repo) doesn't include.
-            actionlint .github/workflows/*.yml
-            shellcheck scripts/*.sh tests/sh/*.sh
-            biome lint page tests/js
-            touch $out
-          '';
+          lint =
+            let
+              src = checkSource [
+                ./nixkeeper
+                ./tests
+                ./scripts
+                ./page
+                ./.github/workflows
+                # deadnix and statix: every Nix file, wherever it is.
+                (lib.fileset.fileFilter (f: f.hasExt "nix") ./.)
+                ./pyproject.toml # ruff's and mypy's settings
+                ./biome.json
+              ];
+            in
+            pkgs.runCommand "nixkeeper-lint" { nativeBuildInputs = linters; } ''
+              cd ${src}
+              export HOME=$TMPDIR
+              ruff check --no-cache .
+              mypy --cache-dir "$TMPDIR/mypy"
+              deadnix --fail .
+              statix check .
+              # Named explicitly: on its own actionlint looks for .git, which the
+              # flake source (CI's view of the repo) doesn't include.
+              actionlint .github/workflows/*.yml
+              shellcheck scripts/*.sh tests/sh/*.sh
+              biome lint page tests/js
+              touch $out
+            '';
           # The scripts' own logic (tests/sh/), for now the Cloudflare deploy's
           # retry, against a fake wrangler.
-          scripts = pkgs.runCommand "nixkeeper-script-tests" { nativeBuildInputs = [ pkgs.git ]; } ''
-            cd ${self}
-            export HOME=$TMPDIR
-            bash tests/sh/cloudflare.sh
-            touch $out
-          '';
+          scripts =
+            let
+              src = checkSource [
+                ./scripts
+                ./tests/sh
+              ];
+            in
+            pkgs.runCommand "nixkeeper-script-tests" { nativeBuildInputs = [ pkgs.git ]; } ''
+              cd ${src}
+              export HOME=$TMPDIR
+              bash tests/sh/cloudflare.sh
+              touch $out
+            '';
           # page/'s brand files match assets/brand/, and assets/brand/'s tokens
           # match what tokens.py writes.
           brand =
             let
               copies = lib.concatStringsSep " " brandCopies;
-              src = lib.fileset.toSource {
-                root = ./.;
-                fileset = lib.fileset.unions [
-                  ./scripts/brand/tokens.py
-                  ./scripts/brand/geometry.py
-                  ./assets/brand/tokens.json
-                  (lib.fileset.fileFilter (f: isBrandCopy f.name) ./assets/brand)
-                  (lib.fileset.fileFilter (f: isBrandCopy f.name) ./page)
-                ];
-              };
+              src = checkSource [
+                ./scripts/brand/tokens.py
+                ./scripts/brand/geometry.py
+                ./assets/brand/tokens.json
+                (lib.fileset.fileFilter (f: isBrandCopy f.name) ./assets/brand)
+                (lib.fileset.fileFilter (f: isBrandCopy f.name) ./page)
+              ];
             in
             pkgs.runCommand "nixkeeper-brand-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
               drift() {
@@ -368,11 +395,19 @@
               touch $out
             '';
           # The page's rules (page/logic.js), with Node's own test runner.
-          page = pkgs.runCommand "nixkeeper-page-tests" { nativeBuildInputs = [ pkgs.nodejs-slim ]; } ''
-            cd ${self}
-            node --test 'tests/js/*.test.mjs'
-            touch $out
-          '';
+          page =
+            let
+              src = checkSource [
+                ./page
+                ./tests/js
+                ./tests/data/version-comparison-tests.txt # Repology's, for logic.js' order
+              ];
+            in
+            pkgs.runCommand "nixkeeper-page-tests" { nativeBuildInputs = [ pkgs.nodejs-slim ]; } ''
+              cd ${src}
+              node --test 'tests/js/*.test.mjs'
+              touch $out
+            '';
           package-lists = listsChecker.check (import ./package-lists);
           # notifications/: well formed, for handles and teams nixpkgs has.
           notifications = (import ./nix/notifications.nix { inherit pkgs; }).check (import ./notifications);
