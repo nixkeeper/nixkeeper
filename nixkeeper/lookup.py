@@ -1,4 +1,8 @@
-"""Looking up tracked packages on Repology, with fallback to the last run."""
+"""Look up the tracked packages on Repology.
+
+When a lookup fails, the nixkeeper-versions digest's versions or the last
+run's data are used instead.
+"""
 
 import sys
 import urllib.error
@@ -9,13 +13,21 @@ from .sources import about, repology, versions_digest
 
 
 def due(pname, rows, nixpkgs, now):
-    """Whether pname should be looked up on Repology now. At once when it's
-    new, never dated, its lookup failed, or nixpkgs' version in the channel
-    isn't the one Repology had (it changed since, or Repology lags); daily
-    (schedule.daily) while it's outdated or flagged vulnerable (at the last
-    sync, rows: its rows then). Otherwise every QUIET_DAYS (schedule.due): new releases
-    still show within a few days, and most packages are updated by
-    nixpkgs-update, which comes round every ten days or so."""
+    """Return whether pname should be looked up on Repology now.
+
+    It should at once when it's new, never dated, its lookup failed, or
+    nixpkgs' version in the channel isn't the one Repology had (it changed
+    since, or Repology lags); daily (schedule.daily) while it's outdated or
+    flagged vulnerable. Otherwise every QUIET_DAYS (schedule.due): new
+    releases still show within a few days, and most packages are updated
+    by nixpkgs-update, which comes round every ten days or so.
+
+    Args:
+        pname: The tracked name.
+        rows: Its rows at the last sync.
+        nixpkgs: The package index, by attribute.
+        now: The run's time.
+    """
     if not rows:
         return True
     for row in rows:
@@ -47,24 +59,43 @@ def collect_projects(
     digest=None,
     bulk=frozenset(),
 ):
-    """Look up every tracked package on Repology, falling back to the previous
-    run's data (in out_dir) when a lookup fails. digest: nixkeeper-versions'
-    projects by attribute (versions_digest.load), for the packages it can
-    answer (versions_digest.answer), with no lookup; when it isn't current
-    (stale: Repology may be down), only for those Repology can't answer.
-    With nixpkgs and now, only the rest that are due (due) are looked up;
-    the others keep the last run's data. Several attrs
-    (wesnoth / wesnoth-devel, heroic / heroic-unwrapped) can map to one
-    project; those are merged here and split into rows by rows.project_rows.
-    bulk: the pnames (with every package tracked: those not on the lists)
-    read from the digest only, never looked up: as the digest has them (even
-    when the channel has moved on: Repology itself would say the same), else
-    as the last run had them, else not on Repology ("unlisted": true).
-    Returns project -> {"name", "project", "attrs", "entries", "dataFile"[,
-    "checkedAt"][, "staleSince"][, "unlisted"][, "lookupFailed"]}. A lookup
-    that fails keeps the stale digest's versions, else the last run's, else
-    none ("lookupFailed": shown as not on Repology); the sync goes on
-    whatever Repology does, its other sources fresh."""
+    """Look up every tracked package on Repology.
+
+    Several attributes (wesnoth and wesnoth-devel, heroic and
+    heroic-unwrapped) can map to one project; their lookups are merged
+    here, and split into rows by rows.project_rows. Each package is
+    answered by the first of these that can:
+
+    1. The nixkeeper-versions digest (versions_digest.answer), with no
+       lookup, given nixpkgs. A digest that isn't current (stale: Repology
+       may be down) is skipped here, and only used when a lookup fails.
+    2. For bulk's pnames, which are never looked up: the digest, as it has
+       them (even when the channel has moved on: Repology itself would say
+       the same), else the last run's data, else not on Repology
+       ("unlisted").
+    3. Given nixpkgs and now, the last run's data for a package not due
+       (due).
+    4. A lookup. When it fails: the digest's versions, even stale, else the
+       last run's data, else none ("lookupFailed", shown as not on
+       Repology). The sync goes on whatever Repology does, its other
+       sources fresh.
+
+    Args:
+        wanted: {pname: (attrs, fallback)}, as tracking.tracked_packages
+            returns them.
+        previous: The last run's index.
+        resolve: Looks a package up on Repology (repology.resolve).
+        out_dir: The data folder the last run's data is read from.
+        nixpkgs: The package index, by attribute, or None.
+        now: The run's time, or None.
+        digest: nixkeeper-versions' projects by attribute
+            (versions_digest.load), or None.
+        bulk: With every package tracked, the pnames not on the lists.
+
+    Returns:
+        {project: {"name", "project", "attrs", "entries", "dataFile",
+        "checkedAt"?, "staleSince"?, "unlisted"?, "lookupFailed"?}}.
+    """
     out_dir = config.data_dir(out_dir)
     # The project each attribute had last run: asked for directly, it saves
     # a request (repology.resolve).
@@ -150,7 +181,7 @@ def collect_projects(
                 unlisted(projects, pname, attrs, lookup_failed=True)
                 continue
             project, entries, stale_since = reused
-            checked_at = None  # not checked now: as failed lookups go
+            checked_at = None  # not checked this run, as with any failed lookup
             print(
                 f"  giving up on {pname} ({e}); reusing data from {stale_since}",
                 file=sys.stderr,
@@ -188,7 +219,11 @@ def collect_projects(
 
 def add_bulk(projects, pname, attrs, digest, previous, out_dir):
     """Add a pname read in bulk (collect_projects' bulk), with no lookup.
-    Returns 1 if the digest had it, else 0."""
+
+    Returns:
+        1 when the digest had it, else 0, for the count of packages taken
+        from the digest.
+    """
     found = digest and versions_digest.answer(digest, attrs, {})
     if found:
         project, entries, day = found
@@ -213,10 +248,16 @@ def add_bulk(projects, pname, attrs, digest, previous, out_dir):
 
 
 def unlisted(projects, pname, attrs, lookup_failed=False):
-    """Add pname as not on Repology: its own entry, never joined to a
-    Repology project of the same name (add would: that's how one project's
-    attributes come together). lookup_failed: because Repology couldn't be
-    asked, not because it doesn't list it."""
+    """Add pname as not on Repology.
+
+    It gets an entry of its own, never joined to a Repology project of the
+    same name, as add() would join it: that's how one project's attributes
+    come together.
+
+    Args:
+        lookup_failed: Whether that's because Repology couldn't be asked,
+            rather than because it doesn't list the package.
+    """
     key = f"unlisted:{pname}"
     projects[key] = {
         "name": pname,
@@ -230,9 +271,16 @@ def unlisted(projects, pname, attrs, lookup_failed=False):
 
 
 def add(projects, pname, project, entries, attrs, checked_at=None, stale_since=None):
-    """Add pname's lookup to projects, merged with another pname's that found
-    the same project. checked_at: when Repology was asked (None: it wasn't,
-    the lookup failed); merged, the freshest lookup's data counts."""
+    """Add pname's lookup to projects, merged with any for the same project.
+
+    When two pnames found the same project, their attributes are merged,
+    and the freshest lookup's entries hold for every row of it.
+
+    Args:
+        checked_at: When Repology was asked; None when it wasn't (the
+            lookup failed).
+        stale_since: Since when the data is stale, for reused data.
+    """
     key = project or pname
     if key in projects:
         merged = projects[key]

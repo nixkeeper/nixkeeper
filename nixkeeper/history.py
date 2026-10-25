@@ -1,6 +1,9 @@
-"""What carries over from the previous run: its data, for lookups that fail,
-when each package became outdated, and since when a source couldn't be
-refreshed."""
+"""Carry what a run needs over from the previous one.
+
+That's the previous run's data, for lookups that fail; when each package
+became outdated or began failing; since when a source couldn't be
+refreshed; and what was fixed since.
+"""
 
 from datetime import datetime, timedelta
 
@@ -10,13 +13,15 @@ from .sources import repology
 
 
 def load_previous_run(out_dir=None):
-    """The last successful run's index, or an empty one."""
+    """Return the last successful run's index, or an empty one."""
     return datastore.load(out_dir)
 
 
 def previous_rows(previous, pname, attrs):
-    """The last run's rows for a tracked pname (by name, or any of attrs), in
-    their order there."""
+    """Return the last run's rows for a tracked pname, in their order there.
+
+    A row matches by its name, or by any of attrs.
+    """
     index = _by_key(previous["packages"])
     found = {i for key in (pname, *attrs) for i in index.get(key, ())}
     return [previous["packages"][i] for i in sorted(found)]
@@ -26,9 +31,14 @@ _index = (None, None)
 
 
 def _by_key(packages):
-    """{name, searchTerm or attribute: the indexes of the rows with it} for
-    the last run's rows, made once (with every package there are over
-    100,000 to look through)."""
+    """Index the last run's rows by name, searchTerm and attribute.
+
+    The index is made once per list of rows, as with every package there
+    are over 100,000 to look through.
+
+    Returns:
+        {key: the indexes of the rows with it}.
+    """
     global _index
     if _index[0] is not packages:
         index = {}
@@ -41,8 +51,13 @@ def _by_key(packages):
 
 
 def new_packages(previous, wanted):
-    """How many of wanted ({pname: (attrs, fallback)}, tracking.py) the last
-    run didn't have."""
+    """Return how many of wanted the last run didn't have.
+
+    Args:
+        previous: The last run's index.
+        wanted: {pname: (attrs, fallback)}, as tracking.tracked_packages
+            returns them.
+    """
     names = {
         n for row in previous["packages"] for n in (row["name"], row.get("searchTerm"))
     }
@@ -53,9 +68,12 @@ def new_packages(previous, wanted):
 
 
 def previous_project(previous, pname, attrs, out_dir=None):
-    """Reuse the last run's data for a pname (its lookup failed, or isn't due).
-    Returns (project, entries, stale_since), or None if there's nothing to
-    reuse."""
+    """Reuse the last run's data for a pname whose lookup failed or isn't due.
+
+    Returns:
+        (project, entries, stale_since), or None when there's nothing to
+        reuse.
+    """
     out_dir = config.data_dir(out_dir)
     for row in previous_rows(previous, pname, attrs):
         entries = []
@@ -74,10 +92,20 @@ def previous_project(previous, pname, attrs, out_dir=None):
 
 
 def not_refreshed(row, source, reason, before, now):
-    """Record that source ("builds", "update" or "upstream") couldn't be
-    refreshed for row this run, so what it shows is the previous run's (or
-    nothing). before is the row's previous-run version, if any: the date it
-    started failing carries over, so "since" stays the first failing run."""
+    """Record that a source couldn't be refreshed for row this run.
+
+    What the row shows from that source is then the previous run's, or
+    nothing.
+
+    Args:
+        row: The row, changed in place.
+        source: "builds", "update" or "upstream".
+        reason: Why, as the status issue says it.
+        before: The row in the previous run, if any. The time the source
+            started failing carries over, so "since" stays the first
+            failing run's.
+        now: The run's time.
+    """
     since = ((before or {}).get("notRefreshed") or {}).get(source, {}).get("since")
     row.setdefault("notRefreshed", {})[source] = {
         "since": since or now,
@@ -86,10 +114,13 @@ def not_refreshed(row, source, reason, before, now):
 
 
 def add_outdated_since(rows, previous, now):
-    """Mark when each outdated row first became outdated. Neither Repology nor
-    nixpkgs has that date, so it's carried from run to run: kept while the row
-    stays outdated (even if nixpkgs updates but is still behind), set to now
-    when it newly falls behind, dropped once it's caught up."""
+    """Mark when each outdated row first became outdated ("outdatedSince").
+
+    Neither Repology nor nixpkgs has that date, so it's carried from run to
+    run: kept while the row stays outdated (even when nixpkgs updates but
+    is still behind), set to now when it newly falls behind, and gone once
+    it has caught up.
+    """
     before = {row["name"]: row for row in previous["packages"]}
     for row in rows:
         if is_outdated(row):
@@ -99,15 +130,19 @@ def add_outdated_since(rows, previous, now):
 
 
 def add_failing_since(rows, previous, now):
-    """Mark since when each row's builds have been failing ("failingSince")
-    and its update attempts ("updateFailingSince"); dropped once fixed.
-    Builds: their last success, as Hydra says it each run (the failing
-    began after it; the earliest of the failed builds' that have one);
-    none when Hydra says none of them ever succeeded; while it isn't known
-    yet, carried from run to run as outdatedSince is (else now). And
-    "neverBuiltOn": the systems whose failed build never succeeded. Update
-    attempts: carried the same way, first seen the failed attempt's day,
-    else now."""
+    """Mark since when each row's builds and update attempts have been failing.
+
+    - "failingSince", for the builds: their last success, as Hydra says it
+      each run (the failing began after it), the earliest of the failed
+      builds' that have one. None when Hydra says none of them ever
+      succeeded. While it isn't known yet, it's carried from run to run as
+      outdatedSince is, else now.
+    - "neverBuiltOn": the systems whose failed build never succeeded.
+    - "updateFailingSince", for the update attempts: carried the same way,
+      first set to the failed attempt's day, else now.
+
+    Each is dropped once fixed.
+    """
     before = {row["name"]: row for row in previous["packages"]}
     for row in rows:
         old = before.get(row["name"], {})
@@ -131,19 +166,22 @@ def add_failing_since(rows, previous, now):
             )
 
 
-# What a sync counts as fixed since the last (fixes): only with something
-# that shows it, so a source that's down or late, or a change in how
-# nixkeeper counts, never looks like a wave of fixes.
-#   build: was failing; now no failed build, and Hydra has a success
-#   update: was outdated; now not, and nixpkgs' version changed
-#   bot: nixpkgs-update was failing; now not, and its attempt changed (a
-#     newer one, or superseded: nixpkgs moved on)
+# What a sync counts as fixed since the last one (fixes). Each kind needs
+# something that shows it, so a source that's down or late, or a change in
+# how nixkeeper counts, never looks like a wave of fixes:
+#   build: was failing; now no build fails, and Hydra has a success
+#   update: was outdated; now it isn't, and nixpkgs' version changed
+#   bot: nixpkgs-update was failing; now it isn't, and its attempt changed
+#     (a newer one, or superseded: nixpkgs moved on)
 FIXES = ("build", "update", "bot")
 
 
 def credit(pr, likely=False):
-    """What a fix is credited to: its PR's number, who opened and merged it
-    ({"pr", "author"?, "mergedBy"?, "likely"?}), or {} without one."""
+    """Return what a fix is credited to: its PR, and who opened and merged it.
+
+    Returns:
+        {"pr", "author"?, "mergedBy"?, "likely"?}, or {} without a PR.
+    """
     if not pr or not pr.get("number"):
         return {}
     found = {"pr": pr["number"]}
@@ -154,28 +192,42 @@ def credit(pr, likely=False):
 
 
 def family(old):
-    """{"family": ...} when old moves with others (rows.add_families): the
-    overview lists their fixes as one."""
+    """Return {"family": ...} when old moves with others, else {}.
+
+    Families come from rows.add_families; the overview lists their fixes as
+    one.
+    """
     return {"family": old["family"]} if old.get("family") else {}
 
 
 def lasted(old, field):
-    """{"since": ...} when old says since when it had the problem (field:
-    failingSince, outdatedSince, updateFailingSince), else {}."""
+    """Return {"since": ...} when old says since when it had the problem, else {}.
+
+    Args:
+        old: The row at the last sync.
+        field: failingSince, outdatedSince or updateFailingSince.
+    """
     return {"since": old[field]} if old.get(field) else {}
 
 
 def fixes(rows, previous, now):
-    """[{"at", "name", "kind", "since"?, "from"?, "to"?, "pr"?, "author"?,
-    "mergedBy"?, "likely"?}] for each fully checked row fixed since
-    previous (FIXES); not for new or removed packages, those of sets updated
-    in bulk, or ones whose data wasn't refreshed. "since": since when it had
-    been failing or outdated, as the last sync had it (a build's from
-    Hydra's last success; outdated, from when nixkeeper first saw it so).
-    An update (or the bot's
-    failure it ended) is credited to the update PR merged into master the
-    last sync saw ("masterPR"); a build fix, likely, to the PR merged since
-    it began failing that touched it ("buildFixPR")."""
+    """List the fixes since the previous run.
+
+    Only fully checked rows count: not new or removed packages, those of
+    sets updated in bulk, or ones whose data wasn't refreshed. Each fix is
+    one of FIXES. Its "since" is since when the row had been failing or
+    outdated, as the last sync had it: for a build, from Hydra's last
+    success; for an update, from when nixkeeper first saw it outdated.
+
+    An update, or the end of the bot's failure, is credited to the update
+    PR merged into master that the last sync saw ("masterPR"). A build fix
+    is credited, as likely, to the PR merged since it began failing that
+    touched it ("buildFixPR").
+
+    Returns:
+        [{"at", "name", "kind", "since"?, "from"?, "to"?, "pr"?,
+        "author"?, "mergedBy"?, "likely"?, "family"?}].
+    """
     before = {row["name"]: row for row in previous["packages"]}
     found = []
     for row in rows:
@@ -239,17 +291,20 @@ def fixes(rows, previous, now):
     return found
 
 
-# A package's own fixes, for its panel: the last this many days, at most
-# RECENT_FIXES_KEPT of them.
+# A package's own fixes, for its panel: those of the last RECENT_FIXES_DAYS
+# days, at most RECENT_FIXES_KEPT of them.
 RECENT_FIXES_DAYS = 30
 RECENT_FIXES_KEPT = 3
 
 
 def add_recent_fixes(rows, previous, found, now):
-    """Give each row its fixes of the last RECENT_FIXES_DAYS days
-    ("recentFixes": fixes' entries without the name, newest first, at most
-    RECENT_FIXES_KEPT): this sync's (found: fixes') and those its row had
-    at the last."""
+    """Give each row its own recent fixes, for its panel ("recentFixes").
+
+    Those are this sync's (found, from fixes()) and those its row had at
+    the last sync, within RECENT_FIXES_DAYS days: at most
+    RECENT_FIXES_KEPT, newest first, each as fixes() makes it but without
+    the name.
+    """
     before = {row["name"]: row for row in previous.get("packages") or []}
     new = {}
     for fix in found:
