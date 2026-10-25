@@ -126,6 +126,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- `nixkeeper page` replaces a folder's data as the sync replaces its own:
+  the old `data/` is moved aside before the new one is moved in, so a host
+  serving the folder finds no data only between two renames, not while the
+  old copy is deleted. A write cut short between them is put right by the
+  next one.
+
 - A failed deploy to Cloudflare is tried again, 3 attempts in all, 30 s
   apart, before the run fails: one failed request to Cloudflare's API
   ("An unknown error has occurred", code 10013) failed a sync's run, and

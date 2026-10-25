@@ -14,7 +14,7 @@ import sys
 import urllib.parse
 from importlib import resources
 
-from . import config
+from . import config, datastore
 
 # Where the package carries the page (copied in from page/ when it's built),
 # and where a checkout has it.
@@ -75,8 +75,8 @@ def write(folder):
         The folder, as an absolute path.
 
     Raises:
-        SystemExit: There's no data yet, or folder is neither empty nor an
-            earlier page.
+        SystemExit: There's no data yet, folder is neither empty nor an
+            earlier page, or this nixkeeper was built without the page.
     """
     data = _data_dir_or_exit()
     folder = os.path.abspath(folder)
@@ -91,13 +91,16 @@ def write(folder):
         target = os.path.join(folder, name)
         shutil.copyfile(os.path.join(source, name), target)
         os.chmod(target, 0o644)  # read-only when copied from the Nix store
-    # The data is copied aside, then swapped in whole, so a host never
-    # serves half of it; it does find none while the old copy is deleted.
-    staged = os.path.join(folder, "data.tmp")
+    # The data is copied aside, then swapped in as the sync swaps its own
+    # (datastore.swap_in): a host never serves half of it, and finds none
+    # only between two renames. A write cut short between them is tidied
+    # first; only this command writes this copy.
+    target = os.path.join(folder, "data")
+    datastore.restore_interrupted_swap(target)
+    staged = target + ".tmp"
     shutil.rmtree(staged, ignore_errors=True)
     shutil.copytree(data, staged)
-    shutil.rmtree(os.path.join(folder, "data"), ignore_errors=True)
-    os.rename(staged, os.path.join(folder, "data"))
+    datastore.swap_in(staged, target)
     return folder
 
 

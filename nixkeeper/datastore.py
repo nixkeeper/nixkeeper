@@ -1288,17 +1288,18 @@ def write(
     for name, data in (kept or {}).items():
         if data is not None:
             _write_file(os.path.join(tmp_dir, name), dumps(data))
-    _swap_in(tmp_dir, out_dir)
+    swap_in(tmp_dir, out_dir)
 
 
-def _swap_in(new_dir, out_dir):
-    """Replace the data folder with a new one.
+def swap_in(new_dir, out_dir):
+    """Replace a data folder with a new one.
 
-    The old folder is moved aside before the new one is moved in, rather
-    than deleted first: the data is then missing only between two renames,
-    not while a whole folder is deleted, and a run that dies between them
-    leaves the old data in <out_dir>.old, which restore_interrupted_swap
-    puts back.
+    That's the data folder a sync writes, or the copy of it `nixkeeper
+    page` writes beside the page (page.write). The old folder is moved
+    aside before the new one is moved in, rather than deleted first: the
+    data is then missing only between two renames, not while a whole folder
+    is deleted, and a run that dies between them leaves the old data in
+    <out_dir>.old, which restore_interrupted_swap puts back.
 
     Args:
         new_dir: The new data folder, complete.
@@ -1315,18 +1316,20 @@ def _swap_in(new_dir, out_dir):
 def restore_interrupted_swap(out_dir=None):
     """Tidy up after a swap that a run didn't finish.
 
-    Only to be called with the data folder's lock held (lock.held calls it):
-    it moves folders, and another run in the middle of _swap_in would then
-    see them change under it.
+    Only to be called when nothing else can be writing the folder: for the
+    data folder, with its lock held (lock.held calls it). It moves folders,
+    and another run in the middle of swap_in would see them change under
+    it.
 
-    A run that died between _swap_in's two renames leaves no data folder
+    A run that died between swap_in's two renames leaves no data folder
     and the last data in <out_dir>.old: that data is moved back, so the run
     that follows reads it as the previous run's. A run that died after
     both renames leaves the data folder and a stale <out_dir>.old: the old
     folder is removed.
 
     Args:
-        out_dir: The data folder (the configured one by default).
+        out_dir: The folder swap_in replaces (the configured data folder by
+            default).
     """
     out_dir = config.data_dir(out_dir)
     old_dir = out_dir + ".old"
