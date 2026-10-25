@@ -30,6 +30,8 @@ FAKE
 
 failed=0
 # deploy FAILS: the exit status and the number of calls, as "exit N, calls N".
+# Nothing answers at CLOUDFLARE_SITE_URL, so the live version never matches
+# this one and every run deploys.
 deploy() {
   rm -f "$work/calls"
   touch "$work/calls"
@@ -51,9 +53,15 @@ expect() {
 }
 
 expect "deployed at once" "$(deploy 0)" "exit 0, calls 1"
-expect "deployed on the third attempt" "$(deploy 2)" "exit 0, calls 3"
+
+# Each run's calls and log are read right after it, before the next run
+# replaces them.
+result=$(deploy 2)
+expect "deployed on the third attempt" "$result" "exit 0, calls 3"
 expect "every attempt with the same message" "$(sort -u "$work/calls" | wc -l | tr -d ' ')" 1
-expect "never deployed: the run fails" "$(deploy 9)" "exit 1, calls 3"
+
+result=$(deploy 9)
+expect "never deployed: the run fails" "$result" "exit 1, calls 3"
 expect "said in the log" "$(grep -c '::error::Cloudflare deploy failed 3 times' "$work/out")" 1
 
 exit "$failed"
