@@ -911,6 +911,8 @@ const BEFORE_FIRST_LETTER = /^((?:<(?:[^>"]|"[^"]*")*>)*)(\p{Ll})/u;
 // write them: nixkeeper (assets/brand/BRAND.md), nixpkgs, and its update
 // bot's. The page's own sentences already start "nixpkgs-update hasn't
 // tried..." (package-view.js). Whole words only: \b keeps "nixpkgsfoo" out.
+// nixpkgs-update is listed though "nixpkgs" would match it already ("-"
+// ends a word), so the list says what it covers.
 const LOWERCASE_NAMES = /^(nixkeeper|nixpkgs|nixpkgs-update|r-ryantm)\b/;
 
 // Text with its first letter capitalized, as markup that's safe to show.

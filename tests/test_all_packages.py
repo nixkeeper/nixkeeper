@@ -486,6 +486,33 @@ class Data(unittest.TestCase):
         self.assertEqual(names, ["rPackages.u", "t"])
         self.assertEqual(self.read("index.json")["views"]["superseded"], 2)
 
+    def test_a_partial_run_removes_a_view_it_no_longer_writes(self):
+        """A view that empties between syncs (its last PR to close gone, in
+        an hourly check) isn't written: its old file is removed, while the
+        view only the daily sync writes (datastore.MERGE_VIEW) stays."""
+        pr = {"number": 1, "title": "t: 0.5 -> 0.12", "now": "0.12"}
+        datastore.write(
+            {
+                "checkedAt": NOW,
+                "allPackages": True,
+                "packages": [row("t", supersededPRs=[pr])],
+            },
+            {},
+            self.out,
+            kept={datastore.MERGE_VIEW: {"checkedAt": NOW, "prs": []}},
+        )
+        self.assertTrue(os.path.exists(os.path.join(self.out, "views/superseded.json")))
+        datastore.update(
+            {"checkedAt": NOW, "allPackages": True, "packages": [row("t")]},
+            {},
+            self.out,
+        )
+        self.assertFalse(
+            os.path.exists(os.path.join(self.out, "views/superseded.json"))
+        )
+        self.assertTrue(os.path.exists(os.path.join(self.out, datastore.MERGE_VIEW)))
+        self.assertEqual(self.read("index.json")["views"]["superseded"], 0)
+
     def test_set_bar_each_package_at_its_worst(self):
         def r(name, **more):
             return row(f"rPackages.{name}", set="rPackages", **more)

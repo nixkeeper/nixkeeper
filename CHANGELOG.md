@@ -79,6 +79,7 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   source..." and "nixpkgs won't build it...", not "Nixpkgs". Nothing else
   the page shows changes (1,957 of 1,974 packages' panels rendered
   identically; the other 17 by that one letter).
+
 - The sync's code reads as its phases: `sync.main` calls one function per
   phase, named as the log times them, each from what the run works from
   (made once) and which rows each step covers (worked out once), rather
@@ -127,6 +128,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   data's shard count, left over when there are fewer rows than at the
   last sync. Readers never opened them, but the folder now matches what a
   full sync leaves.
+- The hourly checks also remove a view they empty (the last PR to close
+  gone, say): its old file stayed, still listing its old rows, while the
+  manifest counted 0, and the page could show them. The view of the PRs
+  maintainers can merge, written only by the daily sync, stays.
 
 - The data's shape check could stop a sync on the very mistakes it looks
   for: a row without a name, a manifest without its counts, a view entry

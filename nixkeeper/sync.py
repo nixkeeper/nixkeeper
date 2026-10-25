@@ -503,7 +503,7 @@ def write(run, projects, index_rows, problems, prs, found_fixes):
             # The PRs maintainers can merge with the merge bot: the
             # maintainer and team views' "You can merge these" (every
             # package's PRs: with every package only).
-            "views/merge.json": {"checkedAt": run.now, "prs": merge}
+            datastore.MERGE_VIEW: {"checkedAt": run.now, "prs": merge}
             if merge is not None
             else None,
         },
