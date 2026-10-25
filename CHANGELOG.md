@@ -119,6 +119,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A package covering two names that one removal PR touches (segger-jlink
+  with segger-jlink-headless) no longer gains or loses its "being removed"
+  PR at random from one sync to the next: the row kept whichever copy of
+  the PR it met last, in an order that changes between runs, and only the
+  copy under the package the PR's title names says it's a removal. The
+  fullest copy is kept now.
+
 - While a sync writes the data folder, the data is missing only for the
   moment between two renames, rather than while the old folder is
   deleted: the old data moves aside before the new moves in. A run that

@@ -460,11 +460,7 @@ def add_facts(rows, digest):
         # Its other open PRs: not the update PR nor the fixes (said above).
         said = {pr["number"]} if pr else set()
         said |= {fix["number"] for fix in row.get("fixPRs") or []}
-        others = {}
-        for key in keys:
-            for item in found.get("open", {}).get(key, []):
-                if item["number"] not in said:
-                    others[item["number"]] = item
+        others = _other_prs(found.get("open", {}), keys, said)
         ordered = sorted(
             others.values(), key=lambda p: (p.get("kind") != "drop", -p["number"])
         )
@@ -487,6 +483,33 @@ def add_facts(rows, digest):
             if drop.get("proposed"):
                 # Only proposed (removal_proposed): no badge in the list.
                 row["dropPR"]["proposed"] = drop["proposed"]
+
+
+def _other_prs(open_prs, keys, said):
+    """Collect a row's other open PRs, once each, from its names' lists.
+
+    A PR touching several of the row's names is listed under each, and only
+    the copy under the package its title names carries "kind" and "proposed"
+    (facts). The fullest copy is kept, so the result doesn't depend on the
+    order of keys: a set's order changes from one process to the next, and
+    a row could otherwise lose its "being removed" PR at random
+    (segger-jlink, with segger-jlink-headless, 2026-10-25).
+
+    Args:
+        open_prs: The digest's open PRs by package (facts' "open").
+        keys: The row's names (package_key), in any order.
+        said: The numbers of the PRs already shown (the update PR, the fixes).
+
+    Returns:
+        {number: PR}, one copy of each.
+    """
+    others = {}
+    for key in keys:
+        for item in open_prs.get(key, []):
+            number = item["number"]
+            if number not in said and len(item) >= len(others.get(number, {})):
+                others[number] = item
+    return others
 
 
 def recent(at, now):
