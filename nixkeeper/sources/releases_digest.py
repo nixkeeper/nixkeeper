@@ -28,9 +28,9 @@ that it can't answer, gets the sync's own worked-out check instead, as
 before.
 """
 
-import sys
 from datetime import datetime, timedelta
 
+from .. import log
 from ..shape import Row
 from ..versions import is_newer
 from . import about, feeds, upstream
@@ -61,7 +61,7 @@ def load(now):
         return None
     packages = found.get("packages") or {}
     about.note("releases", True, at=found["fetchedAt"], packages=len(packages))
-    print(f"GitHub releases: {len(packages):,} packages", file=sys.stderr)
+    log.info(f"GitHub releases: {len(packages):,} packages")
     return packages
 
 

@@ -10,12 +10,11 @@ import json
 import os
 import re
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
 
-from .. import config, schedule
+from .. import config, log, schedule
 from ..changes import is_outdated
 from ..versions import is_newer, version_key
 
@@ -33,10 +32,7 @@ def token(use_gh=True):
             with open(path) as f:
                 return f.read().strip() or None
         except OSError as e:
-            print(
-                f"::warning::couldn't read NIXKEEPER_GITHUB_TOKEN_FILE ({e})",
-                file=sys.stderr,
-            )
+            log.warn(f"couldn't read NIXKEEPER_GITHUB_TOKEN_FILE ({e})")
             return None
     if os.environ.get("GITHUB_TOKEN"):
         return os.environ["GITHUB_TOKEN"]
@@ -73,7 +69,7 @@ def graphql(token, query, variables):
     )
     result = _send(req, timeout=60)
     for err in result.get("errors") or []:
-        print(f"  GitHub error: {err.get('message')}", file=sys.stderr)
+        log.info(f"  GitHub error: {err.get('message')}")
     return result.get("data") or {}
 
 
@@ -119,7 +115,7 @@ def _send(req, timeout):
         wait = rate_limit_wait(e)
         if wait is None or wait > config.MAX_RETRY_AFTER:
             raise
-        print(f"  GitHub asks to slow down: waiting {wait}s", file=sys.stderr)
+        log.info(f"  GitHub asks to slow down: waiting {wait}s")
         time.sleep(wait)
     return _open_json(req, timeout)
 
@@ -156,7 +152,7 @@ def search_batch(token, searches):
     except (urllib.error.URLError, OSError, ValueError) as e:
         if isinstance(e, urllib.error.HTTPError):
             e.close()
-        print(f"  GitHub search batch failed ({e})", file=sys.stderr)
+        log.info(f"  GitHub search batch failed ({e})")
         return [(None, [])] * len(searches)
     results = []
     for i in range(len(searches)):
@@ -451,10 +447,7 @@ def add_counts(rows, previous=None, now=None):
     """
     tok = token()
     if not tok:
-        print(
-            "No GITHUB_TOKEN or gh login: skipping open PR/issue counts.",
-            file=sys.stderr,
-        )
+        log.info("No GITHUB_TOKEN or gh login: skipping open PR/issue counts.")
         return
     before = {row["name"]: row for row in (previous or {}).get("packages", [])}
     searches = []
@@ -497,7 +490,7 @@ def add_counts(rows, previous=None, now=None):
             row["openPR"] = pr
 
     kept = len(rows) - len(searched)
-    print(
+    log.info(
         f"Searching open PRs/issues ({len(searches)} searches"
         + (
             f"; {kept} packages with none open were counted in the last "
@@ -505,15 +498,14 @@ def add_counts(rows, previous=None, now=None):
             if kept
             else ")"
         )
-        + "...",
-        file=sys.stderr,
+        + "..."
     )
     run_searches(tok, searches, handle)
     for row in searched:
         if now and row.get("openPRs") is not None and row.get("openIssues") is not None:
             row["countedAt"] = now
     for warning in count_warnings(rows):
-        print(f"::warning::{warning}", file=sys.stderr)
+        log.warn(f"{warning}")
 
 
 def add_update_prs(rows, open_prs=True, merged_since=None):
@@ -535,13 +527,10 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
     """
     tok = token()
     if not tok:
-        print("No GITHUB_TOKEN or gh login: skipping update PRs.", file=sys.stderr)
+        log.info("No GITHUB_TOKEN or gh login: skipping update PRs.")
         return
     if not merged_since:
-        print(
-            "The channel's commit date isn't known: merged PRs not searched.",
-            file=sys.stderr,
-        )
+        log.info("The channel's commit date isn't known: merged PRs not searched.")
     searches = []
     for row in rows:
         if open_prs:
@@ -559,14 +548,14 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
         if pr := find(row, nodes):
             row[what] = pr
 
-    print(f"Searching update PRs ({len(searches)} searches)...", file=sys.stderr)
+    log.info(f"Searching update PRs ({len(searches)} searches)...")
     run_searches(tok, searches, handle)
 
 
 def count_warnings(rows):
     """Warn of counts that are probably wrong, though no error says so.
 
-    add_counts (here and in github_bulk) prints them as ::warning:: lines,
+    add_counts (here and in github_bulk) says them as warnings (log.warn),
     which show up as annotations on the workflow run.
 
     Returns:
@@ -627,7 +616,7 @@ def staging_next_merges(token, since):
     except (urllib.error.URLError, OSError, ValueError) as e:
         if isinstance(e, urllib.error.HTTPError):
             e.close()
-        print(f"  staging-next merges: GitHub didn't answer ({e})", file=sys.stderr)
+        log.info(f"  staging-next merges: GitHub didn't answer ({e})")
         return None
     nodes = (data.get("search") or {}).get("nodes") or []
     return [

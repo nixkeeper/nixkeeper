@@ -16,9 +16,8 @@ what staging-next will break or block once it's merged.
 """
 
 import re
-import sys
 
-from .. import config
+from .. import config, log
 from ..versions import is_newer, version_key
 from . import about, digests
 
@@ -74,10 +73,7 @@ def load(branch, now):
     except digests.FAILURES as e:
         digests.give_up(source, branch, e)
         return None
-    print(
-        f"{branch}: evaluation {found['eval']}, {len(jobs):,} jobs, read {at}",
-        file=sys.stderr,
-    )
+    log.info(f"{branch}: evaluation {found['eval']}, {len(jobs):,} jobs, read {at}")
     about.note(source, True, at=at, eval=found["eval"], jobs=len(jobs))
     return jobs
 
@@ -126,11 +122,10 @@ def load_staging_next(now):
     except digests.FAILURES as e:
         digests.give_up(source, STAGING_NEXT, e)
         return None
-    print(
+    log.info(
         f"{STAGING_NEXT}: evaluation {found['eval']} "
         f"({info['evaluatedAt'] or 'date unknown'}), {len(jobs):,} jobs differing "
-        f"from master, read {at}",
-        file=sys.stderr,
+        f"from master, read {at}"
     )
     about.note(source, True, at=at, jobs=len(jobs), **info)
     return jobs, info
@@ -161,11 +156,10 @@ def current_staging_next(found, last_merged):
             f"evaluation {info.get('eval')} is of the cycle merged into master "
             f"on {last_merged['merged'][:10]}",
         )
-        print(
+        log.info(
             f"{STAGING_NEXT}: evaluation {info.get('eval')} ({made}) is before "
             f"the merge of #{last_merged.get('n')} ({last_merged['merged']}): "
-            "not used",
-            file=sys.stderr,
+            "not used"
         )
         return None
     return found

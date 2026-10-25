@@ -10,9 +10,7 @@ versioned ones (typstPackages.cetz_0_3_0) as older versions kept beside
 it.
 """
 
-import sys
-
-from .. import verdict
+from .. import log, verdict
 from ..shape import Row
 from . import about, feeds
 
@@ -34,10 +32,7 @@ def load(now):
     if found is None:
         return None
     packages = found.get("packages") or {}
-    print(
-        f"Typst Universe: {len(packages):,} packages, read {found['fetchedAt']}",
-        file=sys.stderr,
-    )
+    log.info(f"Typst Universe: {len(packages):,} packages, read {found['fetchedAt']}")
     about.note("typst", True, at=found["fetchedAt"], packages=len(packages))
     return packages
 

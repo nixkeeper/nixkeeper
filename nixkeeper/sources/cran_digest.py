@@ -14,8 +14,7 @@ most of those broken already (5,841 of 6,004 on 2026-10-07), so for those
 it says why; the others are likely broken too, or due for removal.
 """
 
-import sys
-
+from .. import log
 from ..shape import Row
 from . import about, feeds
 
@@ -48,11 +47,10 @@ def load(now):
     if found is None:
         return None
     counts = {index: len(found.get(index) or {}) for index in INDEXES}
-    print(
+    log.info(
         f"CRAN {counts['cran']:,} packages, Bioconductor {found['biocVersion']} "
         f"{counts['bioc'] + counts['annotation'] + counts['experiment']:,}, read "
-        f"{found['fetchedAt']}",
-        file=sys.stderr,
+        f"{found['fetchedAt']}"
     )
     about.note(
         "cran", True, at=found["fetchedAt"], biocVersion=found["biocVersion"], **counts

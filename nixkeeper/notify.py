@@ -12,13 +12,12 @@ see notify() for the methods.
 
 import os
 import re
-import sys
 import time
 import urllib.error
 import urllib.parse
 from datetime import datetime
 
-from . import config
+from . import config, log
 from .changes import (
     COUNTED_VULNERABILITIES,
     NOTIFY,
@@ -280,15 +279,12 @@ def read_subscribers(path=None):
     """
     path = path or config.notifications_path()
     if not os.path.exists(path):
-        print(
-            f"No notifications/ at {path}: no status issues of their own.",
-            file=sys.stderr,
-        )
+        log.info(f"No notifications/ at {path}: no status issues of their own.")
         return {}
     try:
         read = nixpkgs_source.read_lists(path)
     except Problem as e:  # didn't evaluate: the sync goes on without them
-        print(f"::warning::notifications/ not read: {e}", file=sys.stderr)
+        log.warn(f"notifications/ not read: {e}")
         return {}
     found = {}
     for folder, kind in FOLDERS.items():
@@ -302,10 +298,9 @@ def read_subscribers(path=None):
                 or not isinstance(mention, list)
                 or not all(isinstance(m, str) and m for m in mention)
             ):
-                print(
-                    f"::warning::notifications/{folder}/{name}.nix: needs {kind} "
-                    "(and mention, a list of handles, if any): left out",
-                    file=sys.stderr,
+                log.warn(
+                    f"notifications/{folder}/{name}.nix: needs {kind} "
+                    "(and mention, a list of handles, if any): left out"
                 )
                 continue
             found[f"{folder}/{name}"] = sub
@@ -321,7 +316,7 @@ def read_lists():
     try:
         return nixpkgs_source.read_lists()
     except Problem as e:
-        print(f"::warning::package lists not read for notifying: {e}", file=sys.stderr)
+        log.warn(f"package lists not read for notifying: {e}")
         return {}
 
 
@@ -440,10 +435,9 @@ def subscriber_issues(
             github.SUBSCRIBER_LABEL,
             comment,
         )
-        print(
+        log.info(
             f"Updated {title!r} (#{number}, {len(rows)} packages)"
-            + (" and commented" if comment else ""),
-            file=sys.stderr,
+            + (" and commented" if comment else "")
         )
         time.sleep(SUBSCRIBER_PAUSE)
     for title, number in sorted(issues.items()):
@@ -456,7 +450,7 @@ def subscriber_issues(
                 number,
                 "Its file in notifications/ is gone: no longer updated.",
             )
-            print(f"Closed {title!r} (#{number}): no file for it", file=sys.stderr)
+            log.info(f"Closed {title!r} (#{number}): no file for it")
 
 
 def github_issue(
@@ -492,11 +486,10 @@ def github_issue(
     )
     token = github.token(use_gh=False)
     if not repo or not token:
-        print(
-            "::warning::github-issue notifications need a repository "
+        log.warn(
+            "github-issue notifications need a repository "
             "(NIXKEEPER_GITHUB_REPO) and a token (NIXKEEPER_GITHUB_TOKEN_FILE or "
-            "GITHUB_TOKEN)",
-            file=sys.stderr,
+            "GITHUB_TOKEN)"
         )
         return
     if (lists or {}).get("statusIssue", True) is False:
@@ -509,15 +502,14 @@ def github_issue(
                 "longer updated. Status issues of their own are in "
                 "notifications/.",
             )
-            print(f"Closed the status issue #{number}: turned off", file=sys.stderr)
+            log.info(f"Closed the status issue #{number}: turned off")
     else:
         comment = change_comment(changes, now) if should_notify(changes) else None
         number = github.update_status_issue(
             repo, token, TITLE, status_body(rows, changes, now, page_url(repo)), comment
         )
-        print(
-            f"Updated status issue #{number}" + (" and commented" if comment else ""),
-            file=sys.stderr,
+        log.info(
+            f"Updated status issue #{number}" + (" and commented" if comment else "")
         )
     if subscribers:
         subscriber_issues(
@@ -563,16 +555,11 @@ def notify(
     method = config.NOTIFY or os.environ.get("NIXKEEPER_NOTIFY") or "none"
     method = ALIASES.get(method, method)
     if method == "none":
-        print(
-            "Not notifying (notify: none; the GitHub workflows use github-issue).",
-            file=sys.stderr,
-        )
+        log.info("Not notifying (notify: none; the GitHub workflows use github-issue).")
         return
     if method not in SENDERS:
-        print(
-            f"::warning::{method} isn't a notification method "
-            f"({', '.join(['none', *SENDERS])})",
-            file=sys.stderr,
+        log.warn(
+            f"{method} isn't a notification method ({', '.join(['none', *SENDERS])})"
         )
         return
     try:
@@ -590,4 +577,4 @@ def notify(
             news_only=news_only,
         )
     except (urllib.error.URLError, OSError, ValueError) as e:
-        print(f"::warning::Couldn't notify ({method}): {e}", file=sys.stderr)
+        log.warn(f"Couldn't notify ({method}): {e}")

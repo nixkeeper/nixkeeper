@@ -22,7 +22,6 @@ Each phase's time is in the log at the end (timing.py). Run with
 """
 
 import dataclasses
-import sys
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -35,6 +34,7 @@ from . import (
     history,
     inferred,
     listcheck,
+    log,
     lookup,
     notify,
     rows,
@@ -118,16 +118,15 @@ def ask_hydra(attrs, nixpkgs, revision, previous, now, bulk=frozenset()):
         )
     due = hydra.due_jobs(deep, nixpkgs, previous, now, broken)
     jobs = ask + [j for j in due if j not in found and j not in ask]
-    print(
+    log.info(
         f"Hydra, in the background: {len(found):,} jobs from the digest, "
-        f"{len(jobs)} to ask Hydra about...",
-        file=sys.stderr,
+        f"{len(jobs)} to ask Hydra about..."
     )
     # Hydra's own answers don't say which dependency failed; the digest
     # does, for the same build.
     fetched = {**found, **hydra_digest.with_blockers(hydra.fetch(jobs, broken), digest)}
     minutes = (time.monotonic() - started) / 60
-    print(f"Hydra, in the background: done in {minutes:.0f} min", file=sys.stderr)
+    log.info(f"Hydra, in the background: done in {minutes:.0f} min")
     return broken, fetched
 
 
@@ -252,7 +251,7 @@ def main():
     problems, checks, from_community = update_checks(run, scope, index_rows)
     phases.lap("update checks")
     if not hydra_answers.done():
-        print("Waiting for Hydra's answers...", file=sys.stderr)
+        log.info("Waiting for Hydra's answers...")
     broken, fetched = hydra_answers.result()
     phases.lap("waiting for Hydra")
     # The packages updated together with another (the checks' "follows").
@@ -293,10 +292,9 @@ def start():
     everything = config.all_packages()
     bulk = tracking.every_package(nixpkgs, listed) if everything else {}
     if everything:
-        print(
+        log.info(
             f"Every package: {len(listed):,} from the lists, {len(bulk):,} more "
-            "read in bulk only",
-            file=sys.stderr,
+            "read in bulk only"
         )
     wanted = {**bulk, **listed}
     # Clear the sources noted so far, so only this run's are reported (a test
@@ -306,7 +304,7 @@ def start():
     # nixpkgs' evaluations (meta.broken, sources, patches) are reused from
     # the last sync while the channel's commit hasn't moved.
     if kept := nixpkgs_source.keep_answers():
-        print(f"nixpkgs evaluations: {kept:,} answers kept", file=sys.stderr)
+        log.info(f"nixpkgs evaluations: {kept:,} answers kept")
     # When the channel's commit couldn't be read, links use the branch.
     if revision == config.NIXPKGS_BRANCH:
         about.note("nixpkgs", False, "the channel's revision couldn't be read")
@@ -362,10 +360,7 @@ def own_sources_and_lists(run, index_rows):
     # The channel's own versions, for the packages Repology hasn't read
     # since the channel moved.
     if ahead := rows.channel_versions(index_rows, run.nixpkgs):
-        print(
-            f"nixos-unstable ahead of Repology: {len(ahead):,} packages",
-            file=sys.stderr,
-        )
+        log.info(f"nixos-unstable ahead of Repology: {len(ahead):,} packages")
     # Typst, Emacs, Stackage-pinned Haskell and R packages are compared with
     # their own sources instead of Repology (FEEDS).
     for feed in FEEDS:

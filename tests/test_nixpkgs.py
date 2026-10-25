@@ -111,7 +111,7 @@ class Broken(unittest.TestCase):
         ):
             self.assertEqual(nixpkgs.broken({"x"}, "abc123"), {})
         self.assertIn(
-            "::warning::Couldn't evaluate meta.broken on x86_64-linux: error: boom",
+            "warning: Couldn't evaluate meta.broken on x86_64-linux: error: boom",
             stderr.getvalue(),
         )
 

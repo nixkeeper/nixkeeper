@@ -13,9 +13,8 @@ when the digest isn't current or can't be read.
 import gzip
 import io
 import json
-import sys
 
-from .. import config
+from .. import config, log
 from . import about, digests
 
 # The digest's format this nixkeeper reads.
@@ -93,11 +92,10 @@ def load(attrs, now):
                 "too old: used only where Repology can't be reached",
                 at=meta["outdatedAt"],
             )
-            print(
-                f"::warning::Versions digest: its outdated projects are from "
+            log.warn(
+                f"Versions digest: its outdated projects are from "
                 f"{meta['outdatedAt']}; looking packages up on Repology, the "
-                "digest only where that fails",
-                file=sys.stderr,
+                "digest only where that fails"
             )
             return Stale(found)
     except digests.FAILURES as e:
@@ -105,11 +103,10 @@ def load(attrs, now):
             "versions", "Versions digest", e, "; looking packages up on Repology"
         )
         return None
-    print(
+    log.info(
         f"Versions digest: {meta['projects']:,} projects, outdated ones read "
         f"{meta['outdatedAt']}; {len(found):,} of {len(set(attrs)):,} tracked "
-        "attributes in it",
-        file=sys.stderr,
+        "attributes in it"
     )
     about.note("versions", True, at=meta["outdatedAt"], projects=meta.get("projects"))
     return found

@@ -102,7 +102,7 @@ class GiveUp(unittest.TestCase):
             )
         self.assertEqual(
             out.getvalue(),
-            "::warning::Hydra digest: couldn't use it (gone); asking Hydra\n",
+            "warning: Hydra digest: couldn't use it (gone); asking Hydra\n",
         )
         self.assertEqual(
             about.taken(), {"hydra": {"used": False, "why": "couldn't be read (gone)"}}
@@ -119,7 +119,7 @@ class TooOld(unittest.TestCase):
             )
         self.assertEqual(
             out.getvalue(),
-            "::warning::Hydra digest: not used, read 2026-10-25 (evaluation 7)\n",
+            "warning: Hydra digest: not used, read 2026-10-25 (evaluation 7)\n",
         )
         self.assertEqual(
             about.taken(),

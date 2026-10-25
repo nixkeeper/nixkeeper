@@ -1,4 +1,5 @@
 import io
+import os
 import re
 import unittest
 from unittest import mock
@@ -233,9 +234,13 @@ class WorkOut(unittest.TestCase):
         rows[1]["upstream"] = {"version": "2.1", "inferred": True}
         rows[1]["refVersion"] = "2.1"
         rows[0]["upstream"] = {"version": "1.0"}  # a's own rule
-        with mock.patch.object(
-            github, "latest_tags", return_value={"o/a": ["v1.0", "v1.1rc1"]}
-        ) as latest_tags:
+        with (
+            mock.patch.object(
+                github, "latest_tags", return_value={"o/a": ["v1.0", "v1.1rc1"]}
+            ) as latest_tags,
+            # On GitHub Actions, as the sync runs: folded in a group.
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}),
+        ):
             inferred.report(worked, rows, rules, {"d": "couldn't read the tags"})
         # Only the worked-out checks of packages with a rule are asked here.
         latest_tags.assert_called_once_with("t", ["o/a"])

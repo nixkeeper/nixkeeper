@@ -233,7 +233,7 @@ class AddBuilds(unittest.TestCase):
         self.assertEqual(rows[0]["builds"], [old])
         self.assertEqual(rows[5]["builds"][0]["status"], "unknown")
         self.assertEqual(urlopen.call_count, config.HYDRA_MAX_CONSECUTIVE_FAILURES)
-        self.assertIn("::warning::6 Hydra lookups failed", self.stderr.getvalue())
+        self.assertIn("warning: 6 Hydra lookups failed", self.stderr.getvalue())
         # Every row says it's showing old results, and why.
         for r in rows:
             self.assertEqual(r["notRefreshed"]["builds"]["since"], NOW)

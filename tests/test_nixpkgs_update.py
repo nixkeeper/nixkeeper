@@ -673,7 +673,7 @@ class AddAttempts(unittest.TestCase):
         self.assertEqual(rows[0]["update"]["outcome"], "failed")
         self.assertTrue(rows[0]["updateFailure"])
         self.assertIn(
-            "::notice::ignoredUpdates.egoboo: the bot's latest attempt isn't at "
+            "notice: ignoredUpdates.egoboo: the bot's latest attempt isn't at "
             "2.8.0 anymore; the rule can go",
             self.stderr.getvalue(),
         )
@@ -835,7 +835,7 @@ class AddAttempts(unittest.TestCase):
             urlopen.call_count, 1 + config.UPDATE_LOGS_MAX_CONSECUTIVE_FAILURES
         )
         self.assertIn(
-            "::warning::5 nixpkgs-update log lookups failed", self.stderr.getvalue()
+            "warning: 5 nixpkgs-update log lookups failed", self.stderr.getvalue()
         )
         for r in rows:
             self.assertEqual(r["notRefreshed"]["update"]["since"], NOW)

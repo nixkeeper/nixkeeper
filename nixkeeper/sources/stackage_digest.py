@@ -13,8 +13,7 @@ when at it, whatever Hackage has. The rest of haskellPackages keep
 Repology's verdict (Hackage's newest).
 """
 
-import sys
-
+from .. import log
 from ..shape import Row
 from ..versions import version_key
 from . import about, feeds
@@ -35,10 +34,9 @@ def load(now):
     found = feeds.load(FILE, "stackage", "Stackage LTS", now)
     if found is None:
         return None
-    print(
+    log.info(
         f"Stackage: nixpkgs follows {found['nixpkgs']}, {found['snapshot']} is the "
-        f"newest; {len(found['versions']):,} packages, read {found['fetchedAt']}",
-        file=sys.stderr,
+        f"newest; {len(found['versions']):,} packages, read {found['fetchedAt']}"
     )
     about.note(
         "stackage",

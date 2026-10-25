@@ -31,6 +31,7 @@ from . import (
     history,
     init,
     lock,
+    log,
     notify,
     page,
     version,
@@ -276,7 +277,7 @@ def _run_command(argv=None):
         if args.changed_from:
             checks, ignored = community_check.changed(args.changed_from)
             if not checks and not ignored:
-                print("No community rules added or changed.", file=sys.stderr)
+                log.info("No community rules added or changed.")
                 return
         results = community_check.run(checks, args.file)
         stale = community_check.stale_ignores(ignored) if ignored != [] else {}
@@ -316,10 +317,9 @@ def _run_command(argv=None):
         if getattr(args, "if_older", None) is not None:
             age = last_sync_age()
             if age is not None and age < args.if_older:
-                print(
+                log.info(
                     f"The last sync was {age:.1f} hours ago (under {args.if_older:g}): "
-                    "nothing to do.",
-                    file=sys.stderr,
+                    "nothing to do."
                 )
                 return
         importlib.import_module(COMMANDS[args.command][1]).main()
@@ -338,10 +338,9 @@ def _alias(command):
 
     def run():
         """Run the command under its new name."""
-        print(
+        log.info(
             f"nixkeeper-{command} is now `nixkeeper {command}`; the old name "
-            "works until 1.0.",
-            file=sys.stderr,
+            "works until 1.0."
         )
         main([command, *sys.argv[1:]])
 

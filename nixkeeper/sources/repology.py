@@ -5,13 +5,12 @@ Lookups are retried, and fall back between domains when there are several
 """
 
 import json
-import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from .. import config
+from .. import config, log
 from . import http
 
 # What nixkeeper reads of a Repology entry (rows.py, and the page's details):
@@ -36,7 +35,7 @@ def _answered(base):
     """Remember base as the domain that answered, for the rest of the run."""
     global _working
     if base != _working and base != config.REPOLOGY_URLS[0]:
-        print(f"  using {base} for the rest of the run", file=sys.stderr)
+        log.info(f"  using {base} for the rest of the run")
     _working = base
 
 
@@ -59,7 +58,7 @@ def get(path):
         if attempt:
             # As long as Repology asked, if it did (http.retry_wait).
             delay = http.retry_wait(delay, last_err, "Repology")
-            print(f"  retrying in {delay}s...", file=sys.stderr)
+            log.info(f"  retrying in {delay}s...")
             time.sleep(delay)
         for base in _domains():
             req = urllib.request.Request(
@@ -75,10 +74,10 @@ def get(path):
                 if e.code == 404:
                     _answered(base)
                     return None, None
-                print(f"  {base} answered {e.code}", file=sys.stderr)
+                log.info(f"  {base} answered {e.code}")
                 last_err = e
             except (urllib.error.URLError, OSError, ValueError) as e:
-                print(f"  {base} failed ({e}), trying next domain...", file=sys.stderr)
+                log.info(f"  {base} failed ({e}), trying next domain...")
                 last_err = e
     raise last_err
 

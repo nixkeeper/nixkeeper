@@ -13,10 +13,9 @@ them when the digest isn't current or can't be read.
 import gzip
 import io
 import json
-import sys
 from datetime import datetime, timedelta
 
-from .. import config
+from .. import config, log
 from . import about, digests
 
 # The digest's format this nixkeeper reads.
@@ -66,10 +65,9 @@ def load(now):
             "updates", "Updates digest", e, "; reading the logs per package"
         )
         return None
-    print(
+    log.info(
         f"Updates digest: {len(found):,} packages, made {meta['fetchedAt']} "
-        f"({meta.get('pending', 0):,} attempts not read yet)",
-        file=sys.stderr,
+        f"({meta.get('pending', 0):,} attempts not read yet)"
     )
     about.note("updates", True, at=meta["fetchedAt"], pending=meta.get("pending", 0))
     return found
@@ -123,10 +121,9 @@ def load_queue(now):
         digests.give_up("queue", "The bot's queue", e)
         return None
     about.note("queue", True, at=queue["updatedAt"], cycleDays=cycle)
-    print(
+    log.info(
         f"The bot's queue: {len(found):,} packages, a {cycle:g}-day cycle, "
-        f"from {queue['updatedAt']}",
-        file=sys.stderr,
+        f"from {queue['updatedAt']}"
     )
     return found
 

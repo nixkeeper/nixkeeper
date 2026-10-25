@@ -12,13 +12,12 @@ leaves nixpkgs looking up to date.
 import hashlib
 import json
 import re
-import sys
 import urllib.error
 import urllib.parse
 from datetime import UTC, datetime, timedelta
 
 from .. import community as community_rules
-from .. import config, history, schedule, verdict
+from .. import config, history, log, schedule, verdict
 from ..shape import Row
 from ..versions import is_newer, version_key
 from . import github, http
@@ -237,15 +236,14 @@ def add_checks(
     for name in quiet:
         apply(by_name[name], before[name]["upstream"])
         del wanted[name]
-    print(
+    log.info(
         f"Running {len(wanted)} update checks"
         + (
             f" ({len(quiet)} found nothing new in the last {config.QUIET_DAYS} days)"
             if quiet
             else ""
         )
-        + "...",
-        file=sys.stderr,
+        + "..."
     )
     if not wanted:
         return failed
@@ -263,7 +261,7 @@ def add_checks(
         # itself.
         if name in community and not why.startswith("community rule"):
             why = f"community rule: {why}"
-        print(f"::warning::update check for {name}: {why}", file=sys.stderr)
+        log.warn(f"update check for {name}: {why}")
         old = before.get(name) or {}
         if old.get("upstream"):
             # Kept, but not deciding: the verdict is decided again once the

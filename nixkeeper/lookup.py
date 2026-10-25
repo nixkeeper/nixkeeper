@@ -4,10 +4,9 @@ When a lookup fails, the nixkeeper-versions digest's versions or the last
 run's data are used instead.
 """
 
-import sys
 import urllib.error
 
-from . import config, history, schedule
+from . import config, history, log, schedule
 from .datastore import data_file
 from .sources import about, repology, versions_digest
 
@@ -145,7 +144,7 @@ def collect_projects(
             kept += 1
             add(projects, pname, project, entries, attrs, checked_at)
             continue
-        print(f"Resolving {pname}...", file=sys.stderr)
+        log.info(f"Resolving {pname}...")
         looked_up += 1
         try:
             project, entries = resolve(
@@ -157,9 +156,8 @@ def collect_projects(
                 # What the digest last read: as Repology had it then.
                 project, entries, day = found
                 stale_since = f"{day}T00:00:00+00:00"
-                print(
-                    f"  giving up on {pname} ({e}); the digest's versions from {day}",
-                    file=sys.stderr,
+                log.info(
+                    f"  giving up on {pname} ({e}); the digest's versions from {day}"
                 )
                 add(
                     projects,
@@ -173,30 +171,22 @@ def collect_projects(
                 continue
             reused = history.previous_project(previous, pname, attrs, out_dir)
             if not reused:
-                print(
+                log.info(
                     f"  giving up on {pname} ({e}); no earlier data: shown as not "
-                    "on Repology this run",
-                    file=sys.stderr,
+                    "on Repology this run"
                 )
                 unlisted(projects, pname, attrs, lookup_failed=True)
                 continue
             project, entries, stale_since = reused
             checked_at = None  # not checked this run, as with any failed lookup
-            print(
-                f"  giving up on {pname} ({e}); reusing data from {stale_since}",
-                file=sys.stderr,
-            )
+            log.info(f"  giving up on {pname} ({e}); reusing data from {stale_since}")
         add(projects, pname, project, entries, attrs, checked_at, stale_since)
     if from_digest:
-        print(
-            f"  {from_digest} packages from the versions digest, without a lookup",
-            file=sys.stderr,
-        )
+        log.info(f"  {from_digest} packages from the versions digest, without a lookup")
     if kept:
-        print(
+        log.info(
             f"  {kept} packages not looked up again: nothing going on, looked up "
-            f"in the last {config.QUIET_DAYS} days",
-            file=sys.stderr,
+            f"in the last {config.QUIET_DAYS} days"
         )
 
     if failed:
@@ -208,11 +198,10 @@ def collect_projects(
             f"{len(failed):,} of {looked_up:,} lookups failed: their last versions "
             "kept",
         )
-        print(
-            f"::warning::Repology lookups failed for {len(failed):,} of "
+        log.warn(
+            f"Repology lookups failed for {len(failed):,} of "
             f"{looked_up:,} packages; their last versions kept: "
-            f"{', '.join(failed[:20])}" + (" ..." if len(failed) > 20 else ""),
-            file=sys.stderr,
+            f"{', '.join(failed[:20])}" + (" ..." if len(failed) > 20 else "")
         )
     return projects
 

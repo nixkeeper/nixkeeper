@@ -10,7 +10,6 @@ import gzip
 import http.client
 import ipaddress
 import socket
-import sys
 import threading
 import time
 import urllib.error
@@ -18,7 +17,7 @@ import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 
-from .. import config
+from .. import config, log
 
 # The most a page may be in safe mode (the community's update checks).
 MAX_BYTES = 2_000_000
@@ -99,10 +98,9 @@ def retry_wait(planned, err, host):
     if asked is None:
         return planned
     if asked > config.MAX_RETRY_AFTER:
-        print(
+        log.info(
             f"  {host} asks to wait {asked}s, longer than nixkeeper waits "
-            f"({config.MAX_RETRY_AFTER}s): giving this request up",
-            file=sys.stderr,
+            f"({config.MAX_RETRY_AFTER}s): giving this request up"
         )
         raise err
     return max(planned, asked)
@@ -245,7 +243,7 @@ def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False
     for attempt, delay in enumerate([0, *config.RETRY_DELAYS]):
         if attempt:
             delay = retry_wait(delay, last_err, host)
-            print(f"  retrying in {delay}s...", file=sys.stderr)
+            log.info(f"  retrying in {delay}s...")
             time.sleep(delay)
         try:
             request = urllib.request.Request(url, headers=headers)
@@ -271,11 +269,11 @@ def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False
                 return None, None
             if e.code == NOT_MODIFIED and extra:
                 return NOT_MODIFIED, e.headers
-            print(f"  {host} answered {e.code}", file=sys.stderr)
+            log.info(f"  {host} answered {e.code}")
             last_err = e
         except UnsafeURL:
             raise
         except (urllib.error.URLError, OSError) as e:
-            print(f"  {host} request failed ({e})", file=sys.stderr)
+            log.info(f"  {host} request failed ({e})")
             last_err = e
     raise last_err

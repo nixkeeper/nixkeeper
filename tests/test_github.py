@@ -102,7 +102,7 @@ class CountWarnings(unittest.TestCase):
         ):
             github.add_counts(rows)
         self.assertIn(
-            "::warning::every package's open PR count equals", stderr.getvalue()
+            "warning: every package's open PR count equals", stderr.getvalue()
         )
 
 

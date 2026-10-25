@@ -25,9 +25,7 @@ release there either. So a wrong worked-out result is silenced with a rule
 naming it, as a wrong Repology verdict is.
 """
 
-import sys
-
-from . import verdict
+from . import log, verdict
 from .shape import Row
 from .versions import is_newer
 
@@ -71,10 +69,7 @@ def apply(rows: list[Row], rules, community=frozenset()):
             continue
         if why := why_not(row, rule):
             if name not in community:
-                print(
-                    f"::notice::upToDate.{name}: {why}; the rule can go",
-                    file=sys.stderr,
-                )
+                log.notice(f"upToDate.{name}: {why}; the rule can go")
             continue
         found = {"status": row.get("nixStatus"), "reason": rule.get("reason")}
         if row.get("refVersion"):

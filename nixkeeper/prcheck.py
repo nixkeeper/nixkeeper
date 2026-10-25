@@ -18,10 +18,9 @@ they're searched per package, as before (with every package, the lists'
 own only).
 """
 
-import sys
 from datetime import UTC, datetime
 
-from . import follows, partial, verdict
+from . import follows, log, partial, verdict
 from .changes import is_outdated
 from .sources import github, github_bulk, nixpkgs, nixpkgs_update, prs_digest
 from .tracking import MAINTAINED
@@ -66,7 +65,7 @@ def main():
     previous, packages = loaded
     outdated = [row for row in packages if is_outdated(row)]
     if not outdated:
-        print("Nothing outdated: no update PRs to look for.", file=sys.stderr)
+        log.info("Nothing outdated: no update PRs to look for.")
         return
     revision = nixpkgs.channel_revision()
     digest = prs_digest.load(now, revision) or {}
@@ -79,10 +78,9 @@ def main():
     }
     if from_digest(outdated, digest, revision, now):
         direct = [row for row in outdated if searched_directly(row)]
-        print(
+        log.info(
             f"PR check: {len(outdated):,} outdated packages from the PRs digest, "
-            f"{len(direct)} searched directly too",
-            file=sys.stderr,
+            f"{len(direct)} searched directly too"
         )
     else:
         # With every package, the lists' own: searched per package, the rest
@@ -92,7 +90,7 @@ def main():
             for row in outdated
             if row.get("lists") or not previous.get("allPackages")
         ]
-        print(f"PR check: {', '.join(row['name'] for row in direct)}", file=sys.stderr)
+        log.info(f"PR check: {', '.join(row['name'] for row in direct)}")
     if direct:
         # Who opened and merged each update PR, from the digest: the search
         # doesn't say (a fix's credit, history.fixes).

@@ -6,9 +6,8 @@ Most hours nothing does, so nothing is written, committed or posted.
 """
 
 import copy
-import sys
 
-from . import config, datastore, history, notify, verdict
+from . import config, datastore, history, log, notify, verdict
 from .errors import Problem
 
 
@@ -31,12 +30,11 @@ def load():
             "(nixkeeper sync; from a checkout, nix run .#sync)."
         )
     if not verdict.decidable(previous):
-        print(
-            "::notice::The data was written by an older nixkeeper "
+        log.notice(
+            "The data was written by an older nixkeeper "
             f"({previous.get('version') or 'unknown'}), before its rows kept "
             "Repology's verdict: nothing is published until a full sync with "
-            "this one.",
-            file=sys.stderr,
+            "this one."
         )
         return None
     return previous, copy.deepcopy(previous["packages"])
@@ -73,7 +71,7 @@ def publish(previous, packages, now, data_files=None):
         Whether it wrote.
     """
     if meaningful(packages) == meaningful(previous["packages"]):
-        print("Nothing changed.", file=sys.stderr)
+        log.info("Nothing changed.")
         return False
     # Every row's entries, for the shards: the last run's, or refreshed.
     saved = datastore.saved_entries()
@@ -90,7 +88,7 @@ def publish(previous, packages, now, data_files=None):
     datastore.update(
         {**previous, "packages": packages}, {**entries, **(data_files or {})}
     )
-    print("Changes written.", file=sys.stderr)
+    log.info("Changes written.")
     # The instance's own issue: what changed for the lists' packages (with
     # every package, the lists' own only); the subscribers' (notifications/):
     # theirs among every row, and only theirs that newly need attention (the

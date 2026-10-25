@@ -11,10 +11,9 @@ them (report), and keeps the community rules' status issue up to date
 import json
 import os
 import re
-import sys
 from datetime import UTC, datetime
 
-from . import community, rows, uptodate
+from . import community, log, rows, uptodate
 from .datastore import data_file
 from .errors import Problem
 from .sources import github, nixpkgs_update, repology, upstream
@@ -132,7 +131,7 @@ def stale_up_to_date(names=None, file=None):
                 index[name].get("pname") or name, [name]
             )
         except (OSError, ValueError) as e:  # urllib's errors are OSErrors
-            print(f"  {name}: couldn't reach Repology ({e})", file=sys.stderr)
+            log.info(f"  {name}: couldn't reach Repology ({e})")
             continue
         if not project:
             found[name] = (version, "Repology doesn't know this package")
@@ -178,10 +177,7 @@ def stale_ignores(names=None, file=None):
             ):
                 attempt["was"] = v
         except OSError as e:  # urllib's errors are OSErrors
-            print(
-                f"  {name}: couldn't read the nixpkgs-update logs ({e})",
-                file=sys.stderr,
-            )
+            log.info(f"  {name}: couldn't read the nixpkgs-update logs ({e})")
             continue
         for version in sorted(versions):
             if attempt is None:
@@ -407,4 +403,4 @@ def publish(results, stale=None, stale_up_to_date=None, now=None):
         label=ISSUE_LABEL,
         about="The community rules' status, kept up to date by nixkeeper",
     )
-    print(f"Updated issue #{number}", file=sys.stderr)
+    log.info(f"Updated issue #{number}")

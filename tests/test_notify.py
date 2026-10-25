@@ -301,7 +301,7 @@ class Posting(unittest.TestCase):
             ),
         ):
             notify.notify(BEFORE, ROWS, NOW)
-        self.assertIn("::warning::", self.stderr.getvalue())
+        self.assertIn("warning: ", self.stderr.getvalue())
 
 
 class StatusIssue(unittest.TestCase):

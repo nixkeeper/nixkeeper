@@ -10,13 +10,12 @@ does. Where the nixkeeper-updates digest has already read an attempt
 
 import copy
 import re
-import sys
 import time
 import urllib.error
 import urllib.parse
 from datetime import UTC, datetime, timedelta
 
-from .. import config, history
+from .. import config, history, log
 from ..changes import is_outdated, on_master
 from ..rows import search_term
 from ..shape import Row
@@ -257,7 +256,7 @@ def directory_dates():
     try:
         page = http.get(f"{config.NIXPKGS_UPDATE_LOGS_URL}/", compressed=True)
     except (urllib.error.URLError, OSError) as e:
-        print(f"  the log site's index: {e}; listing every package", file=sys.stderr)
+        log.info(f"  the log site's index: {e}; listing every package")
         return None
     time.sleep(1)  # be polite
     found = {
@@ -267,10 +266,7 @@ def directory_dates():
         for name, when in DIRECTORY.findall(page or "")
     }
     if len(found) < MIN_DIRECTORIES:
-        print(
-            f"  the log site's index lists {len(found)} packages: not used",
-            file=sys.stderr,
-        )
+        log.info(f"  the log site's index lists {len(found)} packages: not used")
         return None
     return found
 
@@ -901,7 +897,7 @@ def add_attempts(
             attempts it can answer are taken from it instead of the logs.
     """
     ignored_updates = ignored_updates or {}
-    print("Checking nixpkgs-update logs...", file=sys.stderr)
+    log.info("Checking nixpkgs-update logs...")
     finder = _Finder(rows, nixpkgs, previous, now, bulk, digest)
     for row in rows:
         attrs = [a for a in row["attrs"] if a in nixpkgs]
@@ -1009,7 +1005,7 @@ class _Finder:
             self.failed += 1
             self.consecutive += not down
             if not down:
-                print(f"  {row['name']}: {e}", file=sys.stderr)
+                log.info(f"  {row['name']}: {e}")
             _keep(row, old or {})
             history.not_refreshed(
                 row,
@@ -1026,26 +1022,23 @@ class _Finder:
     def report(self):
         """Say in the log what couldn't be read, and where attempts came from."""
         if self.failed:
-            print(
-                f"::warning::{self.failed} nixpkgs-update log lookups failed; "
-                "those show the previous run's result",
-                file=sys.stderr,
+            log.warn(
+                f"{self.failed} nixpkgs-update log lookups failed; "
+                "those show the previous run's result"
             )
         if self.digest is not None:
-            print(
+            log.info(
                 f"  {self.from_digest:,} attempts from the updates digest"
                 + (
                     f"; {self.waited:,} packages not read yet there"
                     if self.waited
                     else ""
-                ),
-                file=sys.stderr,
+                )
             )
         elif self.bulk:
-            print(
+            log.info(
                 f"  {len(self.turns):,} packages not on the lists read (at most "
-                f"{config.UPDATE_LOGS_BUDGET:,} a sync); {self.waited:,} not read",
-                file=sys.stderr,
+                f"{config.UPDATE_LOGS_BUDGET:,} a sync); {self.waited:,} not read"
             )
 
 
@@ -1103,10 +1096,9 @@ def judge(row: Row, attempts, rules=None, community=()):
         if (row["name"], version) in community:
             continue
         if not at_version(attempt, version):
-            print(
-                f"::notice::ignoredUpdates.{row['name']}: the bot's latest "
-                f"attempt isn't at {version} anymore; the rule can go",
-                file=sys.stderr,
+            log.notice(
+                f"ignoredUpdates.{row['name']}: the bot's latest "
+                f"attempt isn't at {version} anymore; the rule can go"
             )
     row["update"] = attempt
     row["updateFailure"] = bool(attempt and attempt["outcome"] == "failed")

@@ -9,7 +9,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import threading
 import urllib.error
@@ -17,7 +16,7 @@ import urllib.request
 
 import brotli
 
-from .. import config
+from .. import config, log
 from ..errors import Problem
 
 
@@ -85,7 +84,7 @@ def channel_revision():
         with urllib.request.urlopen(req, timeout=30) as resp:
             revision = resp.read().decode().strip()
     except (urllib.error.URLError, OSError) as e:
-        print(f"  couldn't fetch the channel revision ({e})", file=sys.stderr)
+        log.info(f"  couldn't fetch the channel revision ({e})")
         return config.NIXPKGS_BRANCH
     return revision or config.NIXPKGS_BRANCH
 
@@ -252,10 +251,7 @@ def broken(attrs, revision):
         try:
             values = evaluate(revision, system, BROKEN_EXPR, attrs)
         except EvalError as e:
-            print(
-                f"::warning::Couldn't evaluate meta.broken on {system}: {e}",
-                file=sys.stderr,
-            )
+            log.warn(f"Couldn't evaluate meta.broken on {system}: {e}")
             return {}
         for attr, is_broken in zip(attrs, values, strict=True):
             if is_broken:
@@ -357,7 +353,7 @@ def load_index(url=None):
     Returns:
         {attribute: package (pname, version, meta)}.
     """
-    print("Downloading nixpkgs package index...", file=sys.stderr)
+    log.info("Downloading nixpkgs package index...")
     req = urllib.request.Request(
         url or config.NIXPKGS_INDEX_URL, headers={"User-Agent": config.user_agent()}
     )

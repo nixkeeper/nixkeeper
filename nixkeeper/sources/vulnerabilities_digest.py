@@ -32,10 +32,9 @@ Repology's flag and nixpkgs' mark decide, as before.
 import gzip
 import json
 import re
-import sys
 import urllib.error
 
-from .. import config
+from .. import config, log
 from ..changes import COUNTED_VULNERABILITIES
 from ..versions import version_key
 from . import about, digests, http, nixpkgs
@@ -89,10 +88,9 @@ def load(now):
             # Not too_old: the tracker may not be read through yet, and
             # there's no one time to give.
             about.note("tracker", False, "not read through yet, or too old")
-            print(
-                "::warning::Vulnerabilities digest: not used (the tracker not read "
-                "through yet, or too old); Repology's flag decides",
-                file=sys.stderr,
+            log.warn(
+                "Vulnerabilities digest: not used (the tracker not read "
+                "through yet, or too old); Repology's flag decides"
             )
             return None
         found = json.loads(
@@ -122,10 +120,9 @@ def load(now):
             advisories=osv.get("advisories"),
             packages=osv.get("packages"),
         )
-    print(
+    log.info(
         f"Vulnerabilities digest: {tracker.get('suggestions'):,} tracker "
-        f"suggestions, {osv.get('advisories', 0):,} OSV advisories, {why}",
-        file=sys.stderr,
+        f"suggestions, {osv.get('advisories', 0):,} OSV advisories, {why}"
     )
     digest["stable"] = stable_versions(digest["newestRelease"])
     digest["stableRevision"] = stable_revision(digest["newestRelease"])
@@ -157,14 +154,13 @@ def stable_versions(newest):
     try:
         index = nixpkgs.load_index(url)
     except (urllib.error.URLError, OSError, ValueError) as e:
-        print(
-            f"::warning::nixos-{release}'s package index couldn't be read ({e}): "
-            "the tracker's status says what's to backport",
-            file=sys.stderr,
+        log.warn(
+            f"nixos-{release}'s package index couldn't be read ({e}): "
+            "the tracker's status says what's to backport"
         )
         return {}
     versions = {a: p["version"] for a, p in index.items() if p.get("version")}
-    print(f"  nixos-{release}: {len(versions):,} versions", file=sys.stderr)
+    log.info(f"  nixos-{release}: {len(versions):,} versions")
     return versions
 
 
@@ -500,7 +496,7 @@ def patched(rows, revision, wanted):
     try:
         found = nixpkgs.patches(attrs, revision)
     except nixpkgs.EvalError as e:
-        print(f"::warning::Patches at {revision[:12]}: not read ({e})", file=sys.stderr)
+        log.warn(f"Patches at {revision[:12]}: not read ({e})")
         return {}
     out = {}
     for row in picked:

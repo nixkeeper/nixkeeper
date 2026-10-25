@@ -20,8 +20,8 @@ compared (apply) with:
 """
 
 import re
-import sys
 
+from .. import log
 from ..shape import Row
 from . import about, feeds
 
@@ -58,11 +58,10 @@ def load(now):
         return None
     archives = found.get("archives") or {}
     counts = {archive: len(archives.get(archive) or {}) for archive in ARCHIVES}
-    print(
+    log.info(
         "Emacs archives: "
         + ", ".join(f"{ARCHIVES[a][0]} {n:,}" for a, n in counts.items())
-        + f" packages, read {found['fetchedAt']}",
-        file=sys.stderr,
+        + f" packages, read {found['fetchedAt']}"
     )
     about.note("emacs", True, at=found["fetchedAt"], **counts)
     return archives

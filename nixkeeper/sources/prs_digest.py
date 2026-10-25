@@ -22,10 +22,9 @@ the digest.
 """
 
 import re
-import sys
 from datetime import datetime, timedelta
 
-from .. import config
+from .. import config, log
 from ..changes import is_vulnerable
 from ..versions import is_newer, version_key
 from . import about, digests, github
@@ -734,7 +733,7 @@ def load(now, revision):
         staging=len(found["staging"]["prs"]) if found["staging"] else None,
         partly="; ".join(why) if used and why else None,
     )
-    print(
+    log.info(
         f"PRs digest: made {meta.get('generatedAt')}"
         + (
             f", {len(found['open'][0]):,} open PRs, {len(found['open'][1]):,} issues"
@@ -746,8 +745,7 @@ def load(now, revision):
             if found["merged"] is not None
             else ""
         )
-        + (f" ({'; '.join(why)}: listed here)" if why else ""),
-        file=sys.stderr,
+        + (f" ({'; '.join(why)}: listed here)" if why else "")
     )
     return found
 

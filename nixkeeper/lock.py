@@ -10,9 +10,8 @@ Holding the lock is also when a swap a run didn't finish is tidied up
 import contextlib
 import fcntl
 import os
-import sys
 
-from . import config, datastore
+from . import config, datastore, log
 
 
 def path(out_dir=None):
@@ -37,9 +36,8 @@ def held(out_dir=None):
         try:
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(
-                f"Waiting for another nixkeeper run on {config.data_dir(out_dir)}...",
-                file=sys.stderr,
+            log.info(
+                f"Waiting for another nixkeeper run on {config.data_dir(out_dir)}..."
             )
             fcntl.flock(f, fcntl.LOCK_EX)
         datastore.restore_interrupted_swap(out_dir)

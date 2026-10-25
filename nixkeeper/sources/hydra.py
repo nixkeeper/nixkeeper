@@ -8,13 +8,12 @@ rest.
 """
 
 import json
-import sys
 import time
 import urllib.error
 import urllib.parse
 from datetime import UTC, datetime
 
-from .. import config, history, schedule
+from .. import config, history, log, schedule
 from ..changes import is_outdated
 from ..shape import Row
 from ..versions import is_newer, version_key
@@ -314,7 +313,7 @@ def fetch(wanted, broken=None):
             results[attr, system] = check(attr, system, system in broken.get(attr, []))
             consecutive = 0
         except (urllib.error.URLError, OSError, ValueError) as e:
-            print(f"  {attr}.{system}: {e}", file=sys.stderr)
+            log.info(f"  {attr}.{system}: {e}")
             results[attr, system] = e
             consecutive += 1
     return results
@@ -340,16 +339,15 @@ def add_builds(rows: list[Row], nixpkgs, previous, now, broken=None, fetched=Non
             missing from them is asked now.
     """
     broken = broken or {}
-    print("Checking Hydra builds...", file=sys.stderr)
+    log.info("Checking Hydra builds...")
     attrs = [a for row in rows for a in row["attrs"]]
     wanted = jobs(attrs, nixpkgs)
     asking = due_jobs(attrs, nixpkgs, previous, now, broken)
     fetched = dict(fetched or {})
     fresh = {j for j in wanted if j in fetched} | set(asking)
-    print(
+    log.info(
         f"  {len(fresh)} of {len(wanted)} jobs read fresh; the rest were checked "
-        f"in the last {config.QUIET_DAYS} days, with nothing going on",
-        file=sys.stderr,
+        f"in the last {config.QUIET_DAYS} days, with nothing going on"
     )
     fetched.update(fetch([j for j in asking if j not in fetched], broken))
     before = last_run(previous)[0]
@@ -396,8 +394,7 @@ def add_builds(rows: list[Row], nixpkgs, previous, now, broken=None, fetched=Non
                 now,
             )
     if failed:
-        print(
-            f"::warning::{failed} Hydra lookups failed; those show the previous "
-            "run's result (or unknown)",
-            file=sys.stderr,
+        log.warn(
+            f"{failed} Hydra lookups failed; those show the previous "
+            "run's result (or unknown)"
         )

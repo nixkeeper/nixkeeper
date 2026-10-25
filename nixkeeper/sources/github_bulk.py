@@ -14,11 +14,10 @@ packages, keeps using them.
 """
 
 import re
-import sys
 import urllib.error
 from datetime import datetime, timedelta
 
-from .. import config
+from .. import config, log
 from . import github
 
 # One page of open PRs and issues; each kind stops being asked for once it
@@ -269,15 +268,11 @@ def add_counts(rows, now, listed=None):
         tok = github.token()
         if not tok:
             return False
-        print("Listing nixpkgs' open PRs and issues...", file=sys.stderr)
+        log.info("Listing nixpkgs' open PRs and issues...")
         try:
             listing = Listing(*list_open(tok))
         except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-            print(
-                f"::warning::Listing open PRs/issues failed ({e}); searching per "
-                "package",
-                file=sys.stderr,
-            )
+            log.warn(f"Listing open PRs/issues failed ({e}); searching per package")
             return False
     for row in rows:
         prs, issues = listing.counts(row)
@@ -297,13 +292,12 @@ def add_counts(rows, now, listed=None):
         row.pop("openPR", None)
         if pr := listing.open_update_pr(row):
             row["openPR"] = pr
-    print(
+    log.info(
         f"  {len(listing.prs):,} open PRs and {len(listing.issues):,} issues: "
-        f"{len(rows)} packages counted",
-        file=sys.stderr,
+        f"{len(rows)} packages counted"
     )
     for warning in github.count_warnings(rows):
-        print(f"::warning::{warning}", file=sys.stderr)
+        log.warn(f"{warning}")
     return True
 
 
@@ -348,7 +342,7 @@ def merged_since(revision):
     try:
         return channel_date(tok, revision)
     except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        print(f"::warning::The channel's commit date: {e}", file=sys.stderr)
+        log.warn(f"The channel's commit date: {e}")
         return None
 
 
@@ -417,10 +411,7 @@ def add_master_prs(rows, revision, now, listed=None):
                 )
             merged = list_merged(tok, since, now)
         except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-            print(
-                f"::warning::Listing merged PRs failed ({e}); searching per package",
-                file=sys.stderr,
-            )
+            log.warn(f"Listing merged PRs failed ({e}); searching per package")
             return False
     by_package = {}
     for pr in merged:
@@ -437,9 +428,7 @@ def add_master_prs(rows, revision, now, listed=None):
         )
         if pr := github.merged_update_pr(row, titled):
             row["masterPR"] = pr
-    print(
-        f"  {len(merged):,} PRs merged into master since the channel's commit "
-        f"({since})",
-        file=sys.stderr,
+    log.info(
+        f"  {len(merged):,} PRs merged into master since the channel's commit ({since})"
     )
     return True

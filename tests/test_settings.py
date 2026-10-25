@@ -165,7 +165,7 @@ class Token(unittest.TestCase):
             mock.patch("sys.stderr", io.StringIO()) as stderr,
         ):
             self.assertIsNone(github.token())
-        self.assertIn("::warning::", stderr.getvalue())
+        self.assertIn("warning: ", stderr.getvalue())
 
     def test_gh_login_only_when_allowed(self):
         with (

@@ -10,11 +10,10 @@ import functools
 import http.server
 import os
 import shutil
-import sys
 import urllib.parse
 from importlib import resources
 
-from . import config, datastore
+from . import config, datastore, log
 from .errors import Problem
 
 # Where the package carries the page (copied in from page/ when it's built),
@@ -151,13 +150,12 @@ def serve(port, bind):
     """
     data = config.data_dir()
     if not os.path.exists(os.path.join(data, "index.json")):
-        print(
-            f"No data in {data} yet: the page shows it once `nixkeeper sync` has run.",
-            file=sys.stderr,
+        log.info(
+            f"No data in {data} yet: the page shows it once `nixkeeper sync` has run."
         )
     httpd = server(port, bind)
     host, port = httpd.server_address[:2]
-    print(f"nixkeeper's page: http://{host}:{port}/  (Ctrl+C to stop)", file=sys.stderr)
+    log.info(f"nixkeeper's page: http://{host}:{port}/  (Ctrl+C to stop)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

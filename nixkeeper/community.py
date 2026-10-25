@@ -33,9 +33,10 @@ import json
 import os
 import re
 import subprocess
-import sys
 from importlib import resources
 from urllib.parse import urlsplit
+
+from . import log
 
 # Where the package carries the files (copied in from community/ when it's
 # built), and where a checkout has them.
@@ -115,10 +116,7 @@ def rules(file=None):
         return json.loads(result.stdout)
     except (OSError, subprocess.CalledProcessError, ValueError) as e:
         detail = getattr(e, "stderr", None) or e
-        print(
-            f"::warning::community update checks: couldn't read {file} ({detail})",
-            file=sys.stderr,
-        )
+        log.warn(f"community update checks: couldn't read {file} ({detail})")
         return {}
 
 
@@ -202,10 +200,7 @@ def merge(lists, tracked):
         if name in set(tracked) and name not in own
     }
     if community:
-        print(
-            f"Community update checks for: {', '.join(sorted(community))}",
-            file=sys.stderr,
-        )
+        log.info(f"Community update checks for: {', '.join(sorted(community))}")
     return {**own, **community}, set(community)
 
 

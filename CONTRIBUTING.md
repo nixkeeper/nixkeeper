@@ -196,6 +196,11 @@ Around that:
 - `naming.py`: how the data's files are named (`slug` for a team's or list's
   view, `shard_of` and `SHARD_FILE` for a row's shard), shared by
   `datastore.py`, which writes them, and `shape.py`, which checks them
+- `log.py`: what the commands say as they run, on standard error: `info`,
+  and `notice` and `warn` (GitHub Actions' annotations there, `notice: `
+  and `warning: ` lines elsewhere), and `group` to fold lines under a
+  title. Nothing else prints to standard error (a test checks it);
+  standard output is what a command prints as its answer
 - `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
   each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the

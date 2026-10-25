@@ -11,10 +11,10 @@ current, and how its data is parsed, stay each reader's own.
 
 import gzip
 import json
-import sys
 import urllib.error
 from datetime import datetime, timedelta
 
+from .. import log
 from . import about, http
 
 # What reading a digest can fail with: the network, the file, its JSON, or a
@@ -114,7 +114,7 @@ def give_up(source, label, error, instead=""):
             Hydra about each job").
     """
     about.note(source, False, f"couldn't be read ({error})")
-    print(f"::warning::{label}: couldn't use it ({error}){instead}", file=sys.stderr)
+    log.warn(f"{label}: couldn't use it ({error}){instead}")
 
 
 def too_old(source, label, at, instead="", **more):
@@ -128,4 +128,4 @@ def too_old(source, label, at, instead="", **more):
         **more: What else the note says of it (its "eval", ...).
     """
     about.note(source, False, "too old", at=at, **more)
-    print(f"::warning::{label}: not used, read {at}{instead}", file=sys.stderr)
+    log.warn(f"{label}: not used, read {at}{instead}")

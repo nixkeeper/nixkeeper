@@ -11,9 +11,8 @@ with Repology, and with the packages' rules.
 
 import collections
 import re
-import sys
 
-from . import config
+from . import config, log
 from .sources import github, upstream
 from .sources import nixpkgs as nixpkgs_source
 from .versions import is_newer
@@ -206,14 +205,14 @@ def work_out(lists, rows, rules, revision):
     if not enabled(lists):
         return None
     if not github.token():
-        print("Worked-out update checks: skipped (no GITHUB_TOKEN)", file=sys.stderr)
+        log.info("Worked-out update checks: skipped (no GITHUB_TOKEN)")
         return None
     rows = [row for row in rows if row.get("nixVersion")]
     try:
         attrs = {a for row in rows for a in row.get("attrs") or [row["name"]]}
         sources = nixpkgs_source.sources(attrs, revision)
     except nixpkgs_source.EvalError as e:
-        print(f"Worked-out update checks: skipped ({e})", file=sys.stderr)
+        log.info(f"Worked-out update checks: skipped ({e})")
         return None
     checks, not_worked = {}, collections.Counter()
     for row in rows:
@@ -277,25 +276,23 @@ def report(worked, rows, rules, failed):
     agree, disagree = len(lines["agree"]), len(lines["disagree"])
     differ = len(lines["rule differs"])
     used = len(worked.to_run(rules))
-    print(
-        f"::group::Worked-out update checks: {len(worked.checks)} of "
+    title = (
+        f"Worked-out update checks: {len(worked.checks)} of "
         f"{len(worked.repology)} packages ({used} used, {len(ruled)} with a "
         f"rule), {agree} agree with Repology or their rule, {disagree} don't, "
-        f"{differ} differ from their rule (the rule is used), {len(failed)} failed",
-        file=sys.stderr,
+        f"{differ} differ from their rule (the rule is used), {len(failed)} failed"
     )
-    print(
-        "Not worked out: "
-        + ", ".join(f"{n} {why}" for why, n in worked.not_worked.most_common()),
-        file=sys.stderr,
-    )
-    for title, kind in (
-        ("Disagree", "disagree"),
-        ("Rule differs (the rule is used)", "rule differs"),
-        ("Agree", "agree"),
-    ):
-        print(f"{title}:", *lines[kind], sep="\n", file=sys.stderr)
-    print("Failed (left to Repology):", file=sys.stderr)
-    for name in sorted(failed):
-        print(f"  {name}: {failed[name]}", file=sys.stderr)
-    print("::endgroup::", file=sys.stderr)
+    with log.group(title):
+        log.info(
+            "Not worked out: "
+            + ", ".join(f"{n} {why}" for why, n in worked.not_worked.most_common())
+        )
+        for heading, kind in (
+            ("Disagree", "disagree"),
+            ("Rule differs (the rule is used)", "rule differs"),
+            ("Agree", "agree"),
+        ):
+            log.info("\n".join([f"{heading}:", *lines[kind]]))
+        log.info("Failed (left to Repology):")
+        for name in sorted(failed):
+            log.info(f"  {name}: {failed[name]}")

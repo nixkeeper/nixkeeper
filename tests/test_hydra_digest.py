@@ -238,7 +238,7 @@ class Load(unittest.TestCase):
         old = self.meta(1829803, "2026-10-03T15:00:00+00:00")
         rows, out = self.load(old)
         self.assertIsNone(rows)
-        self.assertIn("::warning::Hydra digest: not used", out)
+        self.assertIn("warning: Hydra digest: not used", out)
         self.assertEqual(
             about.taken()["hydra"],
             {

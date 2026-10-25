@@ -20,8 +20,8 @@ and takes much longer than these estimates say.
 """
 
 import os
-import sys
 
+from . import log
 from .errors import Problem
 
 # What a package costs, as (seconds, requests): in the first sync it's in
@@ -137,17 +137,16 @@ def check(lists, count, new=0):
         + f": this sync should take {duration(seconds)} and make about "
         f"{about(requests)} requests to public services."
     )
-    print(message, file=sys.stderr)
+    log.info(message)
     if (
         os.environ.get("GITHUB_ACTIONS") == "true"
         and seconds > GITHUB_ACTIONS_SECONDS * 0.9
     ):
-        print(
-            f"::warning::This sync may outlast GitHub Actions' 6-hour limit, and "
+        log.warn(
+            f"This sync may outlast GitHub Actions' 6-hour limit, and "
             f"publish nothing: {new:,} packages are new to the data. Add big "
             "lists in stages (only new packages cost this much), or run this "
-            "first sync somewhere without the limit.",
-            file=sys.stderr,
+            "first sync somewhere without the limit."
         )
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

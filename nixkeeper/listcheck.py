@@ -12,9 +12,7 @@ The sync prints them and writes them to the data ("listProblems"), and the
 page shows them above the table.
 """
 
-import sys
-
-from . import follows, scale
+from . import follows, log, scale
 from .tracking import by_pname, extra_attrs, extra_lists
 
 # The page's palettes (page/logic.js PALETTES), for page.theme.
@@ -121,6 +119,6 @@ def follows_problems(checks, tracked):
 
 
 def report(found):
-    """Print each problem as a ::warning:: line."""
+    """Say each problem in the log as a warning (log.warn)."""
     for problem in found:
-        print(f"::warning::package lists: {problem}", file=sys.stderr)
+        log.warn(f"package lists: {problem}")

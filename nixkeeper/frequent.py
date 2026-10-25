@@ -8,11 +8,10 @@ version) and their update check. Run it with `nixkeeper frequent-check`,
 or `nix run .#frequent-check` from a checkout.
 """
 
-import sys
 import urllib.error
 from datetime import UTC, datetime
 
-from . import community, follows, history, partial, rows, verdict
+from . import community, follows, history, log, partial, rows, verdict
 from .sources import nixpkgs as nixpkgs_source
 from .sources import repology, upstream
 
@@ -34,9 +33,7 @@ def refresh_repology(row, previous, now):
     try:
         project, entries = repology.project_by_name(row["project"])
     except (urllib.error.URLError, OSError, ValueError) as e:
-        print(
-            f"::warning::{row['name']}: Repology lookup failed ({e})", file=sys.stderr
-        )
+        log.warn(f"{row['name']}: Repology lookup failed ({e})")
         row["staleSince"] = row.get("staleSince") or previous.get("checkedAt") or now
         return None
     if project is None:
@@ -87,12 +84,9 @@ def main():
     by_name = {row["name"]: row for row in packages}
     selected = [by_name[name] for name in checks if name in by_name]
     if not selected:
-        print("No frequent update checks for tracked packages.", file=sys.stderr)
+        log.info("No frequent update checks for tracked packages.")
         return
-    print(
-        f"Frequent check: {', '.join(row['name'] for row in selected)}",
-        file=sys.stderr,
-    )
+    log.info(f"Frequent check: {', '.join(row['name'] for row in selected)}")
     data_files = {}
     for row in selected:
         for key in REFRESHED:

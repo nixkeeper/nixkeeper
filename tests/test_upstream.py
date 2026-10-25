@@ -197,7 +197,7 @@ class AddChecks(unittest.TestCase):
         )
         self.assertNotIn("upstream", rows[1])
         self.assertNotIn("notRefreshed", rows[1])
-        self.assertNotIn("::warning::", self.stderr.getvalue())
+        self.assertNotIn("warning: ", self.stderr.getvalue())
 
     def test_check(self):
         rows = [row(), row("wesnoth", "1.18.8", "newest", "1.18.8")]
@@ -242,9 +242,7 @@ class AddChecks(unittest.TestCase):
                 failing = rows[0]["notRefreshed"]["upstream"]
                 self.assertEqual(failing["since"], NOW)
                 self.assertIn(reason, failing["reason"])
-        self.assertIn(
-            "::warning::update check for wesnoth-devel", self.stderr.getvalue()
-        )
+        self.assertIn("warning: update check for wesnoth-devel", self.stderr.getvalue())
 
     def test_no_token_counts_as_failing(self):
         rows = [row()]

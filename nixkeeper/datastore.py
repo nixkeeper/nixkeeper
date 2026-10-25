@@ -28,12 +28,11 @@ import math
 import os
 import re
 import shutil
-import sys
 import traceback
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
-from . import causes, config, shape
+from . import causes, config, log, shape
 from . import rows as rows_module
 from .changes import (
     broken_builds,
@@ -1455,7 +1454,7 @@ def _check_shape(written):
             frames[-1],
         )
         where = f"{os.path.basename(frame.filename)}:{frame.lineno}"
-        print(f"Data shape: the check itself failed at {where}: {e!r}", file=sys.stderr)
+        log.info(f"Data shape: the check itself failed at {where}: {e!r}")
 
 
 def write(

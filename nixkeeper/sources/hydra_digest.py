@@ -12,10 +12,9 @@ import csv
 import gzip
 import io
 import re
-import sys
 import urllib.error
 
-from .. import config
+from .. import config, log
 from . import about, digests, http
 
 # The digest's format this nixkeeper reads.
@@ -101,7 +100,7 @@ def load(now):
     except (*digests.FAILURES, csv.Error) as e:
         digests.give_up("hydra", "Hydra digest", e, "; asking Hydra about each job")
         return None
-    print(f"Hydra digest: {len(rows):,} jobs, {why}", file=sys.stderr)
+    log.info(f"Hydra digest: {len(rows):,} jobs, {why}")
     about.note("hydra", True, at=meta["fetchedAt"], eval=meta["eval"])
     return rows
 
