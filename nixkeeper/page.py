@@ -95,7 +95,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
 def server(port, bind, page=None, data=None):
     """An HTTP server for the page and data (not yet serving)."""
     handler = functools.partial(
-        _Handler, page=page or page_dir(), data=os.path.abspath(data or config.OUT_DIR)
+        _Handler, page=page or page_dir(), data=os.path.abspath(config.data_dir(data))
     )
     return http.server.ThreadingHTTPServer((bind, port), handler)
 

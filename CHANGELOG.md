@@ -88,6 +88,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   the same 5,401 files with every package, and the same 4 with one
   maintainer's lists.
 
+- Where the data folder is comes from one helper, `config.data_dir`: the
+  folder a function was given, else the configured one as it is when
+  called (so `--data-dir` applies), rather than `out_dir or
+  config.OUT_DIR` repeated in 15 places across six modules. Nothing it
+  does changes.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

@@ -16,7 +16,7 @@ from . import config, datastore
 
 
 def path(out_dir=None):
-    return os.path.abspath(out_dir or config.OUT_DIR) + ".lock"
+    return os.path.abspath(config.data_dir(out_dir)) + ".lock"
 
 
 @contextlib.contextmanager
@@ -37,7 +37,7 @@ def held(out_dir=None):
             fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             print(
-                f"Waiting for another nixkeeper run on {out_dir or config.OUT_DIR}...",
+                f"Waiting for another nixkeeper run on {config.data_dir(out_dir)}...",
                 file=sys.stderr,
             )
             fcntl.flock(f, fcntl.LOCK_EX)

@@ -58,6 +58,18 @@ LISTS = os.environ.get("NIXKEEPER_LISTS") or DEFAULTS["LISTS"]
 NOTIFICATIONS = os.environ.get("NIXKEEPER_NOTIFICATIONS")
 
 
+def data_dir(out_dir=None):
+    """Return the data folder: out_dir, or the configured one by default.
+
+    OUT_DIR is read when this is called, not when the caller's module was
+    imported, so the command's --data-dir and tests that set it apply.
+
+    Args:
+        out_dir: A data folder the caller was given, or None.
+    """
+    return out_dir or OUT_DIR
+
+
 def notifications_path():
     """Where notifications/ is: NIXKEEPER_NOTIFICATIONS, else beside the
     package lists. Worked out when asked, not at import: --lists sets LISTS

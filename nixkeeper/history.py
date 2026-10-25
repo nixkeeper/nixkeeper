@@ -56,7 +56,7 @@ def previous_project(previous, pname, attrs, out_dir=None):
     """Reuse the last run's data for a pname (its lookup failed, or isn't due).
     Returns (project, entries, stale_since), or None if there's nothing to
     reuse."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    out_dir = config.data_dir(out_dir)
     for row in previous_rows(previous, pname, attrs):
         entries = []
         if row.get("project"):

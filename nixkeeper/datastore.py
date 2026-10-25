@@ -444,7 +444,7 @@ FIXED_RECENT_DAYS = 7
 
 def read_fixed(out_dir=None):
     """Return the fixes kept in the last run's history.json, or []."""
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         return _load(os.path.join(out_dir, "history.json")).get("fixed") or []
     except (OSError, ValueError, AttributeError):
@@ -570,7 +570,7 @@ def _day_before(run, days):
 
 def read_events(out_dir=None):
     """Return the trend markers kept in the last run's history.json, or []."""
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         return _load(os.path.join(out_dir, "history.json")).get("events") or []
     except (OSError, ValueError, AttributeError):
@@ -608,7 +608,7 @@ def with_events(events, new, run):
 
 def read_history(out_dir=None):
     """Return the last run's history.json points, or []."""
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         return _load(os.path.join(out_dir, "history.json")).get("points") or []
     except (OSError, ValueError, AttributeError):
@@ -1274,7 +1274,7 @@ def write(
             SYNC_ONLY, before anything is written.
     """
     check_kept(kept)
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     tmp_dir = out_dir + ".tmp"
     # Also done by lock.held; repeated here for callers, such as tests,
     # that write without the lock.
@@ -1328,7 +1328,7 @@ def restore_interrupted_swap(out_dir=None):
     Args:
         out_dir: The data folder (the configured one by default).
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     old_dir = out_dir + ".old"
     if not os.path.isdir(old_dir):
         return
@@ -1352,7 +1352,7 @@ def update(index, entries, out_dir=None):
         entries: Repology's entries, by the rows' "dataFile".
         out_dir: The data folder (the configured one by default).
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     # Also done by lock.held; repeated here for callers, such as tests,
     # that write without the lock.
     restore_interrupted_swap(out_dir)
@@ -1474,7 +1474,7 @@ def load(out_dir=None):
         The index, or {"packages": []} when there's none or it can't be
         read.
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         index = _load(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):
@@ -1511,7 +1511,7 @@ def saved_entries(out_dir=None):
         {name: entries}, or {} for format 1 or when a file can't be read
         (entries() then reads each row's own file).
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         index = _load(os.path.join(out_dir, "index.json"))
         if index.get("format") != FORMAT:
@@ -1534,7 +1534,7 @@ def entries(row, out_dir=None):
     Raises:
         OSError, ValueError: Neither can be read.
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
+    out_dir = config.data_dir(out_dir)
     try:
         index = _shared(os.path.join(out_dir, "index.json"))
         if index.get("format") == FORMAT:

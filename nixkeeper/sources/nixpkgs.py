@@ -99,7 +99,7 @@ def keep_answers(out_dir=None):
     global _kept
     found = {}
     try:
-        with open(os.path.join(out_dir or config.OUT_DIR, EVALUATIONS)) as f:
+        with open(os.path.join(config.data_dir(out_dir), EVALUATIONS)) as f:
             found = json.load(f).get("answers") or {}
     except (OSError, ValueError, AttributeError):
         pass

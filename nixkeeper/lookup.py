@@ -65,7 +65,7 @@ def collect_projects(
     that fails keeps the stale digest's versions, else the last run's, else
     none ("lookupFailed": shown as not on Repology); the sync goes on
     whatever Repology does, its other sources fresh."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    out_dir = config.data_dir(out_dir)
     # The project each attribute had last run: asked for directly, it saves
     # a request (repology.resolve).
     known = {
