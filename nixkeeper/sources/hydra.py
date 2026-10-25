@@ -1,4 +1,11 @@
-"""Hydra client: the latest build of each tracked package on each platform."""
+"""Ask Hydra about the tracked packages' builds.
+
+Hydra builds nixpkgs master. This finds the latest build of each tracked
+package on each platform it claims and, when that build didn't succeed,
+the last one that did. The daily sync answers most jobs from
+nixkeeper-hydra's digest (hydra_digest), and asks Hydra here about the
+rest.
+"""
 
 import json
 import sys
@@ -20,12 +27,13 @@ DEPENDENCY_FAILED = 2
 
 
 def get(path):
-    """GET a Hydra path as JSON. Returns None on 404."""
+    """Return a Hydra path's JSON, or None when Hydra answers 404."""
     body = http.get(config.HYDRA_URL + path, accept="application/json")
     return None if body is None else json.loads(body)
 
 
 def status(buildstatus):
+    """Name a Hydra buildstatus code: "ok", "failed", "dependency" or "unfinished"."""
     if buildstatus == 0:
         return "ok"
     if buildstatus in FAILED:
@@ -36,11 +44,12 @@ def status(buildstatus):
 
 
 def job_url(job):
+    """Return the URL of a Hydra job's page."""
     return f"{config.HYDRA_URL}/job/{config.HYDRA_PROJECT}/{config.HYDRA_JOBSET}/{job}"
 
 
 def latest_build(job):
-    """The job's most recent finished build, or None if Hydra has none."""
+    """Return the job's most recent finished build, or None if Hydra has none."""
     query = urllib.parse.urlencode(
         {
             "nr": 1,
@@ -54,9 +63,13 @@ def latest_build(job):
 
 
 def last_success(job):
-    """The job's last successful build: {"lastSuccess": ISO date or None,
-    "lastSuccessBuild"?: its id, "lastSuccessName"?: what it built, e.g.
-    "libfoo-1.2.3"}. lastSuccess is None if it never succeeded."""
+    """Return the job's last successful build.
+
+    Returns:
+        {"lastSuccess": its ISO time, or None when the job never succeeded,
+        "lastSuccessBuild"?: its id, "lastSuccessName"?: what it built,
+        such as "libfoo-1.2.3"}.
+    """
     build = get(f"/job/{config.HYDRA_PROJECT}/{config.HYDRA_JOBSET}/{job}/latest")
     build = build or {}
     stoptime = build.get("stoptime")
@@ -73,13 +86,24 @@ def last_success(job):
 
 
 def check(attr, system, broken=False):
-    """One job's result: {"attr", "system", "status", "build"?, "name"?,
-    "lastSuccess"?, "lastSuccessBuild"?, "lastSuccessName"?}. status is ok /
-    failed / dependency / unfinished, notBuilt when Hydra has no build of it,
-    or broken when nixpkgs marks it broken there (whatever Hydra's last build
-    did: the failure is known). name is what master built, e.g.
-    "wesnoth-devel-1.19.28": master can be ahead of the channel. Whenever the
-    latest build didn't succeed, the last one that did (see last_success)."""
+    """Ask Hydra about one job.
+
+    Whenever the latest build didn't succeed, the last one that did is
+    asked about too (last_success).
+
+    Args:
+        attr: The job's attribute.
+        system: The job's platform.
+        broken: Whether nixpkgs marks it broken there.
+
+    Returns:
+        {"attr", "system", "status", "build"?, "name"?, "lastSuccess"?,
+        "lastSuccessBuild"?, "lastSuccessName"?}. status is "ok", "failed",
+        "dependency" or "unfinished"; "notBuilt" when Hydra has no build of
+        it; or "broken" when nixpkgs marks it broken there, whatever Hydra's
+        last build did (the failure is known). name is what master built,
+        such as "wesnoth-devel-1.19.28": master can be ahead of the channel.
+    """
     job = f"{attr}.{system}"
     result = {"attr": attr, "system": system}
     build = latest_build(job)
@@ -98,7 +122,11 @@ def check(attr, system, broken=False):
 
 
 def is_unfree(pkg):
-    """Hydra doesn't build unfree packages, so there's nothing to ask about."""
+    """Return whether a package is unfree.
+
+    Hydra doesn't build unfree packages, so there's nothing to ask about
+    them.
+    """
     meta = pkg["meta"]
     if meta.get("unfree"):
         return True
@@ -109,8 +137,11 @@ def is_unfree(pkg):
 
 
 def systems(pkg):
-    """Hydra platforms the package claims to build on: all of them when it
-    doesn't declare meta.platforms, none when meta.hydraPlatforms is empty."""
+    """Return the Hydra platforms a package claims to build on.
+
+    All of them when it doesn't declare meta.platforms; none when
+    meta.hydraPlatforms is empty.
+    """
     meta = pkg["meta"]
     wanted = config.HYDRA_SYSTEMS
     if meta.get("platforms"):
@@ -121,8 +152,11 @@ def systems(pkg):
 
 
 def version_of(name, pkg):
-    """The version in a Hydra build name ("wesnoth-devel-1.19.28"), given the
-    package's pname; None if the name doesn't start with it."""
+    """Return the version in a Hydra build's name, or None.
+
+    Given the package's pname, "wesnoth-devel-1.19.28" has the version
+    1.19.28. None when the name doesn't start with the pname.
+    """
     prefix = f"{pkg.get('pname')}-"
     if name and name.startswith(prefix) and len(name) > len(prefix):
         return name[len(prefix) :]
@@ -130,8 +164,14 @@ def version_of(name, pkg):
 
 
 def add_versions(build, pkg):
-    """The versions of build's latest and last successful builds ("version",
-    "lastSuccessVersion"), for the page, which doesn't have the pnames."""
+    """Add the versions of build's latest and last successful builds.
+
+    They go in "version" and "lastSuccessVersion", for the page, which
+    doesn't have the pnames to work them out.
+
+    Returns:
+        build, changed in place.
+    """
     for name, field in (("name", "version"), ("lastSuccessName", "lastSuccessVersion")):
         if version := version_of(build.get(name), pkg):
             build[field] = version
@@ -139,12 +179,18 @@ def add_versions(build, pkg):
 
 
 def master_version(row, pkgs):
-    """The version master has for row, if it's newer than the channel's: Hydra
-    builds master, the channel lags it by a few days (a merged update shows
-    here first). From the builds' names ("wesnoth-devel-1.19.28") and the
-    channel index's pname and version, which are in the same format; the row's
-    own attribute first, when it has several. None if master isn't ahead, or
-    Hydra has no build to tell (unfree packages)."""
+    """Return master's version of row, when it's newer than the channel's.
+
+    Hydra builds master, and the channel lags it by a few days, so a merged
+    update shows here first. The version comes from the builds' names
+    ("wesnoth-devel-1.19.28") and the channel index's pname, which are in
+    the same format; the row's own attribute is tried first, when it has
+    several.
+
+    Returns:
+        The version, or None when master isn't ahead, or Hydra has no build
+        to tell (unfree packages).
+    """
     for attr in sorted(pkgs, key=lambda a: a != row["name"]):
         pkg = pkgs[attr]
         versions = [
@@ -159,8 +205,11 @@ def master_version(row, pkgs):
 
 
 def jobs(attrs, nixpkgs):
-    """The Hydra jobs of attrs, [(attr, system)]: those in nixpkgs, not unfree,
-    on the platforms each claims (systems)."""
+    """Return the Hydra jobs of attrs, as [(attr, system)].
+
+    Those are the attributes in nixpkgs that aren't unfree, on the
+    platforms each claims (systems).
+    """
     return [
         (attr, system)
         for attr in attrs
@@ -175,13 +224,22 @@ QUIET = {"ok", "notBuilt"}
 
 
 def due(job, nixpkgs, before, now, broken=None):
-    """Whether Hydra should be asked about job (attr, system) now. At once
-    when it's new, the package's version in the channel isn't the one Hydra
-    built, or it wasn't read fine last time. Daily (schedule.daily) while
-    something's going on: not built OK (nor never built on that platform),
-    marked broken, or at the last sync outdated, ahead on master, or with an
-    update PR. Otherwise every QUIET_DAYS (schedule.due). before: the last
-    run's (builds by job, rows by attribute), from last_run."""
+    """Return whether Hydra should be asked about a job now.
+
+    It should at once when the job is new, the package's version in the
+    channel isn't the one Hydra built, or it wasn't read fine last time.
+    Daily (schedule.daily) while something's going on: a status other than
+    QUIET's, marked broken, or at the last sync outdated, ahead on master,
+    or with an update PR. Otherwise every QUIET_DAYS (schedule.due).
+
+    Args:
+        job: (attr, system).
+        nixpkgs: The package index, by attribute.
+        before: The last run's builds by job and rows by attribute
+            (last_run).
+        now: The run's time.
+        broken: {attr: [the systems nixpkgs marks it broken on]}.
+    """
     attr, system = job
     builds, rows = before
     old, row = builds.get(job), rows.get(attr)
@@ -203,7 +261,11 @@ def due(job, nixpkgs, before, now, broken=None):
 
 
 def last_run(previous):
-    """From the last run's data: ({(attr, system): build}, {attr: its row})."""
+    """Index the last run's data, for due.
+
+    Returns:
+        ({(attr, system): build}, {attr: its row}).
+    """
     packages = previous["packages"]
     return (
         {
@@ -216,18 +278,26 @@ def last_run(previous):
 
 
 def due_jobs(attrs, nixpkgs, previous, now, broken=None):
-    """The jobs of attrs (jobs) that are due now (due)."""
+    """Return the jobs of attrs (jobs) that are due now (due)."""
     before = last_run(previous)
     return [j for j in jobs(attrs, nixpkgs) if due(j, nixpkgs, before, now, broken)]
 
 
 def fetch(wanted, broken=None):
-    """Ask Hydra about each job in wanted ([(attr, system)]), one at a time
-    (check). Returns {(attr, system): its result, or the error asking failed
-    with}. After HYDRA_MAX_CONSECUTIVE_FAILURES lookups in a row fail, Hydra
-    is likely down: the rest aren't asked (an OSError saying so). broken:
-    {attr: [systems]} nixpkgs marks broken. The network half of add_builds,
-    which the daily sync runs in the background (sync.py)."""
+    """Ask Hydra about each job in wanted, one at a time (check).
+
+    After HYDRA_MAX_CONSECUTIVE_FAILURES lookups in a row fail, Hydra is
+    likely down, so the rest aren't asked: each gets an OSError saying so.
+    This is the network half of add_builds, which the daily sync runs in
+    the background (sync.py).
+
+    Args:
+        wanted: The jobs, as [(attr, system)].
+        broken: {attr: [the systems nixpkgs marks it broken on]}.
+
+    Returns:
+        {(attr, system): its result, or the error asking failed with}.
+    """
     broken = broken or {}
     results = {}
     consecutive = 0
@@ -250,13 +320,24 @@ def fetch(wanted, broken=None):
 
 
 def add_builds(rows, nixpkgs, previous, now, broken=None, fetched=None):
-    """Give every row in nixpkgs its Hydra results ("builds", each with when
-    Hydra was asked, "checkedAt"), or mark it unfree ("unfree": true, no
-    builds). broken: {attr: [systems]} nixpkgs marks broken. Only jobs that
-    are due (due) are asked; the rest keep the last run's result. fetched:
-    fetch()'s answers, if Hydra was asked already (a due job missing from
-    them is asked now). A job whose lookup failed keeps the previous run's
-    result, if there is one, and the row is marked as not refreshed."""
+    """Give every row in nixpkgs its Hydra builds.
+
+    Each row gets "builds", each with when Hydra was asked ("checkedAt"),
+    or "unfree": True and no builds. Only jobs that are due (due) are
+    asked; the rest keep the last run's result. A job whose lookup failed
+    keeps the previous run's result, if there is one, and the row is
+    marked as not refreshed. The version master has, when it's ahead of
+    the channel, goes in "master".
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        previous: The last run's data.
+        now: The run's time.
+        broken: {attr: [the systems nixpkgs marks it broken on]}.
+        fetched: fetch()'s answers, if Hydra was asked already; a due job
+            missing from them is asked now.
+    """
     broken = broken or {}
     print("Checking Hydra builds...", file=sys.stderr)
     attrs = [a for row in rows for a in row["attrs"]]
