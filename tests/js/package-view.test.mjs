@@ -69,7 +69,8 @@ describe('queueHtml', () => {
 
 describe('fillUpdate', () => {
   test("the bot's attempt, from its logs, written escaped", () => {
-    // Text from the data, in the fields the panel shows (setHtml).
+    // Text from the data, in the three fields a failed attempt's panel shows
+    // (setHtml): each one escaped, none left out.
     const bad = '<script>alert(1)</script>';
     const el = {};
     fillUpdate(
@@ -79,9 +80,8 @@ describe('fillUpdate', () => {
         update: {
           outcome: 'failed',
           date: '2026-10-01',
-          from: '1.0',
+          from: bad,
           to: bad,
-          reason: bad,
           excerpt: [bad],
           log: 'https://nixpkgs-update-logs.nix-community.org/p/2026-10-01.log',
         },
@@ -89,6 +89,6 @@ describe('fillUpdate', () => {
       el,
     );
     assert.ok(!el.innerHTML.includes('<script>'));
-    assert.ok(el.innerHTML.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+    assert.equal(el.innerHTML.split('&lt;script&gt;alert(1)&lt;/script&gt;').length - 1, 3);
   });
 });

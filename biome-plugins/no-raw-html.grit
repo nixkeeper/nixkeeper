@@ -1,12 +1,18 @@
 // The page writes markup only through setHtml and appendHtml (page/logic.js),
 // which take only html`` or raw(): text from the data is then always escaped.
+// It's for the page's code (page/), but for the file that defines setHtml:
+// move setHtml, and the regex below moves with it. Tests fake the DOM and may
+// write innerHTML themselves.
 language js
 
 or {
   `$el.innerHTML = $value`,
+  `$el.innerHTML += $value`,
   `$el.outerHTML = $value`,
+  `$el.outerHTML += $value`,
   `$el.insertAdjacentHTML($where, $value)`
 } as $write where {
-  not $filename <: r".*/logic\.js",
+  $filename <: r".*/page/[^/]*\.js",
+  not $filename <: r".*/page/logic\.js",
   register_diagnostic(span=$write, message="Write markup with setHtml or appendHtml (page/logic.js), which take only html`` or raw(): text from the data is escaped.")
 }

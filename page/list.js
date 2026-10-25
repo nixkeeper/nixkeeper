@@ -871,7 +871,8 @@ export function renderStats() {
   // every package, it's in the list's header, under the tiles.
   const refine = document.getElementById('refine');
   refine.hidden = store.community;
-  setHtml(refine, store.community ? html`` : refineHtml());
+  if (store.community) refine.textContent = '';
+  else setHtml(refine, refineHtml());
   const checked = document.getElementById('checked');
   checked.classList.toggle('stale', stale);
   // The exact time on hover: "checked 4h ago" is friendly, but vague.

@@ -26,6 +26,7 @@ import {
   matchFacets,
   NAME_DOTS,
   NAME_STATUSES,
+  NO_MARKUP,
   nameMatches,
   pageLinks,
   prPrint,
@@ -270,12 +271,14 @@ function showListProblems(problems) {
   const el = document.getElementById('listProblems');
   if (!el) return;
   el.hidden = problems.length === 0;
+  if (!problems.length) {
+    el.textContent = '';
+    return;
+  }
   setHtml(
     el,
-    problems.length
-      ? html`⚠ ${problems.length === 1 ? 'A problem' : `${problems.length} problems`} in the package lists, found by the last sync:
-      <ul>${problems.map((p) => html`<li>${p}</li>`)}</ul>`
-      : html``,
+    html`⚠ ${problems.length === 1 ? 'A problem' : `${problems.length} problems`} in the package lists, found by the last sync:
+      <ul>${problems.map((p) => html`<li>${p}</li>`)}</ul>`,
   );
 }
 
@@ -665,9 +668,14 @@ async function render(list, { keepPage = false, run = updateRun, took = timer('r
       );
       return;
     }
+    const which = narrowed
+      ? ' these filters'
+      : state.activeFilter !== 'all' && !searchText().trim()
+        ? ` the “${FILTERS[state.activeFilter].label}” filter`
+        : '';
     setHtml(
       content,
-      html`<div class="empty">No packages match${narrowed ? ' these filters' : state.activeFilter !== 'all' && !searchText().trim() ? ` the “${FILTERS[state.activeFilter].label}” filter` : ''}${store.community ? ' here' : ''}.</div>${moreMatchesHtml()}`,
+      html`<div class="empty">No packages match${which}${store.community ? ' here' : ''}.</div>${moreMatchesHtml()}`,
     );
     return;
   }
@@ -842,7 +850,7 @@ function maintainerMatchesHtml(query) {
     store.shownView === 'overview'
       ? found
       : found.filter(([handle]) => handle.toLowerCase() !== typed);
-  if (!others.length) return html``;
+  if (!others.length) return NO_MARKUP;
   return html`<div class="more-matches">
     <div class="other-label">${typed && total > others.length ? 'Other maintainers' : 'Maintainers'} matching @${typed}${total > found.length ? html`, the first ${found.length}` : ''}</div>
     <ul class="maint-list">${others.map(maintainerItem)}</ul>
@@ -861,7 +869,7 @@ function moreMatchesHtml() {
   )
     return maintainerMatchesHtml(query);
   if (!store.community || state.pkgParam || query.trim().length < 2 || query.trim().startsWith('@'))
-    return html``;
+    return NO_MARKUP;
   if (!store.names) {
     loadNames();
     return html`<div class="more-matches"><div class="other-label">Searching all of nixpkgs…</div></div>`;
@@ -885,7 +893,7 @@ function moreMatchesHtml() {
     new Set(store.packages.map((p) => p.name)),
     Infinity,
   );
-  if (!total) return html``;
+  if (!total) return NO_MARKUP;
   const narrowed =
     state.inFilter ||
     state.statusFilter ||
