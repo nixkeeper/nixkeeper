@@ -157,6 +157,10 @@ Around that:
   shipped in the package like the page): opting in, merging with the lists'
   own, and the limits community rules are held to (with `sources/http.py`'s
   safe mode)
+- `community_check.py`: `nixkeeper community-check`, which runs the
+  community's rules for real, finds the ignore and up-to-date rules that
+  no longer do anything, and keeps the community rules' status issue up
+  to date
 - `datastore.py`: writing and reading `data/`. A full sync builds a new
   folder and swaps it in (`write`); the hourly checks rewrite only the
   files that changed and remove those under `rows/` and `views/` they no

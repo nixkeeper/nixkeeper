@@ -24,7 +24,17 @@ import os
 import sys
 from datetime import UTC, datetime
 
-from . import community, config, history, init, lock, notify, page, version
+from . import (
+    community,
+    community_check,
+    config,
+    history,
+    init,
+    lock,
+    notify,
+    page,
+    version,
+)
 from .errors import Problem
 
 # {name: (what it does, the module whose main() runs it)}
@@ -262,16 +272,16 @@ def _run_command(argv=None):
         checks = ignored = None
         unknown = []
         if args.names:
-            checks, ignored, unknown = community.sort_names(args.names, args.file)
+            checks, ignored, unknown = community_check.sort_names(args.names, args.file)
         if args.changed_from:
-            checks, ignored = community.changed(args.changed_from)
+            checks, ignored = community_check.changed(args.changed_from)
             if not checks and not ignored:
                 print("No community rules added or changed.", file=sys.stderr)
                 return
-        results = community.run(checks, args.file)
-        stale = community.stale_ignores(ignored) if ignored != [] else {}
-        stale_up = community.stale_up_to_date(ignored) if ignored != [] else {}
-        failed = community.report(results, stale, stale_up)
+        results = community_check.run(checks, args.file)
+        stale = community_check.stale_ignores(ignored) if ignored != [] else {}
+        stale_up = community_check.stale_up_to_date(ignored) if ignored != [] else {}
+        failed = community_check.report(results, stale, stale_up)
         for kind, have, gone in (
             ("ignore rules", community.ignores(), stale),
             ("up-to-date rules", community.up_to_date(), stale_up),
@@ -283,7 +293,7 @@ def _run_command(argv=None):
             print(f"  {name}: no community rule of that name")
         failed += len(unknown)
         if args.report_issue:
-            community.publish(results, stale, stale_up)
+            community_check.publish(results, stale, stale_up)
             return
         # A pull request's ignore or up-to-date rule has to do something when
         # it's added.

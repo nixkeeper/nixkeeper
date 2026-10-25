@@ -113,6 +113,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   and the exit status are the same as before. Besides that handler, only
   the usage error (no command given) exits.
 
+- `nixkeeper community-check` has a module of its own,
+  `community_check.py`; `community.py` keeps what the sync uses (reading
+  and merging the community's rules, and their limits). The ten imports
+  that sat inside the command's functions, there to avoid an import cycle,
+  are at the top of the new module. The command's output is the same as
+  before.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

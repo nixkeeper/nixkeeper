@@ -5,7 +5,7 @@ import io
 import unittest
 from unittest import mock
 
-from nixkeeper import community, follows, listcheck
+from nixkeeper import community, community_check, follows, listcheck
 from nixkeeper.changes import count_master, is_outdated
 from nixkeeper.history import add_outdated_since
 from nixkeeper.sources import nixpkgs as nixpkgs_source
@@ -217,7 +217,7 @@ class Community(unittest.TestCase):
             mock.patch.object(nixpkgs_source, "load_index", return_value=index),
             mock.patch("sys.stderr", io.StringIO()),
         ):
-            results = community.run()
+            results = community_check.run()
         self.assertEqual(results["msedgedriver"], ("154.0.4258.37", None))
         self.assertEqual(
             results["x"], (None, "follows gone, which isn't in nixpkgs' channel index")
