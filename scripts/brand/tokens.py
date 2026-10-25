@@ -79,6 +79,10 @@ def role(r):
 
 
 roles = {name: role(ramps[r]) for name, r in ROLES.items()}
+# The sets updated in bulk, beside the accent (the page's --bulk): another
+# shade of the logo's, so the split doesn't read as progress. Only a fill, so
+# not a role: the mark's two ends, its mauve, and in the dark its violet shade.
+bulk = {"light": {"fill": brand["mauve"]}, "dark": {"fill": brand["violet-shade"]}}
 fonts = {
     "ui": '"Instrument Sans", system-ui, sans-serif',  # the page, and the wordmark
     "mono": '"JetBrains Mono", ui-monospace, monospace',  # versions
@@ -87,7 +91,9 @@ fonts = {
 os.makedirs(OUT, exist_ok=True)
 with open(os.path.join(OUT, "tokens.json"), "w") as f:
     json.dump(
-        {"brand": brand, "ramps": ramps, "roles": roles, "fonts": fonts}, f, indent=2
+        {"brand": brand, "ramps": ramps, "roles": roles, "bulk": bulk, "fonts": fonts},
+        f,
+        indent=2,
     )
     f.write("\n")
 
@@ -97,6 +103,7 @@ for name, r in ramps.items():
     css += [f"  --nk-{name}-{step}: {v};" for step, v in r.items()]
 for name, themes in roles.items():
     css += [f"  --nk-{name}-{k}: {v};" for k, v in themes["light"].items()]
+css += [f"  --nk-bulk-{k}: {v};" for k, v in bulk["light"].items()]
 css += [f"  --nk-font-{k}: {v};" for k, v in fonts.items()]
 css += ["}"]
 # Dark: by the system's setting, unless the page is set to light
@@ -104,6 +111,7 @@ css += ["}"]
 dark = [
     f"--nk-{name}-{k}: {v};" for name, t in roles.items() for k, v in t["dark"].items()
 ]
+dark += [f"--nk-bulk-{k}: {v};" for k, v in bulk["dark"].items()]
 css += ["@media (prefers-color-scheme: dark) {", '  :root:not([data-mode="light"]) {']
 css += [f"    {line}" for line in dark]
 css += ["  }", "}", ':root[data-mode="dark"] {']

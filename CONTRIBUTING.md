@@ -389,7 +389,9 @@ nix run .#brand
 
 runs all three in order (fetching the wordmark's font first) and copies the
 favicons, the header's lockups and the tokens to `page/`, for the page.
-Commit the regenerated files with the change to the scripts.
+Commit the regenerated files with the change to the scripts. `page/`'s brand
+files are copies, and `nix flake check` fails when one of them, or
+`assets/brand/`'s tokens, differs from what it's made from.
 
 The page's own colours (`page/style.css`) are variables that point at the
 tokens' roles, e.g. `--accent: var(--nk-link-text)`, so a change to the

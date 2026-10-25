@@ -306,6 +306,37 @@
             bash tests/sh/cloudflare.sh
             touch $out
           '';
+          # The brand files: assets/brand/'s tokens as scripts/brand/tokens.py
+          # writes them, and page/'s copies of the favicons, the lockups and the
+          # tokens as assets/brand/ has them. A hand edit, or a copy left
+          # behind, fails here; nix run .#brand writes them all again.
+          brand =
+            let
+              src = lib.fileset.toSource {
+                root = ./.;
+                fileset = lib.fileset.unions [
+                  ./scripts/brand
+                  ./assets/brand
+                  ./page
+                ];
+              };
+            in
+            pkgs.runCommand "nixkeeper-brand-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              cd ${src}
+              drift() {
+                echo "$1 differs from what it's made from: run nix run .#brand" >&2
+                exit 1
+              }
+              PYTHONDONTWRITEBYTECODE=1 python3 scripts/brand/tokens.py "$TMPDIR/tokens" > /dev/null
+              for f in tokens.css tokens.json; do
+                cmp -s "$TMPDIR/tokens/$f" "assets/brand/$f" || drift "assets/brand/$f"
+              done
+              for f in assets/brand/favicon*.svg assets/brand/nixkeeper-lockup-tight*.svg assets/brand/tokens.css; do
+                copy="page/''${f#assets/brand/}"
+                cmp -s "$f" "$copy" || drift "$copy"
+              done
+              touch $out
+            '';
           # The page's rules (page/logic.js), with Node's own test runner.
           page = pkgs.runCommand "nixkeeper-page-tests" { nativeBuildInputs = [ pkgs.nodejs-slim ]; } ''
             cd ${self}

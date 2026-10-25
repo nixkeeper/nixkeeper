@@ -90,6 +90,7 @@
   --nk-link-text: #534c84;
   --nk-link-badge: #6f66ae;
   --nk-link-bg: #ededfc;
+  --nk-bulk-fill: #c29dd7;
   --nk-font-ui: "Instrument Sans", system-ui, sans-serif;
   --nk-font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
@@ -119,6 +120,7 @@
     --nk-link-text: #aaa1f6;
     --nk-link-badge: #6f66ae;
     --nk-link-bg: #211d38;
+    --nk-bulk-fill: #534b89;
   }
 }
 :root[data-mode="dark"] {
@@ -146,4 +148,5 @@
   --nk-link-text: #aaa1f6;
   --nk-link-badge: #6f66ae;
   --nk-link-bg: #211d38;
+  --nk-bulk-fill: #534b89;
 }
