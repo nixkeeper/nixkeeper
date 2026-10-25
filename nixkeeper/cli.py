@@ -1,17 +1,22 @@
-"""The `nixkeeper` command: one entry point for the sync and the frequent
-checks, with the settings as flags.
+"""Run the `nixkeeper` command: the sync, the hourly checks and the rest.
+
+It's one entry point, with the settings as flags (see each command's
+--help):
 
     nixkeeper sync | frequent-check | pr-check | paths [--lists PATH]
               [--data-dir DIR] [--notify METHOD]
     nixkeeper init [--maintainer HANDLE ...] [--lists PATH]
     nixkeeper page DIR | serve [--port PORT] [--bind ADDRESS]  [--data-dir DIR]
+    nixkeeper community-check [NAME ...] [--file PATH] [--changed-from DIR]
+              [--report-issue]
     nixkeeper --version
 
 Each flag wins over its environment variable (NIXKEEPER_LISTS,
 NIXKEEPER_DATA_DIR, NIXKEEPER_NOTIFY), which wins over the default: the
-user's own folders (config.py). The old
-commands (nixkeeper-sync, nixkeeper-frequent-check, nixkeeper-pr-check) still
-work until 1.0, as aliases."""
+user's own folders (config.py). The old commands (nixkeeper-sync,
+nixkeeper-frequent-check, nixkeeper-pr-check) still work until 1.0, as
+aliases.
+"""
 
 import argparse
 import importlib
@@ -21,7 +26,7 @@ from datetime import UTC, datetime
 
 from . import community, config, history, init, lock, notify, page, version
 
-# name: (what it does, the module whose main() runs it)
+# {name: (what it does, the module whose main() runs it)}
 COMMANDS = {
     "sync": (
         "one full sync: every source, for every tracked package",
@@ -38,7 +43,7 @@ COMMANDS = {
     ),
 }
 
-# flag: (the config setting it sets, its environment variable)
+# {flag: (the config setting it sets, its environment variable)}
 SETTINGS = {
     "lists": ("LISTS", "NIXKEEPER_LISTS"),
     "data_dir": ("OUT_DIR", "NIXKEEPER_DATA_DIR"),
@@ -47,6 +52,7 @@ SETTINGS = {
 
 
 def parser():
+    """Build the command's argument parser."""
     # The settings, accepted before or after the command. SUPPRESS: a flag
     # left out doesn't overwrite one given in the other position.
     common = argparse.ArgumentParser(add_help=False)
@@ -177,8 +183,13 @@ def parser():
 
 
 def settings(args):
-    """{flag: (value, where it came from)}, flag first, then the environment,
-    then the default."""
+    """Work out each setting, and where it came from.
+
+    The flag wins, then the environment, then the default.
+
+    Returns:
+        {flag: (value, where it came from)}.
+    """
     found = {}
     for flag, (name, env) in SETTINGS.items():
         if getattr(args, flag, None):
@@ -191,6 +202,7 @@ def settings(args):
 
 
 def paths(found):
+    """Print where the lists, the data and the page are, and which setting says so."""
     for flag, label in (("lists", "lists"), ("data_dir", "data"), ("notify", "notify")):
         value, source = found[flag]
         if flag == "notify":
@@ -206,6 +218,7 @@ def paths(found):
 
 
 def main(argv=None):
+    """Run the command argv gives (sys.argv's by default)."""
     args = parser().parse_args(argv)
     if not args.command:
         parser().print_help(sys.stderr)
@@ -286,7 +299,7 @@ def main(argv=None):
 
 
 def last_sync_age():
-    """Hours since the last sync finished, or None if there's been none."""
+    """Return the hours since the last sync finished, or None if there was none."""
     checked = history.load_previous_run().get("checkedAt")
     if not checked:
         return None
@@ -294,7 +307,10 @@ def last_sync_age():
 
 
 def _alias(command):
+    """Make an old command's entry point: it says the new name, then runs it."""
+
     def run():
+        """Run the command under its new name."""
         print(
             f"nixkeeper-{command} is now `nixkeeper {command}`; the old name "
             "works until 1.0.",
