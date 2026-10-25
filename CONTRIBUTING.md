@@ -127,12 +127,18 @@ catches `Problem` instead. `nixkeeper/sync.py` runs one sync, top to bottom:
 its `main()` calls one function per phase, in the order its module
 docstring lists them (the names its log times them by), each given the
 `Run` (what the sync works from, made once by `start`) and, once the rows
-exist, the `Scope` (which rows each phase covers). Several phases change
-a row's verdict, each reading what the ones before it left, so their order
-matters: `tests/test_phase_order.py` lists those steps in the order
-`sync.py` calls them, and fails when one moves. Moving one on purpose means
-updating that list, and the test showing what the pair's order changes.
-The steps, and the modules they use:
+exist, the `Scope` (which rows each phase covers). A row's verdict
+(`nixStatus`, `refVersion`) is decided in one place, `verdict.py`: each
+source records what it found on the row, then calls `verdict.decide`,
+which works the verdict out again from Repology's (kept as
+`repologyVerdict` while they differ) through its `RULES`, in their order.
+A new way of changing the verdict is a new rule there, and a test checks
+that nothing else writes it. Some steps still depend on the order, as
+they read the verdict while they record (an up-to-date rule is checked
+against the verdict so far): `tests/test_phase_order.py` lists them in
+the order `sync.py` calls them, and fails when one moves. Moving one on
+purpose means updating that list, and the test showing what the pair's
+order changes. The steps, and the modules they use:
 
 | Step | Module |
 |---|---|

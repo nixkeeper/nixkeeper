@@ -10,9 +10,8 @@ with its set's rows by its own rules. Each such row then says what it was
 compared with ("feed", set by compare).
 """
 
-from .. import config
+from .. import config, verdict
 from ..shape import Row
-from ..versions import version_key
 from . import digests
 
 # The files' format this nixkeeper reads.
@@ -49,10 +48,11 @@ def load(file, source, label, now):
 
 
 def compare(row: Row, name, newest, url, released=None, dated=False, **more):
-    """Make row outdated or newest against a version from its set's source.
+    """Compare row with a version from its set's source.
 
     The row says what it was compared with ("feed"), and is no longer kept
-    beside a newer version (keptBeside).
+    beside a newer version (keptBeside). It's outdated or newest against
+    that version (verdict._feed).
 
     Args:
         row: The row, changed in place.
@@ -64,7 +64,6 @@ def compare(row: Row, name, newest, url, released=None, dated=False, **more):
             as MELPA's are.
         **more: What else the source says, kept in "feed".
     """
-    row["refVersion"] = newest
     row["feed"] = {
         "name": name,
         "version": newest,
@@ -74,5 +73,4 @@ def compare(row: Row, name, newest, url, released=None, dated=False, **more):
         **more,
     }
     row.pop("keptBeside", None)
-    behind = version_key(newest) > version_key(row.get("nixVersion") or "")
-    row["nixStatus"] = "outdated" if behind else "newest"
+    verdict.decide(row)

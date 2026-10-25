@@ -6,7 +6,6 @@ runs' rows for the notifications.
 """
 
 import re
-from typing import Literal
 
 from . import config
 from .shape import Row
@@ -77,54 +76,6 @@ def ahead_on_master(row: Row):
     return is_newer(master, row.get("nixVersion")) and not same_release(
         master, row.get("nixVersion")
     )
-
-
-def count_master(row: Row):
-    """Make master's version the one to update to, when it's ahead.
-
-    That's when master is ahead of what Repology and the update checks
-    know (refVersion). The row then reads as outdated and, as master
-    already has the version, as waiting for the channel. refFromMaster says
-    where the version came from, for the page.
-    """
-    row.pop("refFromMaster", None)
-    if ahead_on_master(row) and (
-        not row.get("refVersion") or is_newer(row["master"], row["refVersion"])
-    ):
-        row["refVersion"] = row["master"]
-        row["refFromMaster"] = True
-
-
-# A row's update PRs: merged into master, merged into staging, and open.
-PR_FIELDS: tuple[Literal["masterPR", "stagingPR", "openPR"], ...] = (
-    "masterPR",
-    "stagingPR",
-    "openPR",
-)
-
-
-def count_prs(row: Row):
-    """Take the version to update to from the row's update PRs, when needed.
-
-    That's for a row Repology calls outdated without naming a newer version
-    (its "-unclassified" projects: chatgpt 26.1007.21434, with every
-    repository "outdated" too). The newest version an update PR of it
-    brings, merged or open, is a release someone has packaged. refFromPR
-    says so, for the page; a row given one before (by the hourly check)
-    starts again without it.
-    """
-    if row.pop("refFromPR", None):
-        row["refVersion"] = None
-    if row.get("nixStatus") != "outdated" or row.get("refVersion"):
-        return
-    versions = [
-        pr["to"]
-        for pr in (row.get(k) for k in PR_FIELDS)
-        if pr and pr.get("to") and is_newer(pr["to"], row.get("nixVersion") or "")
-    ]
-    if versions:
-        row["refVersion"] = max(versions, key=version_key)
-        row["refFromPR"] = True
 
 
 def on_master(row: Row):

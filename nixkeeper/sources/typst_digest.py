@@ -12,7 +12,7 @@ it.
 
 import sys
 
-from .. import config
+from .. import verdict
 from ..shape import Row
 from . import about, feeds
 
@@ -72,15 +72,15 @@ def apply(rows: list[Row], nixpkgs, packages):
         latest = PREFIX + name
         latest_version = (nixpkgs.get(latest) or {}).get("version")
         if latest not in attrs and latest_version and latest_version != version:
-            row["refVersion"] = found["version"]
             row["feed"] = {
                 "name": NAME,
                 "version": found["version"],
                 "url": PACKAGE_URL.format(name),
                 **({"released": found["released"]} if found.get("released") else {}),
             }
-            row["nixStatus"] = config.KEPT
+            # Kept beside it, and compared with the feed (verdict._feed).
             row["keptBeside"] = {"attr": latest, "version": latest_version}
+            verdict.decide(row)
             continue
         feeds.compare(
             row,

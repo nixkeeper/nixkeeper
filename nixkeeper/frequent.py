@@ -12,8 +12,7 @@ import sys
 import urllib.error
 from datetime import UTC, datetime
 
-from . import community, follows, history, partial, rows
-from .changes import count_master
+from . import community, follows, history, partial, rows, verdict
 from .sources import nixpkgs as nixpkgs_source
 from .sources import repology, upstream
 
@@ -63,11 +62,11 @@ def refresh_repology(row, previous, now):
     for key in ("nixVersion", "nixStatus", "nixVulnerable", "refVersion", "repoCount"):
         row[key] = fresh[key]
     row.pop("repologyVersion", None)
+    # That's Repology's verdict now, for the row to be decided from
+    # (verdict.decide).
+    row.pop("repologyVerdict", None)
     if channel:
         rows.channel_versions([row], {a: {"version": channel} for a in row["attrs"]})
-    # Repology's verdict is this fresh one now, for the check to decide
-    # against (upstream.apply); without a refresh, the one it kept stays.
-    row.pop("repologySaid", None)
     row.pop("staleSince", None)
     row["repologyCheckedAt"] = now
     return entries
@@ -104,9 +103,10 @@ def main():
             if entries is not None:
                 data_files[row["dataFile"]] = entries
     upstream.add_checks(selected, checks, previous, now, from_community)
-    # Repology's refVersion is fresh again: count master (as the sync does).
+    # Repology's verdict is fresh again: decide each row's from it (as the
+    # sync does), with what master and the update PRs had at the last sync.
     for row in selected:
-        count_master(row)
+        verdict.decide(row)
     # Packages that follow one of these (follows.py) get its new version too.
     refreshed = {row["name"] for row in selected}
     following = {

@@ -182,6 +182,24 @@ class FrequentCheck(unittest.TestCase):
         self.assertTrue(chrome["refFromMaster"])
         self.assertEqual(chrome["outdatedSince"], "2026-09-30T07:23:00+00:00")
 
+    def test_decided_from_repologys_fresh_verdict(self):
+        """The last sync's Repology verdict (repologyVerdict) is gone with the
+        refresh: the row is decided from the fresh one."""
+        self.publish(
+            chrome_row(
+                nixStatus="outdated",
+                refVersion="154.0.8040.12",
+                repologyVerdict={"status": "outdated", "newest": "154.0.8030.1"},
+            )
+        )
+        index, _, _ = self.run_frequent(api("154.0.8037.57"))
+        chrome = index["packages"][0]
+        self.assertEqual(
+            (chrome["nixStatus"], chrome["refVersion"]), ("newest", "154.0.8037.57")
+        )
+        self.assertNotIn("repologySaid", chrome)
+        self.assertNotIn("repologyVerdict", chrome)
+
     def test_nixpkgs_catching_up_clears_outdated(self):
         up = {"version": "154.0.8040.12", "url": "x", "newer": True}
         self.publish(

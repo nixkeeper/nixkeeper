@@ -156,6 +156,17 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   type there fails the check. Nothing the sync writes changes: two syncs
   with every package, before and after, wrote the same 5,401 files.
 
+- Whether a package is outdated, and against which version, is decided in
+  one place (`verdict.py`), from what each source found: Repology's
+  verdict, then the channel's version, a version feed, an up-to-date rule,
+  an update check, master's version and the update PRs, in that order.
+  The sync and the hourly checks decide it the same way, whatever order
+  they find things in. Each row whose verdict isn't Repology's keeps
+  Repology's beside it (`repologyVerdict`, in the rows only: 11,911 rows,
+  about 1.5 MB more data). Nothing else the sync writes changes: two syncs
+  with every package, before and after, wrote the same 5,401 files once
+  that field is set aside.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on
@@ -186,6 +197,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   preloaded with `app.js`. Nothing on the page changes.
 
 ### Fixed
+
+- The hourly checks decide a package's verdict as the sync does. The PR
+  check gave a package that follows another (follows.py) the version its
+  PRs bring, which the next sync took away again; the frequent check left
+  out a package's up-to-date rule after asking Repology again.
 
 - `nixkeeper page` replaces a folder's data as the sync replaces its own:
   the old `data/` is moved aside before the new one is moved in, so a host

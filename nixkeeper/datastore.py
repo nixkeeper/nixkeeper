@@ -67,6 +67,9 @@ PANEL_ONLY = (
     "homepage",
     "repoCount",
     "repologyCheckedAt",
+    # Repology's own verdict, for the next run to decide from (verdict.py):
+    # in the rows only.
+    "repologyVerdict",
     "source",
 )
 # The fields of a row's update check ("upstream") that its summary entry

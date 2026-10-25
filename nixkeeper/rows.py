@@ -13,7 +13,7 @@ import hashlib
 import os
 import re
 
-from . import config
+from . import config, verdict
 from .shape import Row
 from .sources.nixpkgs import platforms
 from .versions import (
@@ -924,7 +924,7 @@ def channel_versions(rows: list[Row], nixpkgs):
     nixkeeper-versions digest some hours after that (microsoft-edge
     154.0.4258.62, 2026-10-08). So nixVersion becomes the version in the
     package index the sync reads, when that's newer; repologyVersion keeps
-    Repology's, and nixStatus is worked out again against refVersion.
+    Repology's, and the verdict is decided again (verdict.decide).
     Repology's vulnerable flag, which is for its version, is dropped.
 
     This is only done when the row's attributes agree on one version, and
@@ -967,12 +967,7 @@ def channel_versions(rows: list[Row], nixpkgs):
         # tracker's and OSV's verdicts, checked against the channel's
         # version, stay.
         row.pop("nixVulnerable", None)
-        # Outdated without a refVersion (beads): left as Repology says.
-        ref = row.get("refVersion")
-        if row["nixStatus"] == "outdated" and ref and not is_newer(ref, ours):
-            # A kept series that caught up within its own series is kept
-            # again.
-            row["nixStatus"] = config.KEPT if row.get("keptBeside") else "newest"
+        verdict.decide(row)  # caught up, maybe (verdict._channel)
         changed.append(row["name"])
     return changed
 

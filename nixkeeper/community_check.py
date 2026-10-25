@@ -55,7 +55,16 @@ def run(names=None, file=None):
             )
             continue
         version = index[name].get("version")
-        checked.append({"name": name, "nixVersion": version, "refVersion": version})
+        # Only what the check finds is read: the verdict (verdict.decide)
+        # just needs one to start from.
+        checked.append(
+            {
+                "name": name,
+                "nixVersion": version,
+                "nixStatus": "newest",
+                "refVersion": version,
+            }
+        )
     now = datetime.now(UTC).isoformat()
     upstream.add_checks(checked, chosen, {"packages": []}, now, set(chosen))
     for row in checked:

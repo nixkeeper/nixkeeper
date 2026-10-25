@@ -2,8 +2,6 @@ import unittest
 
 from nixkeeper.changes import (
     ahead_on_master,
-    count_master,
-    count_prs,
     diff,
     failures,
     is_outdated,
@@ -12,6 +10,7 @@ from nixkeeper.changes import (
     should_notify,
     waiting_for_channel,
 )
+from nixkeeper.verdict import decide
 
 
 def row(name, status="newest", **extra):
@@ -210,7 +209,7 @@ class MasterAhead(unittest.TestCase):
     def test_master_becomes_the_version_to_update_to(self):
         r = row("wesnoth-devel", "devel", nixVersion="1.19.24", refVersion="1.19.24")
         r["master"] = "1.19.28"
-        count_master(r)
+        decide(r)
         self.assertEqual(r["refVersion"], "1.19.28")
         self.assertTrue(r["refFromMaster"])
         self.assertTrue(waiting_for_channel(r))
@@ -225,36 +224,36 @@ class MasterAhead(unittest.TestCase):
             masterPR={"to": "26.1007.71326"},
             openPR={"to": "26.1013.31256"},
         )
-        count_prs(r)
+        decide(r)
         self.assertEqual((r["refVersion"], r["refFromPR"]), ("26.1013.31256", True))
         # Once the PR is gone (the hourly check): none again.
         del r["openPR"], r["masterPR"]
-        count_prs(r)
+        decide(r)
         self.assertEqual((r["refVersion"], r.get("refFromPR")), (None, None))
         # A version named by Repology stays; so do rows not outdated.
         named = row("x", "outdated", refVersion="3", openPR={"to": "4"})
-        count_prs(named)
+        decide(named)
         self.assertEqual(named["refVersion"], "3")
         newest = row("y", "newest", openPR={"to": "4"})
-        count_prs(newest)
+        decide(newest)
         self.assertNotIn("refFromPR", newest)
         # Nor a PR to an older version.
         stale = row("z", "outdated", nixVersion="2", openPR={"to": "1"})
-        count_prs(stale)
+        decide(stale)
         self.assertNotIn("refFromPR", stale)
 
     def test_a_newer_known_release_stays(self):
         # unciv: master has 4.22.5, but 4.22.6 is out: still to do.
         r = row("unciv", "outdated", nixVersion="4.22.1", refVersion="4.22.6")
         r["master"] = "4.22.5"
-        count_master(r)
+        decide(r)
         self.assertEqual(r["refVersion"], "4.22.6")
         self.assertNotIn("refFromMaster", r)
         self.assertFalse(waiting_for_channel(r))
 
     def test_once_the_channel_catches_up(self):
         r = row("x", nixVersion="2", refVersion="2", master="2", refFromMaster=True)
-        count_master(r)
+        decide(r)
         self.assertNotIn("refFromMaster", r)
         self.assertFalse(is_outdated(r))
 
@@ -290,7 +289,7 @@ class WaitingForChannel(unittest.TestCase):
     def test_master_ahead_is_not_newly_outdated_news(self):
         before = {"packages": [row("wesnoth-devel", "devel", refVersion="1")]}
         now = row("wesnoth-devel", "devel", refVersion="1", master="1.1")
-        count_master(now)
+        decide(now)
         self.assertEqual(diff(before, [now])["outdated"], [])
 
     def test_not_newly_outdated_news(self):

@@ -646,7 +646,12 @@ class InTheChecks(unittest.TestCase):
 
     def rows(self):
         return [
-            {"name": "google-chrome", "nixVersion": "154.0.1", "refVersion": "154.0.1"}
+            {
+                "name": "google-chrome",
+                "nixVersion": "154.0.1",
+                "nixStatus": "newest",
+                "refVersion": "154.0.1",
+            }
         ]
 
     def test_a_community_rule_is_fetched_safely_and_marked(self):

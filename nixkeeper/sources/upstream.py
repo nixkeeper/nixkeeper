@@ -18,7 +18,7 @@ import urllib.parse
 from datetime import UTC, datetime, timedelta
 
 from .. import community as community_rules
-from .. import config, history, schedule
+from .. import config, history, schedule, verdict
 from ..shape import Row
 from ..versions import is_newer, version_key
 from . import github, http
@@ -95,35 +95,27 @@ def outdated_after(check):
     return {**OUTDATED_AFTER, **(check.get("outdatedAfter") or {})}
 
 
-def apply(row: Row, found, decides=True):
-    """Record an update check's result on its row.
+def record(row: Row, found):
+    """Record an update check's result on its row, for verdict.decide.
 
-    When upstream is ahead of nixpkgs, its version is also the one the row
-    is compared with, unless Repology has seen an even newer one.
-    found["newer"], when given, says whether it counts as ahead: a branch
-    check's newer commits may not count yet.
+    It's recorded with whether it counts as newer than nixpkgs' version
+    ("newer"). found["newer"], when given, says so already: a branch
+    check's newer commits may not count yet. How the result counts in the
+    verdict is verdict.decide's (_update_check).
 
     A rule's check (yours, the community's, or one it follows) is the
-    package's own source, as a version feed is. Where it and Repology
-    disagree on whether nixpkgs is outdated, the check decides, and what
-    Repology said is kept beside it ("repologySaid": its status and newest
-    version), for the page. That way the verdict is wrong only when the
-    rule is, while Repology's is wrong whenever one of its own rules lags
-    (google-chrome's "155 and up are betas", kept after 155 went stable).
-
-    Some results only add a newer version Repology hasn't seen, and don't
-    decide: a worked-out check's (inferred), and a rule's last result, kept
-    because it failed this time (decides False). A worked-out check doesn't
-    even add one for an older version kept beside a newer one, nor for the
-    version an up-to-date rule names. And no check decides for a kept
-    version (config.KEPT, or one outdated in its own series, still kept
-    beside a newer one): the newest release isn't the one to compare it
-    with.
+    package's own source, as a version feed is: where it and Repology
+    disagree on whether nixpkgs is outdated, the check decides. That way
+    the verdict is wrong only when the rule is, while Repology's is wrong
+    whenever one of its own rules lags (google-chrome's "155 and up are
+    betas", kept after 155 went stable). A worked-out check (inferred)
+    only adds a newer version Repology hasn't seen, and not even that for
+    an older version kept beside a newer one, nor for the version an
+    up-to-date rule names.
 
     Args:
         row: The row, changed in place.
         found: The check's result, {"version", "newer"?, "inferred"?, ...}.
-        decides: False for a rule's result kept from the last run.
     """
     kept = row.get("nixStatus") == config.KEPT or bool(row.get("keptBeside"))
     newer = found.get("newer")
@@ -148,30 +140,18 @@ def apply(row: Row, found, decides=True):
         # rule is about Repology's 7.0.0, another project's; GitHub's 2.12.1
         # is a real release).
         newer = False
-    found = {**found, "newer": newer}
-    row["upstream"] = found
-    # Repology's verdict from before a check decided: a row checked again
-    # (the hourly checks, between Repology refreshes) starts from it.
-    if said := row.pop("repologySaid", None):
-        row["nixStatus"], row["refVersion"] = said["status"], said.get("newest")
-    said = {"status": row.get("nixStatus")}
-    if row.get("refVersion"):
-        said["newest"] = row["refVersion"]
-    if newer and not is_newer(row.get("refVersion") or "", found["version"]):
-        row["refVersion"] = found["version"]
-    if (
-        decides
-        and not found.get("inferred")
-        and row.get("nixVersion")
-        and not kept
-        and newer != (row.get("nixStatus") in config.OUTDATED_STATUSES)
-    ):
-        row["repologySaid"] = said
-        row["nixStatus"] = "outdated" if newer else "newest"
-        if not newer:
-            # Nothing newer to update to (Repology's "newest elsewhere" was
-            # older, or not newer by the check), as with an up-to-date rule.
-            row["refVersion"] = None
+    row["upstream"] = {**found, "newer": newer}
+
+
+def apply(row: Row, found):
+    """Record an update check's result on its row, and decide its verdict again.
+
+    Args:
+        row: The row, changed in place.
+        found: The check's result (record).
+    """
+    record(row, found)
+    verdict.decide(row)
 
 
 def fingerprint(check):
@@ -286,8 +266,11 @@ def add_checks(
         print(f"::warning::update check for {name}: {why}", file=sys.stderr)
         old = before.get(name) or {}
         if old.get("upstream"):
-            apply(by_name[name], old["upstream"], decides=False)
+            # Kept, but not deciding: the verdict is decided again once the
+            # row is marked not refreshed (verdict._update_check).
+            record(by_name[name], old["upstream"])
         history.not_refreshed(by_name[name], "upstream", why, old, now)
+        verdict.decide(by_name[name])
 
     def found(name, version, where, what, **extra):
         """Record a check's result for name, or that nothing matched in where."""

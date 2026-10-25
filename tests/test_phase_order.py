@@ -1,13 +1,17 @@
 """The order of the steps that decide a row's verdict, in sync.py.
 
 A row's verdict (nixStatus, refVersion, and whether it reads as outdated)
-is built by several steps in turn, each reading what the ones before it
-left. Order reads them from sync.py's source, in the order sync.main runs
-them, so moving one (or calling it twice) fails there. Reordered shows why
-the order matters, pair by pair: on a few rows, the two steps the other
-way round give another verdict. Some neighbours have no such pair (the
-two kinds of update checks cover different rows); Order still keeps
-them where they are.
+is decided from what the sources found (verdict.decide), in whatever order
+they recorded it (tests/test_verdict.py). Some steps still depend on the
+order: those that read the verdict, or a finding, as they record (an
+up-to-date rule is checked against the verdict so far), and verdict.decide
+itself, after the findings it takes in. Order reads them from sync.py's
+source, in the order sync.main runs them, so moving one (or calling it a
+time more or less) fails there. Reordered shows why the order matters,
+pair by pair: on a few rows, the two steps the other way round give
+another verdict. Some neighbours have no such pair (the two kinds of
+update checks cover different rows); Order still keeps them where they
+are.
 """
 
 import ast
@@ -17,10 +21,10 @@ import io
 import unittest
 from unittest import mock
 
-from nixkeeper import changes, follows, history, sync, uptodate
+from nixkeeper import changes, follows, history, sync, uptodate, verdict
 from nixkeeper.rows import channel_versions
 from nixkeeper.shape import Row
-from nixkeeper.sources import feeds, nixpkgs_update, upstream
+from nixkeeper.sources import nixpkgs_update, upstream
 from tests.helpers import pkg
 
 # The steps that change or read a row's verdict, in the order sync.main
@@ -32,12 +36,12 @@ VERDICT_STEPS = [
     "releases_digest.apply",
     "upstream.add_checks",
     "hydra.add_builds",
-    "count_master",
+    "verdict.decide",
     "follows.apply_versions",
     "history.add_outdated_since",
     "nixpkgs_update.add_attempts",
-    "count_prs",
     "follows.apply_prs",
+    "verdict.decide",
     "nixpkgs_update.recheck_superseded",
 ]
 
@@ -111,7 +115,7 @@ class Typed(unittest.TestCase):
                     self.assertIn(first.annotation, (Row, list[Row]))
 
 
-def verdict(row):
+def outcome(row):
     """What a step's order can change: the verdict, and where it came from."""
     return {
         "nixStatus": row.get("nixStatus"),
@@ -148,7 +152,7 @@ class Reordered(unittest.TestCase):
             rows = make_rows()
             for step in steps:
                 step(rows)
-            results.append([verdict(row) for row in rows])
+            results.append([outcome(row) for row in rows])
         in_order, reordered = results
         self.assertNotEqual(in_order, reordered)
         return in_order, reordered
@@ -172,17 +176,6 @@ class Reordered(unittest.TestCase):
         )
         self.assertEqual((row["nixStatus"], row["upToDate"]), ("newest", False))
 
-    def test_a_feed_before_an_up_to_date_rule(self):
-        # The rule says the feed's 2.0 isn't a real release: it has the last
-        # word. The other way round, the feed would.
-        rule = {"p": {"version": "1.0", "newest": "2.0", "reason": "x"}}
-        (row,), _ = self.both_ways(
-            lambda: [{"name": "p", "nixVersion": "1.0", "nixStatus": "newest"}],
-            lambda rows: feeds.compare(rows[0], "Feed", "2.0", "https://feed"),
-            lambda rows: uptodate.apply(rows, rule),
-        )
-        self.assertEqual((row["nixStatus"], row["outdated"]), ("newest", False))
-
     def test_an_up_to_date_rule_before_the_update_checks(self):
         # The rule names 1.1 as not a real release, which silences a
         # worked-out check finding it. The other way round, the check would
@@ -202,32 +195,15 @@ class Reordered(unittest.TestCase):
         )
         self.assertFalse(row["outdated"])
 
-    def test_the_update_checks_before_master(self):
-        # Master's 1.2 is older than the check's 1.5: the version to update
-        # to isn't master's. The other way round, the row would say it is.
-        (row,), _ = self.both_ways(
-            lambda: [
-                {
-                    "name": "p",
-                    "nixVersion": "1.0",
-                    "nixStatus": "newest",
-                    "master": "1.2",
-                }
-            ],
-            lambda rows: upstream.apply(rows[0], {"version": "1.5"}),
-            lambda rows: changes.count_master(rows[0]),
-        )
-        self.assertEqual((row["refVersion"], row["refFromMaster"]), ("1.5", None))
-
     def test_hydras_builds_before_master(self):
         # Hydra's builds say what master has (hydra.add_builds sets
         # "master", as the first step here does: test_hydra's
-        # test_add_builds_records_it checks it does), which count_master then
+        # test_add_builds_records_it checks it does), which deciding then
         # takes. The other way round, there'd be nothing to take.
         (row,), _ = self.both_ways(
             lambda: [{"name": "p", "nixVersion": "1.0", "nixStatus": "newest"}],
             lambda rows: rows[0].update(master="2.0"),
-            lambda rows: changes.count_master(rows[0]),
+            lambda rows: verdict.decide(rows[0]),
         )
         self.assertEqual((row["refVersion"], row["refFromMaster"]), ("2.0", True))
 
@@ -244,9 +220,9 @@ class Reordered(unittest.TestCase):
         )
         self.assertEqual(row["update"], "superseded")
 
-    def test_master_before_the_follows(self):
+    def test_deciding_master_before_the_follows(self):
         # The follower takes the version master has for the package it
-        # follows. The other way round, it would take the channel's.
+        # follows, once decided. The other way round, it would take the channel's.
         def make_rows():
             followed = {"name": "a", "nixVersion": "1.0", "master": "2.0"}
             followed["nixStatus"] = "newest"
@@ -254,7 +230,7 @@ class Reordered(unittest.TestCase):
 
         (_, follower), _ = self.both_ways(
             make_rows,
-            lambda rows: [changes.count_master(row) for row in rows],
+            lambda rows: [verdict.decide(row) for row in rows],
             lambda rows: follows.apply_versions(rows, {"b": "a"}, "NOW"),
         )
         self.assertEqual(
@@ -277,29 +253,10 @@ class Reordered(unittest.TestCase):
         )
         self.assertEqual(follower["outdatedSince"], "NOW")
 
-    def test_master_before_the_update_prs(self):
-        # Master's 2.0 is the version to update to; an open PR's 3.0 only
-        # counts when nothing else names one. The other way round, the PR's
-        # would.
-        (row,), _ = self.both_ways(
-            lambda: [
-                {
-                    "name": "p",
-                    "nixVersion": "1.0",
-                    "nixStatus": "outdated",
-                    "master": "2.0",
-                    "openPR": {"to": "3.0"},
-                }
-            ],
-            lambda rows: changes.count_master(rows[0]),
-            lambda rows: changes.count_prs(rows[0]),
-        )
-        self.assertEqual((row["refVersion"], row["refFromMaster"]), ("2.0", True))
-
-    def test_the_update_prs_before_the_follows_prs(self):
-        # A follower's version comes from the package it follows, not from
-        # that package's PRs, which it's given after. The other way round,
-        # the PR's version would be the follower's own.
+    def test_the_follows_prs_before_deciding(self):
+        # A follower has the same PRs as the package it follows, so the
+        # version they bring is its too, as the hourly PR check finds. The
+        # other way round, it would be left without one.
         def make_rows():
             followed = {"name": "a", "nixVersion": "1.0", "nixStatus": "outdated"}
             followed["openPR"] = {"to": "3.0"}
@@ -308,10 +265,10 @@ class Reordered(unittest.TestCase):
 
         (_, follower), _ = self.both_ways(
             make_rows,
-            lambda rows: [changes.count_prs(row) for row in rows],
             lambda rows: follows.apply_prs(rows, {"b": "a"}),
+            lambda rows: [verdict.decide(row) for row in rows],
         )
-        self.assertIsNone(follower["refVersion"])
+        self.assertEqual(follower["refVersion"], "3.0")
 
     def test_the_follows_prs_before_superseding(self):
         # A PR merged into master for the package it follows supersedes the

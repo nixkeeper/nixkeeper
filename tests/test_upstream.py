@@ -109,15 +109,17 @@ class Decides(unittest.TestCase):
         self.assertNotIn("repologySaid", r)  # agreeing now: nothing overruled
 
     def test_worked_out_failed_or_kept_dont_decide(self):
-        for found, decides, status in (
-            ({**self.CHROME, "inferred": True}, True, "outdated"),
-            (self.CHROME, False, "outdated"),  # the last result of a failing rule
-            (self.CHROME, True, "legacy"),  # kept beside a newer one
+        for found, failing, status in (
+            ({**self.CHROME, "inferred": True}, False, "outdated"),
+            (self.CHROME, True, "outdated"),  # the last result of a failing rule
+            (self.CHROME, False, "legacy"),  # kept beside a newer one
         ):
-            with self.subTest(found=found, decides=decides, status=status):
+            with self.subTest(found=found, failing=failing, status=status):
                 r = self.chrome()
                 r["nixStatus"] = status
-                upstream.apply(r, found, decides=decides)
+                if failing:  # as add_checks marks it, keeping its result
+                    r["notRefreshed"] = {"upstream": {"since": "x", "reason": "x"}}
+                upstream.apply(r, found)
                 self.assertEqual(r["nixStatus"], status)
                 self.assertEqual(r["refVersion"], "154.0.8037.97")
                 self.assertNotIn("repologySaid", r)

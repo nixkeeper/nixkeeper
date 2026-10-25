@@ -82,6 +82,7 @@ class Row(TypedDict, total=False):
     repologyCheckedAt: str
     repologyVersion: str
     repologySaid: dict
+    repologyVerdict: dict
     onlyNixpkgs: bool
     staleSince: str
     upstream: dict

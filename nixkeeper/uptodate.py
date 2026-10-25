@@ -27,6 +27,7 @@ naming it, as a wrong Repology verdict is.
 
 import sys
 
+from . import verdict
 from .shape import Row
 from .versions import is_newer
 
@@ -85,7 +86,6 @@ def apply(rows: list[Row], rules, community=frozenset()):
         if name in community:
             found["community"] = True
         row["upToDate"] = found
-        row["nixStatus"] = "newest"
-        row["refVersion"] = None
+        verdict.decide(row)  # newest (verdict._up_to_date)
         marked.append(name)
     return marked

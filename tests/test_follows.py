@@ -6,10 +6,11 @@ import unittest
 from unittest import mock
 
 from nixkeeper import community, community_check, follows, listcheck
-from nixkeeper.changes import count_master, is_outdated
+from nixkeeper.changes import is_outdated
 from nixkeeper.history import add_outdated_since
 from nixkeeper.sources import nixpkgs as nixpkgs_source
 from nixkeeper.sources import upstream
+from nixkeeper.verdict import decide
 
 NOW = "2026-10-02T06:00:00+00:00"
 EDGE_PR = {"number": 569248, "title": "microsoft-edge: 154.0.4258.48 -> 154.0.4258.53"}
@@ -77,7 +78,7 @@ class Versions(unittest.TestCase):
         # Edge's newest known only on master: the follower gets that too.
         rows = [edge(refVersion="154.0.4258.37", master="154.0.4258.48"), driver()]
         for row in rows:
-            count_master(row)
+            decide(row)
         follows.apply_versions(rows, RULE, NOW)
         self.assertEqual(rows[1]["refVersion"], "154.0.4258.48")
 

@@ -42,9 +42,10 @@ from . import (
     timing,
     tracking,
     uptodate,
+    verdict,
     version,
 )
-from .changes import count_master, count_prs, is_outdated
+from .changes import is_outdated
 from .sources import (
     about,
     branches,
@@ -482,10 +483,10 @@ def builds(run, index_rows, broken, fetched, following, from_community):
     # page can link to it.
     rows.name_blockers(index_rows)
     # Master can make a row outdated by having a newer version than the
-    # channel: counted after the update checks and Hydra, and before
-    # "outdated since".
+    # channel (verdict._master): decided again once Hydra has said what
+    # master has, before "outdated since".
     for row in index_rows:
-        count_master(row)
+        verdict.decide(row)
     # A package updated together with another gets that one's newest
     # version, once master is counted for it.
     follows.apply_versions(index_rows, following, run.now, from_community)
@@ -576,12 +577,12 @@ def github_and_staging(run, scope, index_rows, following):
     branches.apply_staging_next_breaks(shown, staging_next, cycles.get("open"))
     # Which dependency failing on staging-next stops which packages there.
     branches.apply_staging_next_blocked(index_rows, staging_next)
-    # An outdated package with no newer version named takes the newest its
-    # update PRs bring.
-    for row in outdated:
-        count_prs(row)
     # A package updated together with another has the same PRs.
     follows.apply_prs(index_rows, following)
+    # An outdated package with no newer version named takes the newest its
+    # update PRs bring (verdict._update_prs).
+    for row in outdated:
+        verdict.decide(row)
     nixpkgs_update.recheck_superseded(outdated)
     return prs
 

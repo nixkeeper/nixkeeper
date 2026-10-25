@@ -6,7 +6,8 @@ import unittest
 from unittest import mock
 
 from nixkeeper import uptodate
-from nixkeeper.changes import count_master, is_outdated
+from nixkeeper.changes import is_outdated
+from nixkeeper.verdict import decide
 
 RULE = {"version": "2018-05-16", "newest": "1.1.1", "reason": "A snapshot."}
 
@@ -70,7 +71,7 @@ class Applies(unittest.TestCase):
     def test_master_still_counts(self):
         row = pacvim(master="2019-01-01")
         apply([row], {"pacvim": RULE})
-        count_master(row)
+        decide(row)
         self.assertTrue(is_outdated(row))
 
 
