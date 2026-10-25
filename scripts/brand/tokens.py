@@ -79,9 +79,8 @@ def role(r):
 
 
 roles = {name: role(ramps[r]) for name, r in ROLES.items()}
-# The sets updated in bulk, beside the accent (the page's --bulk): another
-# shade of the logo's, so the split doesn't read as progress. Only a fill, so
-# not a role: the mark's two ends, its mauve, and in the dark its violet shade.
+# The bulk sets' fill (the page's --bulk): the mark's mauve, its violet shade
+# in the dark. Only a fill, so not one of ROLES.
 bulk = {"light": {"fill": brand["mauve"]}, "dark": {"fill": brand["violet-shade"]}}
 fonts = {
     "ui": '"Instrument Sans", system-ui, sans-serif',  # the page, and the wordmark

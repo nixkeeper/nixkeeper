@@ -124,6 +124,19 @@
           url = "https://raw.githubusercontent.com/google/fonts/5174b3333331c966c38f4355d50b03ca1c1df2f9/ofl/oxanium/Oxanium%5Bwght%5D.ttf";
           hash = "sha256-LOAdlG4eH/yNfuz/+9qGI77dY+r4EaIEiMS2mvRbq7A=";
         };
+        # The brand files page/ has as copies of assets/brand/'s, as globs: the
+        # brand app copies them, checks.brand holds each copy to its source.
+        brandCopies = [
+          "favicon*.svg"
+          "nixkeeper-lockup-tight*.svg"
+          "tokens.css"
+        ];
+        isBrandCopy =
+          name:
+          lib.any (
+            glob: builtins.match (lib.replaceStrings [ "." "*" ] [ "\\." ".*" ] glob) name != null
+          ) brandCopies;
+
         # Regenerates the brand assets in assets/brand/ (scripts/brand/): the
         # mark's SVGs, the lockups with the wordmark outlined, the colour
         # tokens, the identity sheet, and the page's copies of the favicons,
@@ -142,9 +155,10 @@
                 python3 scripts/brand/generate.py assets/brand ${oxanium}
                 python3 scripts/brand/tokens.py assets/brand
                 python3 scripts/brand/identity.py assets/brand
-                cp assets/brand/favicon*.svg page/
-                cp assets/brand/nixkeeper-lockup-tight*.svg page/
-                cp assets/brand/tokens.css page/tokens.css
+                cd assets/brand
+                for f in ${lib.concatStringsSep " " brandCopies}; do
+                  cp "$f" ../../page/
+                done
               '';
             }
           );
@@ -306,34 +320,42 @@
             bash tests/sh/cloudflare.sh
             touch $out
           '';
-          # The brand files: assets/brand/'s tokens as scripts/brand/tokens.py
-          # writes them, and page/'s copies of the favicons, the lockups and the
-          # tokens as assets/brand/ has them. A hand edit, or a copy left
-          # behind, fails here; nix run .#brand writes them all again.
+          # page/'s brand files match assets/brand/, and assets/brand/'s tokens
+          # match what tokens.py writes.
           brand =
             let
+              copies = lib.concatStringsSep " " brandCopies;
               src = lib.fileset.toSource {
                 root = ./.;
                 fileset = lib.fileset.unions [
-                  ./scripts/brand
-                  ./assets/brand
-                  ./page
+                  ./scripts/brand/tokens.py
+                  ./scripts/brand/geometry.py
+                  ./assets/brand/tokens.json
+                  (lib.fileset.fileFilter (f: isBrandCopy f.name) ./assets/brand)
+                  (lib.fileset.fileFilter (f: isBrandCopy f.name) ./page)
                 ];
               };
             in
             pkgs.runCommand "nixkeeper-brand-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-              cd ${src}
               drift() {
-                echo "$1 differs from what it's made from: run nix run .#brand" >&2
+                echo "$1: $2" >&2
                 exit 1
               }
+              cd ${src}
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/brand/tokens.py "$TMPDIR/tokens" > /dev/null
               for f in tokens.css tokens.json; do
-                cmp -s "$TMPDIR/tokens/$f" "assets/brand/$f" || drift "assets/brand/$f"
+                cmp -s "$TMPDIR/tokens/$f" "assets/brand/$f" ||
+                  drift "assets/brand/$f" "differs from what scripts/brand/tokens.py writes: edit that, then run nix run .#brand"
               done
-              for f in assets/brand/favicon*.svg assets/brand/nixkeeper-lockup-tight*.svg assets/brand/tokens.css; do
-                copy="page/''${f#assets/brand/}"
-                cmp -s "$f" "$copy" || drift "$copy"
+              cd ${src}/assets/brand
+              for f in ${copies}; do
+                cmp -s "$f" "../../page/$f" ||
+                  drift "page/$f" "differs from assets/brand/$f: run nix run .#brand"
+              done
+              cd ${src}/page
+              for f in ${copies}; do
+                [ -e "../assets/brand/$f" ] ||
+                  drift "page/$f" "has no source in assets/brand/: remove it"
               done
               touch $out
             '';
