@@ -34,12 +34,11 @@ import json
 import re
 import sys
 import urllib.error
-from datetime import datetime, timedelta
 
 from .. import config
 from ..changes import COUNTED_VULNERABILITIES
 from ..versions import version_key
-from . import about, http, nixpkgs
+from . import about, digests, http, nixpkgs
 
 # The digest's format this nixkeeper reads.
 FORMAT = 1
@@ -63,8 +62,7 @@ def current(meta, now):
     tracker = meta.get("tracker") or {}
     if not tracker.get("complete") or not tracker.get("readAt"):
         return None
-    read = datetime.fromisoformat(tracker["readAt"])
-    hours = (datetime.fromisoformat(now) - read) / timedelta(hours=1)
+    hours = digests.hours_since(tracker["readAt"], now)
     if hours > config.VULNERABILITIES_DIGEST_MAX_AGE_HOURS:
         return None
     return f"read {hours:.0f} h ago"
@@ -85,9 +83,7 @@ def load(now):
     if not base:
         return None
     try:
-        meta = json.loads(http.get(base + "meta.json") or "null")
-        if not meta or meta.get("format") != FORMAT:
-            raise ValueError(f"no digest in a format this nixkeeper reads ({base})")
+        meta = digests.read_meta(base, FORMAT)
         why = current(meta, now)
         if not why:
             about.note("tracker", False, "not read through yet, or too old")
@@ -97,15 +93,11 @@ def load(now):
                 file=sys.stderr,
             )
             return None
-        body = http.get_bytes(base + "vulnerabilities.json.gz")
-        if body is None:
-            raise ValueError("its vulnerabilities.json.gz is missing")
-        found = json.loads(gzip.decompress(body))
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note("tracker", False, f"couldn't be read ({e})")
-        print(
-            f"::warning::Vulnerabilities digest: couldn't use it ({e})", file=sys.stderr
+        found = json.loads(
+            gzip.decompress(digests.download(base, "vulnerabilities.json.gz"))
         )
+    except digests.FAILURES as e:
+        digests.give_up("tracker", "Vulnerabilities digest", e)
         return None
     tracker, osv = meta.get("tracker") or {}, meta.get("osv") or {}
     digest = {"tracker": found.get("tracker") or {}, "osv": found.get("osv") or {}}

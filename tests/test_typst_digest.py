@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config
-from nixkeeper.sources import about, feeds, typst_digest
+from nixkeeper.sources import about, http, typst_digest
 
 NOW = "2026-10-08T06:00:00+00:00"
 PACKAGES = {
@@ -109,7 +109,7 @@ class Load(unittest.TestCase):
 
     def serve(self, body):
         data = None if body is None else gzip.compress(json.dumps(body).encode())
-        return mock.patch.object(feeds.http, "get_bytes", return_value=data)
+        return mock.patch.object(http, "get_bytes", return_value=data)
 
     def test_current(self):
         body = {

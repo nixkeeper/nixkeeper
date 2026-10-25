@@ -8,7 +8,7 @@ from unittest import mock
 
 from nixkeeper import config
 from nixkeeper.changes import is_outdated
-from nixkeeper.sources import about, feeds, releases_digest
+from nixkeeper.sources import about, http, releases_digest
 
 NOW = "2026-10-09T06:00:00+00:00"
 
@@ -132,7 +132,7 @@ class Load(unittest.TestCase):
         )
         return (
             mock.patch.object(config, "VERSIONS_DIGEST_URL", "https://example.org/d/"),
-            mock.patch.object(feeds.http, "get_bytes", return_value=body),
+            mock.patch.object(http, "get_bytes", return_value=body),
             mock.patch("sys.stderr", io.StringIO()),
         )
 

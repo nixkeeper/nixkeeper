@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config
-from nixkeeper.sources import about, emacs_digest, feeds
+from nixkeeper.sources import about, emacs_digest, http
 
 NOW = "2026-10-08T06:00:00+00:00"
 # Trimmed from nixkeeper-versions' emacs.json.gz (2026-10-07).
@@ -123,13 +123,13 @@ class Load(unittest.TestCase):
             "archives": ARCHIVES,
         }
         data = gzip.compress(json.dumps(body).encode())
-        with mock.patch.object(feeds.http, "get_bytes", return_value=data):
+        with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(emacs_digest.load(NOW), ARCHIVES)
         noted = about.taken()["emacs"]
         self.assertEqual((noted["used"], noted["melpa"], noted["gnu"]), (True, 3, 3))
 
     def test_missing(self):
-        with mock.patch.object(feeds.http, "get_bytes", return_value=None):
+        with mock.patch.object(http, "get_bytes", return_value=None):
             self.assertIsNone(emacs_digest.load(NOW))
         self.assertIn("no emacs.json.gz yet", about.taken()["emacs"]["why"])
 

@@ -24,13 +24,12 @@ the digest.
 import json
 import re
 import sys
-import urllib.error
 from datetime import datetime, timedelta
 
 from .. import config
 from ..changes import is_vulnerable
 from ..versions import is_newer, version_key
-from . import about, github, http
+from . import about, digests, github, http
 
 FORMAT = 1
 # The update bot (nixpkgs-update), as GitHub names it.
@@ -683,9 +682,7 @@ def load(now, revision):
     if not base:
         return None
     try:
-        meta = json.loads(http.get(base + "meta.json") or "null")
-        if not meta or meta.get("format") != FORMAT:
-            raise ValueError(f"no digest in a format this nixkeeper reads ({base})")
+        meta = digests.read_meta(base, FORMAT)
         issues_meta = meta.get("issues") or {}
         merged_meta = meta.get("merged") or {}
         staging_meta = meta.get("staging") or {}
@@ -736,12 +733,8 @@ def load(now, revision):
                 ],
                 "stagingNext": data.get("stagingNext") or {},
             }
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note("prs", False, f"couldn't be read ({e})")
-        print(
-            f"::warning::PRs digest: couldn't use it ({e}); listing them here",
-            file=sys.stderr,
-        )
+    except digests.FAILURES as e:
+        digests.give_up("prs", "PRs digest", e, "; listing them here")
         return None
     used = found["open"] is not None or found["merged"] is not None
     about.note(

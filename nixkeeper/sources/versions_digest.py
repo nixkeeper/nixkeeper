@@ -14,11 +14,9 @@ import gzip
 import io
 import json
 import sys
-import urllib.error
-from datetime import datetime, timedelta
 
 from .. import config
-from . import about, http
+from . import about, digests
 
 # The digest's format this nixkeeper reads.
 FORMAT = 1
@@ -30,8 +28,8 @@ def current(meta, now):
     It is when its outdated projects were read within
     VERSIONS_DIGEST_MAX_AGE_HOURS; its workflow runs daily.
     """
-    age = datetime.fromisoformat(now) - datetime.fromisoformat(meta["outdatedAt"])
-    return age <= timedelta(hours=config.VERSIONS_DIGEST_MAX_AGE_HOURS)
+    hours = digests.hours_since(meta["outdatedAt"], now)
+    return hours <= config.VERSIONS_DIGEST_MAX_AGE_HOURS
 
 
 def projects_of(lines, attrs):
@@ -82,12 +80,8 @@ def load(attrs, now):
     if not base:
         return None
     try:
-        meta = json.loads(http.get(base + "meta.json") or "null")
-        if not meta or meta.get("format") != FORMAT:
-            raise ValueError(f"no digest in a format this nixkeeper reads ({base})")
-        body = http.get_bytes(base + "projects.jsonl.gz")
-        if body is None:
-            raise ValueError("its projects.jsonl.gz is missing")
+        meta = digests.read_meta(base, FORMAT)
+        body = digests.download(base, "projects.jsonl.gz")
         with gzip.open(io.BytesIO(body), "rt") as lines:
             found = projects_of(lines, set(attrs))
         if not current(meta, now):
@@ -106,12 +100,9 @@ def load(attrs, now):
                 file=sys.stderr,
             )
             return Stale(found)
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note("versions", False, f"couldn't be read ({e})")
-        print(
-            f"::warning::Versions digest: couldn't use it ({e}); looking packages "
-            "up on Repology",
-            file=sys.stderr,
+    except digests.FAILURES as e:
+        digests.give_up(
+            "versions", "Versions digest", e, "; looking packages up on Repology"
         )
         return None
     print(

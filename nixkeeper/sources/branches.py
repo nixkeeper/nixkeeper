@@ -15,16 +15,12 @@ platform, as of Hydra's newest evaluation of it. It also gives a forecast of
 what staging-next will break or block once it's merged.
 """
 
-import gzip
-import json
 import re
 import sys
-import urllib.error
-from datetime import datetime, timedelta
 
 from .. import config
 from ..versions import is_newer, version_key
-from . import about, http
+from . import about, digests
 
 # The files' format this nixkeeper reads.
 FORMAT = 1
@@ -57,15 +53,9 @@ def load(branch, now):
         return None
     source = f"branch:{branch}"
     try:
-        body = http.get_bytes(f"{base}{branch}.json.gz")
-        if body is None:
-            raise ValueError(f"no {branch}.json.gz yet")
-        found = json.loads(gzip.decompress(body))
-        if found.get("format") != FORMAT:
-            raise ValueError("not in a format this nixkeeper reads")
+        found = digests.read_json_gz(base, f"{branch}.json.gz", FORMAT)
         at = found["fetchedAt"]
-        age = datetime.fromisoformat(now) - datetime.fromisoformat(at)
-        if age > timedelta(hours=MAX_AGE_HOURS):
+        if digests.hours_since(at, now) > MAX_AGE_HOURS:
             about.note(source, False, "too old", at=at)
             print(f"::warning::{branch}: not used, read {at}", file=sys.stderr)
             return None
@@ -82,9 +72,8 @@ def load(branch, now):
                 "status": job["status"],
                 "build": job["build"],
             }
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note(source, False, f"couldn't be read ({e})")
-        print(f"::warning::{branch}: couldn't use it ({e})", file=sys.stderr)
+    except digests.FAILURES as e:
+        digests.give_up(source, branch, e)
         return None
     print(
         f"{branch}: evaluation {found['eval']}, {len(jobs):,} jobs, read {at}",
@@ -117,15 +106,9 @@ def load_staging_next(now):
         return None
     source = f"branch:{STAGING_NEXT}"
     try:
-        body = http.get_bytes(f"{base}{STAGING_NEXT}.json.gz")
-        if body is None:
-            raise ValueError(f"no {STAGING_NEXT}.json.gz yet")
-        found = json.loads(gzip.decompress(body))
-        if found.get("format") != FORMAT:
-            raise ValueError("not in a format this nixkeeper reads")
+        found = digests.read_json_gz(base, f"{STAGING_NEXT}.json.gz", FORMAT)
         at = found["fetchedAt"]
-        age = datetime.fromisoformat(now) - datetime.fromisoformat(at)
-        if age > timedelta(hours=MAX_AGE_HOURS):
+        if digests.hours_since(at, now) > MAX_AGE_HOURS:
             about.note(source, False, "too old", at=at)
             print(f"::warning::{STAGING_NEXT}: not used, read {at}", file=sys.stderr)
             return None
@@ -142,9 +125,8 @@ def load_staging_next(now):
                 "blockedBy": (job.get("blockedBy") or "").split(),
             }
         info = {"eval": found["eval"], "evaluatedAt": found.get("evaluatedAt")}
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note(source, False, f"couldn't be read ({e})")
-        print(f"::warning::{STAGING_NEXT}: couldn't use it ({e})", file=sys.stderr)
+    except digests.FAILURES as e:
+        digests.give_up(source, STAGING_NEXT, e)
         return None
     print(
         f"{STAGING_NEXT}: evaluation {found['eval']} "

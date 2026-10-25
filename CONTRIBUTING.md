@@ -181,6 +181,9 @@ Around that:
   `share/nixkeeper/www/`); from a checkout, `page/` itself
 - `versions.py`: comparing version strings
 - `sources/http.py`: GET with retries, for the sources that need no more
+- `sources/digests.py`: what every digest reader shares: reading a digest's
+  `meta.json` or a file that describes itself, checking its format and
+  age, and giving up on it (the note for the sources panel, the warning)
 - `frequent.py`, `prcheck.py`: the hourly checks, which start from the last
   published data and publish through `partial.py` only when a row changed
 

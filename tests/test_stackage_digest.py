@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config
-from nixkeeper.sources import about, feeds, stackage_digest
+from nixkeeper.sources import about, http, stackage_digest
 
 NOW = "2026-10-08T06:00:00+00:00"
 # Trimmed from nixkeeper-versions' stackage.json.gz (2026-10-07).
@@ -89,7 +89,7 @@ class Load(unittest.TestCase):
 
     def test_current(self):
         data = gzip.compress(json.dumps(FOUND).encode())
-        with mock.patch.object(feeds.http, "get_bytes", return_value=data):
+        with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(stackage_digest.load(NOW)["snapshot"], "lts-24.62")
         noted = about.taken()["stackage"]
         self.assertEqual(

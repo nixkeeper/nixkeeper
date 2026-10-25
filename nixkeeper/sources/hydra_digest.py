@@ -11,14 +11,12 @@ everything when the digest isn't current or can't be read.
 import csv
 import gzip
 import io
-import json
 import re
 import sys
 import urllib.error
-from datetime import datetime, timedelta
 
 from .. import config
-from . import about, http
+from . import about, digests, http
 
 # The digest's format this nixkeeper reads.
 FORMAT = 1
@@ -62,8 +60,7 @@ def current(meta, now):
         meta: The digest's meta.json.
         now: The run's time.
     """
-    read = datetime.fromisoformat(meta["fetchedAt"])
-    hours = (datetime.fromisoformat(now) - read) / timedelta(hours=1)
+    hours = digests.hours_since(meta["fetchedAt"], now)
     try:
         newest = newest_eval()
     except (urllib.error.URLError, OSError, ValueError) as e:
@@ -88,9 +85,7 @@ def load(now):
     if not base:
         return None
     try:
-        meta = json.loads(http.get(base + "meta.json") or "null")
-        if not meta or meta.get("format") != FORMAT:
-            raise ValueError(f"no digest in a format this nixkeeper reads ({base})")
+        meta = digests.read_meta(base, FORMAT)
         why = current(meta, now)
         if not why:
             about.note(
@@ -102,18 +97,10 @@ def load(now):
                 file=sys.stderr,
             )
             return None
-        body = http.get_bytes(base + "builds.csv.gz")
-        if body is None:
-            raise ValueError("its builds.csv.gz is missing")
-        text = gzip.decompress(body).decode()
+        text = gzip.decompress(digests.download(base, "builds.csv.gz")).decode()
         rows = {(r["attr"], r["system"]): r for r in csv.DictReader(io.StringIO(text))}
-    except (urllib.error.URLError, OSError, ValueError, KeyError, csv.Error) as e:
-        about.note("hydra", False, f"couldn't be read ({e})")
-        print(
-            f"::warning::Hydra digest: couldn't use it ({e}); asking Hydra about "
-            "each job",
-            file=sys.stderr,
-        )
+    except (*digests.FAILURES, csv.Error) as e:
+        digests.give_up("hydra", "Hydra digest", e, "; asking Hydra about each job")
         return None
     print(f"Hydra digest: {len(rows):,} jobs, {why}", file=sys.stderr)
     about.note("hydra", True, at=meta["fetchedAt"], eval=meta["eval"])

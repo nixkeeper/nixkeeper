@@ -10,15 +10,11 @@ with its set's rows by its own rules. Each such row then says what it was
 compared with ("feed", set by compare).
 """
 
-import gzip
-import json
 import sys
-import urllib.error
-from datetime import datetime, timedelta
 
 from .. import config
 from ..versions import version_key
-from . import about, http
+from . import about, digests
 
 # The files' format this nixkeeper reads.
 FORMAT = 1
@@ -42,27 +38,17 @@ def load(file, source, label, now):
     if not base:
         return None
     try:
-        body = http.get_bytes(base + file)
-        if body is None:
-            raise ValueError(f"no {file} yet")
-        found = json.loads(gzip.decompress(body))
-        if found.get("format") != FORMAT:
-            raise ValueError(f"not in a format this nixkeeper reads ({base}{file})")
+        found = digests.read_json_gz(base, file, FORMAT)
         at = found["fetchedAt"]
-        age = datetime.fromisoformat(now) - datetime.fromisoformat(at)
-        if age > timedelta(hours=config.VERSIONS_DIGEST_MAX_AGE_HOURS):
+        if digests.hours_since(at, now) > config.VERSIONS_DIGEST_MAX_AGE_HOURS:
             about.note(source, False, "too old", at=at)
             print(
                 f"::warning::{label}: not used, read {at}; Repology's stay",
                 file=sys.stderr,
             )
             return None
-    except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
-        about.note(source, False, f"couldn't be read ({e})")
-        print(
-            f"::warning::{label}: couldn't use it ({e}); Repology's stay",
-            file=sys.stderr,
-        )
+    except digests.FAILURES as e:
+        digests.give_up(source, label, e, "; Repology's stay")
         return None
     return found
 

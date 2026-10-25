@@ -95,6 +95,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   direct reads of `config.OUT_DIR`; only the command's own settings table
   names it now. Nothing it does changes.
 
+- The digest readers share one way of fetching and checking a digest
+  (`sources/digests.py`): reading its `meta.json` or a file that describes
+  itself, checking its format and age, and giving up on it, where eight
+  readers each had a copy. Each reader keeps what makes it current and how
+  its data is parsed. Nothing it does changes: two syncs with every
+  package, before and after, wrote the same 5,401 files and the same log.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

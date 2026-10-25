@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import changes, config
-from nixkeeper.sources import about, branches
+from nixkeeper.sources import about, branches, http
 
 NOW = "2026-10-08T06:00:00+00:00"
 # Trimmed from nixkeeper-hydra's haskell-updates.json.gz (evaluation 1829685).
@@ -49,7 +49,7 @@ class Load(unittest.TestCase):
 
     def serve(self, body):
         data = None if body is None else gzip.compress(json.dumps(body).encode())
-        return mock.patch.object(branches.http, "get_bytes", return_value=data)
+        return mock.patch.object(http, "get_bytes", return_value=data)
 
     def test_its_jobs_and_versions(self):
         with self.serve(DIGEST):
@@ -162,7 +162,7 @@ class StagingNext(unittest.TestCase):
 
     def load(self, body):
         data = gzip.compress(json.dumps(body).encode())
-        with mock.patch.object(branches.http, "get_bytes", return_value=data):
+        with mock.patch.object(http, "get_bytes", return_value=data):
             return branches.load_staging_next(self.NOW)
 
     def row(self, name, to):

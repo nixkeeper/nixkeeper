@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config
-from nixkeeper.sources import about, cran_digest, feeds
+from nixkeeper.sources import about, cran_digest, http
 
 NOW = "2026-10-08T06:00:00+00:00"
 # Trimmed from nixkeeper-versions' cran.json.gz (2026-10-07).
@@ -94,7 +94,7 @@ class Load(unittest.TestCase):
 
     def test_current(self):
         data = gzip.compress(json.dumps(FOUND).encode())
-        with mock.patch.object(feeds.http, "get_bytes", return_value=data):
+        with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(cran_digest.load(NOW)["biocVersion"], "3.23")
         noted = about.taken()["cran"]
         self.assertEqual(
