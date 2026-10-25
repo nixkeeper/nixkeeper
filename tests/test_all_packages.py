@@ -547,7 +547,21 @@ class Data(unittest.TestCase):
                 kept={"views/close.json": {"prs": []}},
             )
         self.assertFalse(os.path.exists(self.out))
-        # The sync's own kept files pass.
+        # The sync's own kept files pass: every one it keeps (kept_files),
+        # so a new one added there without SYNC_ONLY fails here, in CI.
+        run = sync.Run(
+            now=NOW,
+            nixpkgs={},
+            lists={},
+            previous={},
+            revision="r",
+            everything=True,
+            listed={},
+            bulk={},
+            tracked=[],
+            bulk_attrs=set(),
+        )
+        datastore.check_kept(sync.kept_files(run, []))
         datastore.write(
             {"checkedAt": NOW, "allPackages": True, "packages": [row("t")]},
             {},

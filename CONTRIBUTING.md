@@ -159,9 +159,9 @@ Around that:
   folder and swaps it in (`write`); the hourly checks rewrite only the
   files that changed and remove those under `rows/` and `views/` they no
   longer write (`update`). A file the daily sync keeps there besides
-  those (`write`'s `kept`, such as `views/merge.json`) must be listed in
+  those (`sync.kept_files`, such as `views/merge.json`) must be listed in
   `SYNC_ONLY`, or the hourly checks would delete it: `write` refuses one
-  that isn't
+  that isn't, and a test checks every file `sync.kept_files` keeps
 - `lock.py`: one run at a time on a data folder (`<data dir>.lock`), for
   every command that writes or copies the data. Holding it is also when a
   swap a run didn't finish is tidied up (`datastore.restore_interrupted_swap`):

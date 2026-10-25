@@ -498,17 +498,32 @@ def write(run, projects, index_rows, problems, prs, found_fixes):
         history=history_points,
         fixed=fixed,
         events=events,
-        kept={
-            nixpkgs_source.EVALUATIONS: nixpkgs_source.kept_answers(),
-            # The PRs maintainers can merge with the merge bot: the
-            # maintainer and team views' "You can merge these" (every
-            # package's PRs: with every package only).
-            datastore.MERGE_VIEW: {"checkedAt": run.now, "prs": merge}
-            if merge is not None
-            else None,
-        },
+        kept=kept_files(run, merge),
     )
     nixpkgs_source.stop_keeping()
+
+
+def kept_files(run, merge):
+    """List what the daily sync keeps for its next run, besides the data.
+
+    A file kept under rows/ or views/ must be in datastore.SYNC_ONLY, or the
+    hourly checks would delete it; a test checks every one here is.
+
+    Args:
+        run: The run's Run.
+        merge: The PRs maintainers can merge with the merge bot, or None
+            (with every package only).
+
+    Returns:
+        {path in data/: data}, with None for a file to leave out.
+    """
+    return {
+        nixpkgs_source.EVALUATIONS: nixpkgs_source.kept_answers(),
+        # The maintainer and team views' "You can merge these".
+        datastore.MERGE_VIEW: {"checkedAt": run.now, "prs": merge}
+        if merge is not None
+        else None,
+    }
 
 
 def every_package_outputs(run, index_rows, index, prs, found_fixes):

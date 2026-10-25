@@ -1008,7 +1008,7 @@ def write(
         ValueError: A kept file is under rows/ or views/ but not in
             SYNC_ONLY, before anything is written.
     """
-    _check_kept(kept)
+    check_kept(kept)
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     tmp_dir = out_dir + ".tmp"
     # Also done by lock.held; repeated here for callers, such as tests,
@@ -1111,15 +1111,19 @@ def update(index, entries, out_dir=None):
 MERGE_VIEW = "views/merge.json"
 # Every file the daily sync keeps under rows/ or views/ (write's kept): the
 # only ones there a partial run leaves although it doesn't write them.
-# write refuses a kept file there that isn't listed, so a new one can't be
-# deleted by every hourly check unnoticed.
+# write (check_kept) refuses a kept file there that isn't listed, so a new
+# one can't be deleted by every hourly check unnoticed.
 SYNC_ONLY = frozenset({MERGE_VIEW})
 # The folders a partial run tidies: only what files writes is there.
 GENERATED_FOLDERS = ("rows", "views")
 
 
-def _check_kept(kept):
+def check_kept(kept):
     """Refuse a kept file in the generated folders that SYNC_ONLY doesn't list.
+
+    This raises, unlike the shape check (shape.py), which only reports: an
+    unlisted kept file is a mistake in nixkeeper's code, caught before any
+    data is lost, not a problem in the data.
 
     Args:
         kept: write's kept files, {path: data}.
@@ -1145,7 +1149,8 @@ def _remove_files_no_longer_written(out_dir, written):
     fewer rows. A leftover <file>.tmp, from a write that died, goes too.
     The files in SYNC_ONLY, which only the daily sync writes, are kept, and
     so is everything outside those folders (evaluations.json, history.json).
-    Folders left empty are removed, as a full write wouldn't make them.
+    Folders left empty are removed, except rows/ and views/ themselves, as
+    a full write wouldn't make them.
 
     Args:
         out_dir: The data folder.
