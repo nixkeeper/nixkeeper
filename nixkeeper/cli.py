@@ -202,7 +202,10 @@ def settings(args):
 
 
 def paths(found):
-    """Print where the lists, the data and the page are, and which setting says so."""
+    """Print where the lists, the data and the page are, and the notification method.
+
+    Each line also says which setting gives it.
+    """
     for flag, label in (("lists", "lists"), ("data_dir", "data"), ("notify", "notify")):
         value, source = found[flag]
         if flag == "notify":

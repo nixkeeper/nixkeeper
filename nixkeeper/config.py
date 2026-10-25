@@ -206,7 +206,7 @@ CONTACT_MAX = 100  # characters of NIXKEEPER_CONTACT kept in the User-Agent
 
 
 def user_agent():
-    """Return the User-Agent nixkeeper introduces itself to every source with.
+    """Return the User-Agent header nixkeeper sends to every source.
 
     As API etiquette asks, it names the software, its version and where it
     lives (the same for every copy: a fix belongs there), then who runs
