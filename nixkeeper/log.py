@@ -16,6 +16,7 @@ import contextlib
 import os
 import sys
 import threading
+import types
 
 from . import config
 
@@ -23,9 +24,10 @@ from . import config
 # GitHub (Hydra's background thread says its lines while the main thread is
 # in a group: they aren't that group's).
 _local = threading.local()
-# Whether each standard error is the journal's stream, by its id and
-# JOURNAL_STREAM (_to_journal).
-_journal: dict[tuple[int, str], bool] = {}
+# The last answer of _to_journal, and what it was for: (standard error,
+# JOURNAL_STREAM). The stream itself is kept, not its id, which Python gives
+# again to a later object once this one is gone.
+_journal = types.SimpleNamespace(asked=None, answer=False)
 
 
 def _depth():
@@ -52,24 +54,28 @@ def _to_journal():
     stream = os.environ.get("JOURNAL_STREAM")
     if not stream:
         return False
-    key = (id(sys.stderr), stream)
-    if key not in _journal:
+    if _journal.asked != (sys.stderr, stream):
         try:
             device, inode = (int(n) for n in stream.split(":"))
             found = os.fstat(sys.stderr.fileno())
-            _journal[key] = (found.st_dev, found.st_ino) == (device, inode)
+            _journal.answer = (found.st_dev, found.st_ino) == (device, inode)
         except (AttributeError, ValueError, OSError):
-            _journal[key] = False  # not a file at all (tests' StringIO)
-    return _journal[key]
+            _journal.answer = False  # not a file at all (tests' StringIO)
+        _journal.asked = (sys.stderr, stream)
+    return _journal.answer
 
 
 def _say(text, priority=""):
     """Write a message, which may be several lines, to standard error.
 
+    A newline at its end is left out: it would make a line of its own,
+    holding only the indent or the priority.
+
     Args:
         text: The message.
         priority: The journal's priority for it ("<4>"), when it's one.
     """
+    text = text.rstrip("\n")
     indent = "" if config.on_github_actions() else "  " * _depth()
     # The journal files each line on its own: each gets the priority, which
     # it reads only at the very start of a line.

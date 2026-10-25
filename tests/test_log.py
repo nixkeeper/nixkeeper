@@ -58,6 +58,10 @@ class Said(unittest.TestCase):
             self.said(False, lambda: log.notice("x"), journal=True), "<5>notice: x\n"
         )
         self.assertEqual(self.said(False, lambda: log.info("x"), journal=True), "x\n")
+        # A newline at the end makes no line of its own.
+        self.assertEqual(
+            self.said(False, lambda: log.warn("x\n"), journal=True), "<4>warning: x\n"
+        )
 
         # Each line, as the journal files each on its own; before any indent.
         def grouped():
