@@ -1,10 +1,14 @@
-"""The status issues: GitHub issues in this repo showing what needs
+"""Keep the status issues up to date.
+
+The status issues are GitHub issues in this repository showing what needs
 attention, rewritten every sync, plus a comment (which is what notifies)
-when something changed for the worse. The instance's own ("nixkeeper
-status", everything on its lists; off with `statusIssue = false;` in the
-lists), and one for each maintainer or team in notifications/ ("nixkeeper
-status: iedame"), with only their packages. Only runs that set --notify or
-NIXKEEPER_NOTIFY post (the workflows do); see notify() for the methods."""
+when something changed for the worse. There's the instance's own
+("nixkeeper status", everything on its lists; off with `statusIssue =
+false;` in the lists), and one for each maintainer or team in
+notifications/ ("nixkeeper status: @iedame"), with only their packages.
+Only runs that set --notify or NIXKEEPER_NOTIFY post (the workflows do);
+see notify() for the methods.
+"""
 
 import os
 import re
@@ -34,6 +38,7 @@ from .changes import (
 from .sources import github
 from .sources import nixpkgs as nixpkgs_source
 
+# The instance's own status issue's title, and the start of the others'.
 TITLE = "nixkeeper status"
 # Between one subscriber's issue and the next: GitHub limits how fast
 # content is created.
@@ -41,34 +46,43 @@ SUBSCRIBER_PAUSE = 1.0
 
 
 def days_text(since, now):
+    """Say how long ago since was: "today", "1 day" or "N days"."""
     days = (datetime.fromisoformat(now) - datetime.fromisoformat(since)).days
     return "today" if days < 1 else "1 day" if days == 1 else f"{days} days"
 
 
 def cves_url(project):
-    """Repology's list of CVEs for a project, with the versions they affect.
-    (Its API only says whether a version is vulnerable, not to what.)"""
+    """Return Repology's list of CVEs for a project, with the versions they affect.
+
+    Its API only says whether a version is vulnerable, not to what.
+    """
     return f"https://repology.org/project/{urllib.parse.quote(project)}/cves"
 
 
 def pr_number(pr):
-    """A nixpkgs PR's number, in code: never a link. A link to the PR (or
-    its address) puts "mentioned this pull request" on the nixpkgs PR each
-    time the issue is rewritten; a bare #number would link this repository's
-    issue of that number instead."""
+    """Write a nixpkgs PR's number in code, never as a link.
+
+    A link to the PR (or its address) puts "mentioned this pull request" on
+    the nixpkgs PR each time the issue is rewritten; a bare #number would
+    link this repository's issue of that number instead.
+    """
     return f"`#{pr['number']}`"
 
 
-# A package's CVEs named in a status issue, at most (the rest counted).
+# The most CVEs a package's line names in a status issue; the rest are
+# counted.
 VULNERABILITIES_SHOWN = 3
+# A NixOS security tracker issue's page.
 TRACKER_ISSUE_URL = "https://tracker.security.nixos.org/issues/"
 
 
 def vulnerability(v):
-    """One counted CVE or advisory as a status issue names it: its id in
-    code, its severity, and the security tracker's issue as a link (the
-    tracker's page, never the nixpkgs issue: that link would add a
-    "mentioned" line to it each time the issue is rewritten)."""
+    """Write one counted CVE or advisory as a status issue names it.
+
+    That's its id in code, its severity, and the security tracker's issue
+    as a link: the tracker's page, never the nixpkgs issue, as that link
+    would add a "mentioned" line to it each time the issue is rewritten.
+    """
     said = [v["severity"]] if v.get("severity") else []
     if v.get("issue"):
         said.append(
@@ -80,7 +94,13 @@ def vulnerability(v):
 
 
 def describe(row, now):
-    """One package, as a bullet's text."""
+    """Describe one package, as a bullet's text.
+
+    The line has its versions and how long it has been outdated, its update
+    PRs, why it fails, its counted vulnerabilities, links to the logs of its
+    failed builds and update attempt, where nixpkgs marks it broken, and
+    which of its sources couldn't be refreshed.
+    """
     text = f"`{row['name']}`"
     if is_outdated(row):
         text += f" {row['nixVersion']} → {row.get('refVersion') or '?'}"
@@ -136,9 +156,11 @@ def describe(row, now):
 
 
 def bullets(rows, now):
+    """Write rows as a bulleted list, one describe() line each."""
     return "\n".join(f"- {describe(row, now)}" for row in rows)
 
 
+# Each kind of change (changes.diff), as the issues name it.
 CHANGE_LABELS = {
     "outdated": "Newly outdated",
     "failed": "Newly failed",
@@ -154,6 +176,10 @@ CHANGE_LABELS = {
 
 
 def change_lines(changes, kinds, now):
+    """Write the changes of kinds as bullets, one per kind that has any.
+
+    Removed packages are named; the others are described (describe).
+    """
     lines = []
     for kind in kinds:
         items = changes[kind]
@@ -167,7 +193,17 @@ def change_lines(changes, kinds, now):
 
 
 def status_body(rows, changes, now, page_url=None):
-    """The issue body: current state, then everything that changed this run."""
+    """Write a status issue's body.
+
+    It has the current state (failed, outdated, vulnerable, broken, not
+    refreshed), then everything that changed since the previous sync.
+
+    Args:
+        rows: The packages it covers.
+        changes: changes.diff's result for them.
+        now: The run's time.
+        page_url: The page to link to, or None.
+    """
     sections = [
         ("Failed", [r for r in rows if failures(r)]),
         (
@@ -204,15 +240,19 @@ def status_body(rows, changes, now, page_url=None):
 
 
 def change_comment(changes, now):
+    """Write the comment that notifies: the changes that need attention."""
     return "\n".join(
         [f"**Changes in the {now[:10]} sync**", "", *change_lines(changes, NOTIFY, now)]
     )
 
 
 def page_url(repo=None):
-    """Where the page lives, for links: NIXKEEPER_PAGE_URL (the workflows: the
-    instance's own site, when it has one), else the GitHub Pages project site
-    of owner/repo, else None."""
+    """Return where the page lives, for links, or None.
+
+    That's NIXKEEPER_PAGE_URL (set by the workflows: the instance's own
+    site, when it has one), else the GitHub Pages project site of
+    owner/repo.
+    """
     if os.environ.get("NIXKEEPER_PAGE_URL"):
         return os.environ["NIXKEEPER_PAGE_URL"]
     if not repo:
@@ -226,12 +266,17 @@ FOLDERS = {"maintainers": "maintainer", "teams": "team"}
 
 
 def read_subscribers(path=None):
-    """Who gets a status issue of their own: {"maintainers/iedame":
-    {"maintainer": handle}, "teams/gaming": {"team": name, "mention":
-    [handles]}}, from notifications/ (config.notifications_path();
-    nix/notifications.nix checks the format). {} without the folder. One
-    that doesn't make sense (or isn't in its kind's folder) is left out,
-    said so."""
+    """Read who gets a status issue of their own, from notifications/.
+
+    The folder is config.notifications_path() unless path is given;
+    nix/notifications.nix checks its format. A file that doesn't make sense
+    (or isn't in its kind's folder) is left out, and the log says so.
+
+    Returns:
+        {"maintainers/iedame": {"maintainer": handle}, "teams/gaming":
+        {"team": name, "mention": [handles]}, ...}, or {} without the
+        folder, or when it doesn't evaluate.
+    """
     path = path or config.notifications_path()
     if not os.path.exists(path):
         print(
@@ -267,8 +312,11 @@ def read_subscribers(path=None):
 
 
 def read_lists():
-    """The package lists, for their settings (statusIssue); {} when they
-    can't be read, which never stops a run."""
+    """Read the package lists, for their settings (statusIssue).
+
+    Returns:
+        The lists, or {} when they can't be read: that never stops a run.
+    """
     try:
         return nixpkgs_source.read_lists()
     except SystemExit as e:
@@ -277,23 +325,29 @@ def read_lists():
 
 
 def subscriber_title(sub):
-    """ "nixkeeper status: @iedame" or "nixkeeper status: Gaming team": a
-    handle and a team of the same name never share an issue."""
+    """Return a subscriber's issue title.
+
+    That's "nixkeeper status: @iedame" or "nixkeeper status: Gaming team": a
+    handle and a team of the same name never share an issue.
+    """
     if "maintainer" in sub:
         return f"{TITLE}: @{sub['maintainer']}"
     return f"{TITLE}: {sub['team']} team"
 
 
 def mentions(sub):
-    """The handles a subscriber's issue mentions (which subscribes them)."""
+    """Return the handles a subscriber's issue mentions, which subscribes them."""
     handles = [sub["maintainer"]] if "maintainer" in sub else []
     return [*handles, *sub.get("mention", [])]
 
 
 def is_subscribed(sub, row):
-    """Whether row is one of sub's packages: listing the maintainer, or under
-    the team (meta.teams, or a list named after it). Not in a set updated in
-    bulk, as the page's counts."""
+    """Return whether row is one of sub's packages.
+
+    It is when it lists the maintainer, or is under the team (meta.teams,
+    or a list named after it). Packages in a set updated in bulk aren't, as
+    in the page's counts.
+    """
     if row.get("set"):
         return False
     if "maintainer" in sub:
@@ -304,7 +358,7 @@ def is_subscribed(sub, row):
 
 
 def subscriber_page(base, sub):
-    """The page showing sub's packages: ?maintainer=, or ?team=."""
+    """Return the page showing sub's packages (?maintainer= or ?team=), or None."""
     if not base:
         return None
     query = (
@@ -316,6 +370,7 @@ def subscriber_page(base, sub):
 
 
 def subscriber_body(sub, rows, changes, now, base):
+    """Write a subscriber's issue body: whose packages, then their status."""
     who = (
         f"@{sub['maintainer']}'s packages"
         if "maintainer" in sub
@@ -338,10 +393,21 @@ def subscriber_body(sub, rows, changes, now, base):
 def subscriber_issues(
     repo, token, subscribers, previous, everyone, now, news_only=False
 ):
-    """Each subscriber's issue, with only their packages; and closing those
-    whose file is gone. news_only (the hourly checks): only the issues of
-    those whose packages newly need attention, and none closed: the daily
-    sync rewrites them all."""
+    """Write each subscriber's issue, with only their packages.
+
+    The issues whose file in notifications/ is gone are closed.
+
+    Args:
+        repo: The repository, owner/name.
+        token: The GitHub token.
+        subscribers: read_subscribers' result.
+        previous: The last run's data, for the changes.
+        everyone: Every row, among which each subscriber's packages are.
+        now: The run's time.
+        news_only: For the hourly checks: only the issues of those whose
+            packages newly need attention are written, and none is closed,
+            as the daily sync rewrites them all.
+    """
     github.ensure_label(
         repo,
         token,
@@ -402,11 +468,24 @@ def github_issue(
     subscribers=None,
     news_only=False,
 ):
-    """The status issues in NIXKEEPER_GITHUB_REPO (in a workflow, the
-    workflow's own repository): the instance's own, for rows (unless the
-    lists turn it off: closed then), and the subscribers' (notifications/),
-    each with its packages among everyone. Needs a token given explicitly:
-    the local gh login is never used to post."""
+    """Write the status issues in NIXKEEPER_GITHUB_REPO.
+
+    In a workflow, that's the workflow's own repository. The instance's own
+    issue is for rows, unless the lists turn it off (it's closed then); the
+    subscribers' (notifications/) each have their packages among everyone.
+    It needs a token given explicitly: the local gh login is never used to
+    post.
+
+    Args:
+        rows: The instance's own rows.
+        changes: changes.diff's result for them.
+        now: The run's time.
+        previous: The last run's data, for the subscribers' changes.
+        everyone: Every row, for the subscribers' issues (rows by default).
+        lists: The package lists, for statusIssue.
+        subscribers: read_subscribers' result.
+        news_only: As subscriber_issues takes it.
+    """
     repo = os.environ.get("NIXKEEPER_GITHUB_REPO") or os.environ.get(
         "GITHUB_REPOSITORY"
     )
@@ -461,15 +540,25 @@ def notify(
     lists=None,
     news_only=False,
 ):
-    """Send what changed the way NIXKEEPER_NOTIFY says (unset or "none": not
-    at all, as in local runs). rows: the instance's own (its lists');
-    everyone: every row, with everyone_before the previous run's (with every
-    package: all of nixpkgs), for the subscribers' issues; lists: the package
-    lists (statusIssue; read here when not given, as by the hourly checks:
-    without them, a turned-off status issue came back); news_only (the hourly
-    checks): subscribers' issues only where their packages newly need
-    attention. Never fails the sync: a problem here is reported as a workflow
-    warning."""
+    """Send what changed the way NIXKEEPER_NOTIFY says.
+
+    Unset or "none" means not at all, as in local runs. It never fails the
+    sync: a problem here is reported as a workflow warning.
+
+    Args:
+        previous: The last run's data.
+        rows: The instance's own rows (its lists').
+        now: The run's time.
+        everyone: Every row, for the subscribers' issues (with every
+            package: all of nixpkgs).
+        everyone_before: The last run's data with every row, for the
+            subscribers' changes.
+        lists: The package lists, for statusIssue. They're read here when
+            not given, as by the hourly checks: without them, a turned-off
+            status issue came back.
+        news_only: For the hourly checks: subscribers' issues only where
+            their packages newly need attention.
+    """
     method = config.NOTIFY or os.environ.get("NIXKEEPER_NOTIFY") or "none"
     method = ALIASES.get(method, method)
     if method == "none":
