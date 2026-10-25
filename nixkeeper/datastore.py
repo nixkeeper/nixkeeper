@@ -1003,7 +1003,12 @@ def write(
         kept: Files written as they are, {path: data}, what the sync keeps
             for its next run (nixpkgs' evaluations, views/merge.json); None
             for a file leaves it out.
+
+    Raises:
+        ValueError: A kept file is under rows/ or views/ but not in
+            SYNC_ONLY, before anything is written.
     """
+    _check_kept(kept)
     out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
     tmp_dir = out_dir + ".tmp"
     # Also done by lock.held; repeated here for callers, such as tests,
@@ -1104,27 +1109,58 @@ def update(index, entries, out_dir=None):
 # The view of the PRs maintainers can merge: written by the daily sync only
 # (with what it keeps, write's kept), so a partial run leaves it.
 MERGE_VIEW = "views/merge.json"
+# Every file the daily sync keeps under rows/ or views/ (write's kept): the
+# only ones there a partial run leaves although it doesn't write them.
+# write refuses a kept file there that isn't listed, so a new one can't be
+# deleted by every hourly check unnoticed.
+SYNC_ONLY = frozenset({MERGE_VIEW})
+# The folders a partial run tidies: only what files writes is there.
+GENERATED_FOLDERS = ("rows", "views")
+
+
+def _check_kept(kept):
+    """Refuse a kept file in the generated folders that SYNC_ONLY doesn't list.
+
+    Args:
+        kept: write's kept files, {path: data}.
+
+    Raises:
+        ValueError: A kept file under rows/ or views/ isn't in SYNC_ONLY:
+            the next partial run would delete it.
+    """
+    for path in kept or {}:
+        if path.split("/")[0] in GENERATED_FOLDERS and path not in SYNC_ONLY:
+            raise ValueError(
+                f"{path} is kept by the sync but isn't in datastore.SYNC_ONLY: "
+                "the hourly checks would delete it. Add it there."
+            )
 
 
 def _remove_files_no_longer_written(out_dir, written):
-    """Remove the shards and views a partial run no longer writes.
+    """Remove the files under rows/ and views/ a partial run no longer writes.
 
     A view with no rows isn't written, so a view that has emptied since the
     last sync would otherwise keep its old rows on disk while the manifest
     says 0; and a shard past the shard count would stay when there are
-    fewer rows. MERGE_VIEW, which only the daily sync writes, is kept.
+    fewer rows. A leftover <file>.tmp, from a write that died, goes too.
+    The files in SYNC_ONLY, which only the daily sync writes, are kept, and
+    so is everything outside those folders (evaluations.json, history.json).
+    Folders left empty are removed, as a full write wouldn't make them.
 
     Args:
         out_dir: The data folder.
         written: The files this run wrote, as files builds them.
     """
-    for folder in ("rows", "views"):
+    for folder in GENERATED_FOLDERS:
         top = os.path.join(out_dir, folder)
-        for root, _, names in os.walk(top):
+        # Bottom up, so a folder is seen after its files are removed.
+        for root, _, names in os.walk(top, topdown=False):
             for name in names:
                 path = os.path.relpath(os.path.join(root, name), out_dir)
-                if path not in written and path != MERGE_VIEW:
+                if path not in written and path not in SYNC_ONLY:
                     os.remove(os.path.join(root, name))
+            if root != top and not os.listdir(root):
+                os.rmdir(root)
 
 
 def _load(path):
