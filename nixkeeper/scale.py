@@ -1,43 +1,60 @@
-"""How big a sync is, and keeping it within reason: every tracked package
-costs requests to public services (Repology, Hydra, the nixpkgs-update logs,
-GitHub) and time. The sync says up front how long it should take; the list
-check warns from WARN_PACKAGES packages; above MAX_PACKAGES the sync refuses
-to start unless the lists raise the limit (maxPackages), so a big team or a
-typo can't send thousands of requests by accident.
+"""Estimate how big a sync is, and keep it within reason.
 
-The costs are measured from a real sync (241 packages, 2026-10-05), with
-Hydra's and Repology's data from the digests (nixkeeper-hydra,
-nixkeeper-versions) and GitHub's from bulk listings: most of a sync's cost
-is now fixed (the listings, the digests, the package index), whatever the
-lists' size. Per package, what's left is the Hydra jobs the digest can't
-answer, changed nixpkgs-update log folders and the update checks. A package
-new to the data costs more the first time: its update-log folder is read
-whole. Without the digests (turned off, or not current) and listings
-(failing), the sync falls back to asking per package, and takes much
-longer than this says."""
+Every tracked package costs time and requests to public services
+(Repology, Hydra, the nixpkgs-update logs, GitHub). So the sync says up
+front how long it should take, the list check warns from WARN_PACKAGES
+packages, and above MAX_PACKAGES the sync refuses to start unless the
+lists raise the limit (maxPackages). A big team or a typo then can't send
+thousands of requests by accident.
+
+The costs below were measured on a real sync (241 packages, 2026-10-05)
+that took Hydra's and Repology's data from the digests (nixkeeper-hydra,
+nixkeeper-versions) and GitHub's from bulk listings. Most of a sync's cost
+is then fixed (the listings, the digests, the package index), whatever the
+lists' size. What's left per package is the Hydra jobs the digest can't
+answer, the nixpkgs-update log folders that changed, and the update
+checks. A package new to the data costs more the first time, because its
+whole update-log folder is read. Without the digests (turned off, or out
+of date) and the listings (failing), the sync asks per package instead,
+and takes much longer than these estimates say.
+"""
 
 import os
 import sys
 
-# Per package: (seconds, requests).
-FIRST = (2.5, 3)  # the first sync it's in: its update-log folder, Hydra's gaps
-TYPICAL = (0.4, 0.3)  # a typical day after: Hydra's gaps, changed log folders
-# The package index, the digests, the meta.broken evaluations' start, the
-# listing of all open PRs and issues (about 120 requests, 80 s), merged PRs.
+# What a package costs, as (seconds, requests): in the first sync it's in
+# (its whole update-log folder, and the Hydra jobs the digest can't answer),
+# and on a typical day after (those Hydra jobs, and log folders that changed).
+FIRST = (2.5, 3)
+TYPICAL = (0.4, 0.3)
+# What every sync costs, whatever its size: the package index, the digests,
+# starting the meta.broken evaluations, the listing of all open PRs and
+# issues (about 120 requests and 80 s), and the merged PRs.
 FIXED = (120, 150)
-# Raised from 500 once quiet packages were asked every few days: a typical day
-# for 1,500 now costs less than 500 did.
+# From this many packages, the list check warns. It was 500 until quiet
+# packages were asked only every few days: a typical day for 1,500 now
+# costs less than 500 did.
 WARN_PACKAGES = 1500
-# A safety net (a typo, a huge team), raised from 2,000 with the schedule.
+# Above this many, the sync refuses to start unless the lists say
+# otherwise: a safety net against a typo or a huge team. It was 2,000
+# before the same change.
 MAX_PACKAGES = 5000
-# GitHub Actions stops a job after 6 hours, publishing nothing: a sync that
-# should take longer is warned about (check).
+# GitHub Actions stops a job after 6 hours, and the job then publishes
+# nothing, so check warns about a sync expected to take nearly that long.
 GITHUB_ACTIONS_SECONDS = 6 * 3600
 
 
 def estimate(count, new=0):
-    """(seconds, requests) a sync of count packages takes, roughly, new of
-    them new to the data (asked about whole, the first time)."""
+    """Estimate how long a sync takes and how many requests it makes.
+
+    Args:
+        count: How many packages it tracks.
+        new: How many of them are new to the data (they cost more the first
+            time).
+
+    Returns:
+        (seconds, requests), rough estimates.
+    """
     new = min(new, count)
     known = count - new
     seconds = FIXED[0] + known * TYPICAL[0] + new * FIRST[0]
@@ -45,7 +62,10 @@ def estimate(count, new=0):
 
 
 def duration(seconds):
-    """ "about 7 min", "about 1 h 30 min": rounded, as estimates should be."""
+    """Format a duration as an estimate: "about 7 min", "about 1 h 30 min".
+
+    Long durations are rounded to 10 minutes, so they don't look precise.
+    """
     minutes = max(1, round(seconds / 60))
     if minutes < 50:
         return f"about {minutes} min"
@@ -54,13 +74,16 @@ def duration(seconds):
 
 
 def about(requests):
-    """A number of requests, rounded as an estimate: 2,400, not 2,397."""
+    """Format a number of requests as an estimate: 2,400, not 2,397."""
     return f"{round(requests, -2 if requests >= 1000 else -1):,}"
 
 
 def describe(count):
-    """count packages, and what syncing them costs, as a phrase: a typical
-    day, and the first sync (all of them new)."""
+    """Describe what syncing count packages costs, as a phrase for messages.
+
+    It gives a typical day's cost, then the first sync's (with every
+    package new to the data).
+    """
     typical, first = estimate(count), estimate(count, count)
     return (
         f"{count:,} packages: a sync takes {duration(typical[0])} and makes about "
@@ -70,8 +93,12 @@ def describe(count):
 
 
 def limit(lists):
-    """The most packages the lists may track: their maxPackages if it's a
-    positive whole number, else MAX_PACKAGES."""
+    """Find the most packages the lists may track.
+
+    Returns:
+        The lists' maxPackages if it's a positive whole number, otherwise
+        MAX_PACKAGES.
+    """
     value = (lists or {}).get("maxPackages")
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
         return value
@@ -79,10 +106,19 @@ def limit(lists):
 
 
 def check(lists, count, new=0):
-    """Exit if count packages is over the lists' limit; otherwise say how long
-    this sync should take, new of them being new to the data (and, on GitHub
-    Actions, in the run's summary, with a warning if it may outlast the job's
-    6 hours)."""
+    """Stop a sync that's too big; otherwise say how long it should take.
+
+    The estimate goes to the log, and on GitHub Actions to the run's summary
+    too, with a warning when the sync may outlast the job's 6 hours.
+
+    Args:
+        lists: The package lists (their maxPackages raises the limit).
+        count: How many packages the sync tracks.
+        new: How many of them are new to the data.
+
+    Raises:
+        SystemExit: count is over the limit; the message says how to raise it.
+    """
     most = limit(lists)
     if count > most:
         sys.exit(
@@ -118,9 +154,12 @@ def check(lists, count, new=0):
 
 
 def problem(count, lists):
-    """The list check's sentence when count packages is a lot (from
-    WARN_PACKAGES, up to the limit: over it, the sync refuses anyway), or
-    None."""
+    """Warn, for the list check, when the lists track a lot of packages.
+
+    Returns:
+        A sentence when count is from WARN_PACKAGES up to the limit, else
+        None (over the limit, the sync refuses to start anyway).
+    """
     if count < WARN_PACKAGES or count > limit(lists):
         return None
     return (
