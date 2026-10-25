@@ -9,6 +9,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import cli, community, config
+from nixkeeper.errors import Problem
 from nixkeeper.sources import http, upstream
 
 NOW = "2026-10-01T06:00:00+00:00"
@@ -598,7 +599,7 @@ class StatusIssue(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": "o/r"}, clear=True),
             mock.patch("nixkeeper.sources.github.token", return_value=None),
-            self.assertRaises(SystemExit),
+            self.assertRaises(Problem),
         ):
             community.publish({}, now=self.NOW)
 

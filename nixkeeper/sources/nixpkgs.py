@@ -18,6 +18,7 @@ import urllib.request
 import brotli
 
 from .. import config
+from ..errors import Problem
 
 
 def read_lists(path=None):
@@ -31,12 +32,12 @@ def read_lists(path=None):
         {...}, "ignoredUpdates": {...}, "upToDate": {...}, ...}.
 
     Raises:
-        SystemExit: There are no lists at path, nix isn't on the PATH, or
+        Problem: There are no lists at path, nix isn't on the PATH, or
             the lists don't evaluate.
     """
     path = path or config.LISTS
     if not os.path.exists(path):
-        sys.exit(
+        raise Problem(
             f"No package lists at {path}. Start some with `nixkeeper init "
             "--maintainer <your GitHub handle>`, or point --lists (or "
             "NIXKEEPER_LISTS) at yours."
@@ -60,12 +61,14 @@ def read_lists(path=None):
             check=True,
         )
     except FileNotFoundError:
-        sys.exit(
+        raise Problem(
             "nixkeeper needs nix on the PATH to read the package lists (or give "
             "it a JSON file of them with --lists)."
-        )
+        ) from None
     except subprocess.CalledProcessError as e:
-        sys.exit(f"The package lists at {path} didn't evaluate:\n{e.stderr.strip()}")
+        raise Problem(
+            f"The package lists at {path} didn't evaluate:\n{e.stderr.strip()}"
+        ) from None
     return json.loads(result.stdout)
 
 

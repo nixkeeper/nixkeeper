@@ -105,6 +105,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   a digest too old to use, now said the same way for each ("not used,
   read ...").
 
+- Only the command exits. Where nixkeeper stops for something its user has
+  to fix (no package lists, no data yet, too many packages, a handle that
+  isn't one), the code raises one exception, `errors.Problem`, and
+  `cli.main` prints its message and exits; before, six modules exited
+  themselves, and three places caught that exit to carry on. The messages
+  and the exit status are the same as before.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

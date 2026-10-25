@@ -22,6 +22,8 @@ and takes much longer than these estimates say.
 import os
 import sys
 
+from .errors import Problem
+
 # What a package costs, as (seconds, requests): in the first sync it's in
 # (its whole update-log folder, and the Hydra jobs the digest can't answer),
 # and on a typical day after (those Hydra jobs, and log folders that changed).
@@ -117,11 +119,11 @@ def check(lists, count, new=0):
         new: How many of them are new to the data.
 
     Raises:
-        SystemExit: count is over the limit; the message says how to raise it.
+        Problem: count is over the limit; the message says how to raise it.
     """
     most = limit(lists)
     if count > most:
-        sys.exit(
+        raise Problem(
             f"The package lists track {describe(count)}, more than nixkeeper "
             f"syncs without being asked ({most:,}). To sync them anyway, set "
             f"maxPackages = {count}; in the lists (lists.maxPackages in the "

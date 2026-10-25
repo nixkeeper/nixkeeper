@@ -7,8 +7,9 @@ The lists come from the templates shipped with nixkeeper
 import os
 import re
 import shutil
-import sys
 from importlib import resources
+
+from .errors import Problem
 
 # What GitHub allows in a handle: also keeps anything else out of the Nix file.
 HANDLE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$")
@@ -24,19 +25,19 @@ def write(folder, maintainers):
         maintainers: The GitHub handles to list.
 
     Raises:
-        SystemExit: folder is a JSON file's name or exists already, or one
+        Problem: folder is a JSON file's name or exists already, or one
             of maintainers isn't a GitHub handle.
     """
     if folder.endswith(".json"):
-        sys.exit(f"{folder} is a JSON file: init writes a folder of Nix files.")
+        raise Problem(f"{folder} is a JSON file: init writes a folder of Nix files.")
     if os.path.exists(folder):
-        sys.exit(
+        raise Problem(
             f"{folder} already exists: edit it, or give init another place "
             "with --lists."
         )
     bad = [m for m in maintainers if not HANDLE.match(m)]
     if bad:
-        sys.exit(f"Not a GitHub handle: {', '.join(bad)}")
+        raise Problem(f"Not a GitHub handle: {', '.join(bad)}")
     templates = resources.files("nixkeeper") / "templates" / "package-lists"
     with resources.as_file(templates) as source:
         shutil.copytree(source, folder)

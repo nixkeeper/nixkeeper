@@ -9,6 +9,7 @@ import copy
 import sys
 
 from . import config, datastore, history, notify
+from .errors import Problem
 
 
 def load():
@@ -18,12 +19,12 @@ def load():
         (the last published index, a deep copy of its rows).
 
     Raises:
-        SystemExit: There's no published data: the daily sync has to have
+        Problem: There's no published data: the daily sync has to have
             run once.
     """
     previous = history.load_previous_run()
     if not previous["packages"]:
-        sys.exit(
+        raise Problem(
             f"No previous run in {config.data_dir()}: run the full sync first "
             "(nixkeeper sync; from a checkout, nix run .#sync)."
         )

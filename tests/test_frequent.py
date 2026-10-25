@@ -6,6 +6,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config, datastore, frequent, notify
+from nixkeeper.errors import Problem
 from nixkeeper.sources import github, http, repology
 from nixkeeper.sources import nixpkgs as nixpkgs_source
 from tests.helpers import nix, other
@@ -246,7 +247,7 @@ class FrequentCheck(unittest.TestCase):
         notified.assert_not_called()
 
     def test_needs_a_previous_sync(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(Problem):
             frequent.main()
 
     def test_follows_the_new_release(self):

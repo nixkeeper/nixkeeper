@@ -25,6 +25,7 @@ import sys
 from datetime import UTC, datetime
 
 from . import community, config, history, init, lock, notify, page, version
+from .errors import Problem
 
 # {name: (what it does, the module whose main() runs it)}
 COMMANDS = {
@@ -216,12 +217,25 @@ def paths(found):
         print(f"{label + ':':7} {where}  ({source}{missing})")
     try:
         print(f"{'page:':7} {page.page_dir()}  (shipped with nixkeeper)")
-    except SystemExit:
+    except Problem:
         print(f"{'page:':7} not included in this copy of nixkeeper")
 
 
 def main(argv=None):
-    """Run the command argv gives (sys.argv's by default)."""
+    """Run the command argv gives (sys.argv's by default).
+
+    A Problem raised anywhere below is the one place nixkeeper exits for
+    its user to fix something: its message is printed, and the exit status
+    is 1.
+    """
+    try:
+        run(argv)
+    except Problem as e:
+        sys.exit(str(e))
+
+
+def run(argv=None):
+    """Run the command argv gives, raising a Problem for its user to fix."""
     args = parser().parse_args(argv)
     if not args.command:
         parser().print_help(sys.stderr)

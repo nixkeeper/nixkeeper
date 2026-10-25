@@ -13,6 +13,7 @@ import urllib.request
 from unittest import mock
 
 from nixkeeper import cli, config, page
+from nixkeeper.errors import Problem
 
 
 class Page(unittest.TestCase):
@@ -94,20 +95,20 @@ class Page(unittest.TestCase):
         site = os.path.join(self.dir.name, "home")
         os.makedirs(os.path.join(site, "data"))
         open(os.path.join(site, "data", "precious.txt"), "w").close()
-        with self.assertRaises(SystemExit) as exit:
+        with self.assertRaises(Problem) as exit:
             page.write(site)
-        self.assertIn("isn't a nixkeeper page", str(exit.exception.code))
+        self.assertIn("isn't a nixkeeper page", str(exit.exception))
         self.assertEqual(os.listdir(os.path.join(site, "data")), ["precious.txt"])
         a_file = os.path.join(self.dir.name, "file")
         open(a_file, "w").close()
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(Problem):
             page.write(a_file)
 
     def test_needs_a_sync_first(self):
         os.remove(os.path.join(self.data, "index.json"))
-        with self.assertRaises(SystemExit) as exit:
+        with self.assertRaises(Problem) as exit:
             page.write(os.path.join(self.dir.name, "site"))
-        self.assertIn("nixkeeper sync", str(exit.exception.code))
+        self.assertIn("nixkeeper sync", str(exit.exception))
 
 
 class Serve(unittest.TestCase):

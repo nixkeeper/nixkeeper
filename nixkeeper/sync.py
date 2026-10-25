@@ -273,7 +273,7 @@ def start():
         The Run every later phase reads from.
 
     Raises:
-        SystemExit: The lists track more packages than the limit
+        Problem: The lists track more packages than the limit
             (scale.check), which the message explains.
     """
     now = datetime.now(UTC).isoformat()

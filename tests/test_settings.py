@@ -13,6 +13,7 @@ from unittest import mock
 
 import tests
 from nixkeeper import config, datastore, history, lock, notify
+from nixkeeper.errors import Problem
 from nixkeeper.sources import github
 from nixkeeper.sources import nixpkgs as nixpkgs_source
 
@@ -54,27 +55,27 @@ class Paths(unittest.TestCase):
         self.assertIn(folder, run.call_args.args[0])
 
     def test_missing_lists_say_how_to_start(self):
-        with self.assertRaises(SystemExit) as exit:
+        with self.assertRaises(Problem) as exit:
             nixpkgs_source.read_lists(os.path.join(self.dir.name, "nowhere"))
-        self.assertIn("nixkeeper init", str(exit.exception.code))
+        self.assertIn("nixkeeper init", str(exit.exception))
 
     def test_lists_that_dont_evaluate(self):
         error = subprocess.CalledProcessError(1, "nix", stderr="error: syntax error\n")
         with (
             mock.patch("subprocess.run", side_effect=error),
-            self.assertRaises(SystemExit) as exit,
+            self.assertRaises(Problem) as exit,
         ):
             nixpkgs_source.read_lists(self.dir.name)
-        self.assertIn("didn't evaluate", str(exit.exception.code))
-        self.assertIn("syntax error", str(exit.exception.code))
+        self.assertIn("didn't evaluate", str(exit.exception))
+        self.assertIn("syntax error", str(exit.exception))
 
     def test_lists_without_nix(self):
         with (
             mock.patch("subprocess.run", side_effect=FileNotFoundError),
-            self.assertRaises(SystemExit) as exit,
+            self.assertRaises(Problem) as exit,
         ):
             nixpkgs_source.read_lists(self.dir.name)
-        self.assertIn("needs nix", str(exit.exception.code))
+        self.assertIn("needs nix", str(exit.exception))
 
 
 class Defaults(unittest.TestCase):

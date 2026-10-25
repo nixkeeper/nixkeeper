@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import listcheck, scale
+from nixkeeper.errors import Problem
 
 
 class Estimate(unittest.TestCase):
@@ -88,9 +89,9 @@ class Check(unittest.TestCase):
             self.assertIn("Tracking 47 packages", summary.read())
 
     def test_refuses_past_the_limit(self):
-        with self.assertRaises(SystemExit) as stop:
+        with self.assertRaises(Problem) as stop:
             scale.check({}, 5001)
-        self.assertIn("maxPackages = 5001;", str(stop.exception.code))
+        self.assertIn("maxPackages = 5001;", str(stop.exception))
 
     def test_unless_the_lists_raise_it(self):
         with mock.patch.dict(os.environ, {}, clear=True):

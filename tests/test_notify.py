@@ -6,6 +6,7 @@ from unittest import mock
 
 from nixkeeper import notify
 from nixkeeper.changes import diff
+from nixkeeper.errors import Problem
 from nixkeeper.sources import github
 from tests.helpers import http_error
 
@@ -515,7 +516,7 @@ class Subscribers(unittest.TestCase):
         with (
             exists,
             mock.patch.object(
-                notify.nixpkgs_source, "read_lists", side_effect=SystemExit("no eval")
+                notify.nixpkgs_source, "read_lists", side_effect=Problem("no eval")
             ),
         ):
             self.assertEqual(notify.read_subscribers("x"), {})  # the sync goes on

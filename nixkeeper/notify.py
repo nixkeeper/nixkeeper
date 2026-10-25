@@ -35,6 +35,7 @@ from .changes import (
     stale_sources,
     waiting_for_channel,
 )
+from .errors import Problem
 from .sources import github
 from .sources import nixpkgs as nixpkgs_source
 
@@ -286,7 +287,7 @@ def read_subscribers(path=None):
         return {}
     try:
         read = nixpkgs_source.read_lists(path)
-    except SystemExit as e:  # didn't evaluate: the sync goes on without them
+    except Problem as e:  # didn't evaluate: the sync goes on without them
         print(f"::warning::notifications/ not read: {e}", file=sys.stderr)
         return {}
     found = {}
@@ -319,7 +320,7 @@ def read_lists():
     """
     try:
         return nixpkgs_source.read_lists()
-    except SystemExit as e:
+    except Problem as e:
         print(f"::warning::package lists not read for notifying: {e}", file=sys.stderr)
         return {}
 

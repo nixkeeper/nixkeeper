@@ -119,7 +119,11 @@ happen. For what nixkeeper does and how to set up your own, see the
 ## The code
 
 `nixkeeper/cli.py` is the `nixkeeper` command: it reads the flags and runs
-the subcommand's module. `nixkeeper/sync.py` runs one sync, top to bottom:
+the subcommand's module. It's also the only place nixkeeper exits: code
+below it raises `errors.Problem` for something its user has to fix (no
+lists, no data yet, too many packages), and `cli.main` prints the message
+and exits with status 1. Code that can carry on without what's missing
+catches `Problem` instead. `nixkeeper/sync.py` runs one sync, top to bottom:
 its `main()` calls one function per phase, in the order its module
 docstring lists them (the names its log times them by), each given the
 `Run` (what the sync works from, made once by `start`) and, once the rows

@@ -38,6 +38,8 @@ import sys
 from importlib import resources
 from urllib.parse import urlsplit
 
+from .errors import Problem
+
 # Where the package carries the files (copied in from community/ when it's
 # built), and where a checkout has them.
 _PACKAGED = resources.files("nixkeeper") / "community"
@@ -671,7 +673,7 @@ def publish(results, stale=None, stale_up_to_date=None, now=None):
     again. It needs a token given explicitly, never the local gh login.
 
     Raises:
-        SystemExit: There's no repository or no token.
+        Problem: There's no repository or no token.
     """
     from datetime import UTC, datetime
 
@@ -683,7 +685,7 @@ def publish(results, stale=None, stale_up_to_date=None, now=None):
     )
     token = github.token(use_gh=False)
     if not repo or not token:
-        sys.exit(
+        raise Problem(
             "--report-issue needs a repository (NIXKEEPER_GITHUB_REPO) and a token "
             "(NIXKEEPER_GITHUB_TOKEN_FILE or GITHUB_TOKEN)"
         )

@@ -15,6 +15,7 @@ import urllib.parse
 from importlib import resources
 
 from . import config, datastore
+from .errors import Problem
 
 # Where the package carries the page (copied in from page/ when it's built),
 # and where a checkout has it.
@@ -26,14 +27,14 @@ def page_dir():
     """Return the page's folder: the package's copy, or a checkout's page/.
 
     Raises:
-        SystemExit: There's neither: this copy of nixkeeper was built
+        Problem: There's neither: this copy of nixkeeper was built
             without the page.
     """
     if _PACKAGED.is_dir():
         return str(_PACKAGED)
     if os.path.exists(os.path.join(_CHECKOUT, "index.html")):
         return os.path.normpath(_CHECKOUT)
-    sys.exit(
+    raise Problem(
         "nixkeeper's page isn't here: this copy of nixkeeper was built without it."
     )
 
@@ -42,11 +43,11 @@ def _data_dir_or_exit():
     """Return the data folder, or exit when no sync has written data there.
 
     Raises:
-        SystemExit: The data folder has no index.json yet.
+        Problem: The data folder has no index.json yet.
     """
     data = config.data_dir()
     if not os.path.exists(os.path.join(data, "index.json")):
-        sys.exit(f"No data in {data} yet: run `nixkeeper sync` first.")
+        raise Problem(f"No data in {data} yet: run `nixkeeper sync` first.")
     return data
 
 
@@ -75,13 +76,13 @@ def write(folder):
         The folder, as an absolute path.
 
     Raises:
-        SystemExit: There's no data yet, folder is neither empty nor an
+        Problem: There's no data yet, folder is neither empty nor an
             earlier page, or this nixkeeper was built without the page.
     """
     data = _data_dir_or_exit()
     folder = os.path.abspath(folder)
     if os.path.exists(folder) and not (os.path.isdir(folder) and _is_page(folder)):
-        sys.exit(
+        raise Problem(
             f"{folder} isn't empty and isn't a nixkeeper page: give `page` a new "
             "or empty folder."
         )
