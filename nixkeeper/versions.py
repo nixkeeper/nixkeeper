@@ -52,7 +52,9 @@ def components(version):
 
     kind is 0 for an empty value (a zero), 1 for a word (value: its first
     letter, in lower case), and 2 for a number. Trailing zeros are left
-    out: they're what padding adds.
+    out: they're what padding adds. A word right after a number, with
+    nothing between them and no number after it, ranks as a letter suffix
+    (1.0a).
     """
     found = []
     pos = 0
@@ -175,7 +177,7 @@ def version_key(version):
 
 
 def is_newer(version, than):
-    """Return whether version is newer than than.
+    """Return whether version is newer than `than`.
 
     False when either is missing: an empty version counts as 0 in
     Repology's order, which is above an unstable one
