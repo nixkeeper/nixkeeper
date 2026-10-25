@@ -177,8 +177,8 @@ def stable_versions(newest):
 def newest_release(digest):
     """Return the newest release branch the tracker evaluates, or None.
 
-    That's "release-26.05", say, picked by its version: where a fix on
-    master may still need backporting.
+    That's a branch such as "release-26.05", picked by its version: where a
+    fix on master may still need backporting.
     """
     names = {
         branch
@@ -274,13 +274,15 @@ COMMIT = re.compile(r"(?=[0-9]*[a-f])[0-9a-f]{7,40}")
 def fixed_in(version, affected):
     """Return the first version past version that no affected range takes in.
 
-    That's what an update needs to reach, for the page to say whether the
-    newest release or an update PR does: 2026.2.16593 for "affected
-    <2026.2.16593". The candidates are the bounds the ranges name ("<X", or
-    ">=X" in an "unaffected" range), and the lowest one newer than version
-    that by_version calls fixed is picked. It's only worked out for a
-    version the ranges call affected, and only versions count, not a commit
-    ("<44b2f096...", for a package without releases).
+    That's what an update needs to reach, so the page can say whether the
+    newest release or an update PR does (2026.2.16593 for "affected
+    <2026.2.16593").
+
+    The candidates are the bounds the ranges name ("<X", or ">=X" in an
+    "unaffected" range); the lowest one newer than version that by_version
+    calls fixed wins. It's only worked out for a version the ranges call
+    affected, and only versions count, not a commit ("<44b2f096...", for a
+    package without releases).
 
     Returns:
         The version, or None.
