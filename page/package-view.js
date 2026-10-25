@@ -187,7 +187,6 @@ export const prLink = (n, text) =>
 
 // Each outcome: its colour, its pill in the panel (`label`), and what it
 // means (`text`).
-
 export const UPDATE_OUTCOME = {
   failed: {
     dot: 'missing',

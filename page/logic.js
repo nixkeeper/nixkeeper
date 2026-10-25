@@ -907,10 +907,11 @@ const asMarkup = (value) => (value instanceof Markup ? value : html`${value}`);
 // Whitespace isn't passed over: a text starting with a space is a tail of
 // a sentence ("... nixkeeper's update check found"), not its start.
 const BEFORE_FIRST_LETTER = /^((?:<(?:[^>"]|"[^"]*")*>)*)(\p{Ll})/u;
-// Names that stay lowercase even at a sentence's start: the project's own
-// (assets/brand/BRAND.md). nixpkgs' names aren't here: the page writes
-// "Nixpkgs-update hasn't tried..." at a sentence's start today.
-const LOWERCASE_NAMES = /^(nixkeeper)\b/;
+// Names that stay lowercase even at a sentence's start, as their projects
+// write them: nixkeeper (assets/brand/BRAND.md), nixpkgs, and its update
+// bot's. The page's own sentences already start "nixpkgs-update hasn't
+// tried..." (package-view.js). Whole words only: \b keeps "nixpkgsfoo" out.
+const LOWERCASE_NAMES = /^(nixkeeper|nixpkgs|nixpkgs-update|r-ryantm)\b/;
 
 // Text with its first letter capitalized, as markup that's safe to show.
 // Tags at the start are passed over, so "<span>failed</span>" becomes

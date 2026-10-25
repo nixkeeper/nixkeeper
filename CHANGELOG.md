@@ -72,10 +72,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   attempt, the line after its verdict) through one helper that escapes
   plain text and keeps the page's own markup, rather than by hand around
   `raw()`: a text taken from the data there can no longer reach the page
-  unescaped. What the page shows is the same (1,974 packages' panels
-  rendered identically before and after); "nixkeeper" stays lowercase,
-  as the brand guide has it, should a future sentence start with it.
-
+  unescaped. Names written in lowercase stay so at a sentence's start
+  (nixkeeper, as its brand guide has it, nixpkgs, nixpkgs-update,
+  r-ryantm), as the page's own sentences already wrote them: the update
+  bot's reasons `patch` and `unavailable` now read "nixpkgs' changes to the
+  source..." and "nixpkgs won't build it...", not "Nixpkgs". Nothing else
+  the page shows changes (1,957 of 1,974 packages' panels rendered
+  identically; the other 17 by that one letter).
 - The sync's code reads as its phases: `sync.main` calls one function per
   phase, named as the log times them, each from what the run works from
   (made once) and which rows each step covers (worked out once), rather

@@ -709,11 +709,11 @@ describe('links and markup from data', () => {
   test('capitalized leaves the lowercase names, as whole words only', () => {
     assert.equal(String(capitalized('nixkeeper found it')), 'nixkeeper found it');
     assert.equal(String(capitalized('nixkeeperish')), 'Nixkeeperish');
-    // nixpkgs' names aren't among them (yet): as the page writes them today.
-    assert.equal(
-      String(capitalized("nixpkgs-update hasn't tried")),
-      'Nixpkgs-update hasn&#39;t tried',
-    );
+    // nixpkgs' names too, as the page's own sentences write them.
+    assert.equal(String(capitalized("nixpkgs won't build it")), 'nixpkgs won&#39;t build it');
+    assert.equal(String(capitalized('nixpkgs-update tried')), 'nixpkgs-update tried');
+    assert.equal(String(capitalized('r-ryantm opened it')), 'r-ryantm opened it');
+    assert.equal(String(capitalized('nixpkgsfoo')), 'Nixpkgsfoo');
   });
 });
 
