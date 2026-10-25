@@ -79,8 +79,9 @@ happen. For what nixkeeper does and how to set up your own, see the
     with `html` itself
   - `raw`: markup the page writes itself, never text from the data
   - `capitalized`: capitalizes a text's first letter, keeping it escaped
-  - `withoutLeading`: takes punctuation off a text's start, keeping it
-    escaped
+    (the names in `LOWERCASE_NAMES`, nixkeeper's, stay lowercase)
+  - `withoutLeadingJoiner`: takes the joining punctuation ("— ", ", ") off
+    a sentence's tail, keeping it escaped
 - `assets/`:
   - `brand/`: nixkeeper's identity: the guide (`BRAND.md`), the mark and
     its variants, status versions and lockups as SVGs, the colour tokens

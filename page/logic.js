@@ -907,25 +907,32 @@ const asMarkup = (value) => (value instanceof Markup ? value : html`${value}`);
 // Whitespace isn't passed over: a text starting with a space is a tail of
 // a sentence ("... nixkeeper's update check found"), not its start.
 const BEFORE_FIRST_LETTER = /^((?:<(?:[^>"]|"[^"]*")*>)*)(\p{Ll})/u;
+// Names that stay lowercase even at a sentence's start: the project's own
+// (assets/brand/BRAND.md). nixpkgs' names aren't here: the page writes
+// "Nixpkgs-update hasn't tried..." at a sentence's start today.
+const LOWERCASE_NAMES = /^(nixkeeper)\b/;
 
 // Text with its first letter capitalized, as markup that's safe to show.
 // Tags at the start are passed over, so "<span>failed</span>" becomes
-// "<span>Failed</span>". "nixkeeper" stays lowercase, as its brand guide
-// says (assets/brand/BRAND.md), even at a sentence's start.
+// "<span>Failed</span>". A sentence starting with one of LOWERCASE_NAMES
+// is left as it is.
 export function capitalized(value) {
   const markup = asMarkup(value).text;
   return new Markup(
     markup.replace(BEFORE_FIRST_LETTER, (match, before, letter) =>
-      markup.startsWith('nixkeeper', before.length) ? match : before + letter.toUpperCase(),
+      LOWERCASE_NAMES.test(markup.slice(before.length)) ? match : before + letter.toUpperCase(),
     ),
   );
 }
 
-// Text with what pattern matches at its start taken off, as markup that's
-// safe to show: escaped first, so pattern must match only text (joining
-// punctuation, spaces), never the start of a tag.
-export function withoutLeading(value, pattern) {
-  return new Markup(asMarkup(value).text.replace(pattern, ''));
+// The joining punctuation ("— ", ", ", "; ") a sentence's tail starts with.
+const LEADING_JOINER = /^\s*(—|,|;)\s*/;
+
+// A sentence's tail with its joining punctuation taken off, so it stands
+// as a sentence of its own, as markup that's safe to show. The text is
+// escaped first; only punctuation and spaces are taken off, never markup.
+export function withoutLeadingJoiner(value) {
+  return new Markup(asMarkup(value).text.replace(LEADING_JOINER, ''));
 }
 
 // Whether url's host is host or one of its subdomains (github.com, or

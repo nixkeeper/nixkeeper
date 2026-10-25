@@ -82,7 +82,7 @@ import {
   vulnSummary,
   waitingForChannel,
   weekChange,
-  withoutLeading,
+  withoutLeadingJoiner,
   withRunStamps,
   withSlash,
 } from '../../page/logic.js';
@@ -701,14 +701,19 @@ describe('links and markup from data', () => {
     // Letters beyond a to z.
     assert.equal(String(capitalized('über')), 'Über');
   });
-  test('withoutLeading takes text off the start, still escaped', () => {
-    const joiner = /^\s*(—|,|;)\s*/;
-    assert.equal(String(withoutLeading(' — <b>x</b>', joiner)), '&lt;b&gt;x&lt;/b&gt;');
+  test('withoutLeadingJoiner takes the joining punctuation off, still escaped', () => {
+    assert.equal(String(withoutLeadingJoiner(' — <b>x</b>')), '&lt;b&gt;x&lt;/b&gt;');
+    assert.equal(String(withoutLeadingJoiner(html`, but <i>${'<y>'}</i>`)), 'but <i>&lt;y&gt;</i>');
+    assert.equal(String(withoutLeadingJoiner('no joiner')), 'no joiner');
+  });
+  test('capitalized leaves the lowercase names, as whole words only', () => {
+    assert.equal(String(capitalized('nixkeeper found it')), 'nixkeeper found it');
+    assert.equal(String(capitalized('nixkeeperish')), 'Nixkeeperish');
+    // nixpkgs' names aren't among them (yet): as the page writes them today.
     assert.equal(
-      String(withoutLeading(html`, but <i>${'<y>'}</i>`, joiner)),
-      'but <i>&lt;y&gt;</i>',
+      String(capitalized("nixpkgs-update hasn't tried")),
+      'Nixpkgs-update hasn&#39;t tried',
     );
-    assert.equal(String(withoutLeading('no joiner', joiner)), 'no joiner');
   });
 });
 
