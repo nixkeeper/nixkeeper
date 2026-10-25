@@ -50,8 +50,9 @@ def get(path):
         (json, the final URL), or (None, None) on a 404.
 
     Raises:
-        urllib.error.URLError, OSError, ValueError: Every attempt failed;
-            the last one's error.
+        urllib.error.URLError, OSError, ValueError: Every attempt failed
+            (the last one's error), or Repology asked to wait longer than
+            MAX_RETRY_AFTER (http.retry_wait).
     """
     last_err = None
     for attempt, delay in enumerate([0, *config.RETRY_DELAYS]):

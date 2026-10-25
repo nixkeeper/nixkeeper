@@ -111,8 +111,9 @@ def retry_wait(planned, err, host):
 def get(url, accept=None, safe=False, compressed=False):
     """Return url's body as text, or None on a 404.
 
-    The request is retried after RETRY_DELAYS seconds, and raises once
-    every attempt has failed.
+    The request is retried after RETRY_DELAYS seconds. It raises once every
+    attempt has failed, or at once when the server asks to wait longer than
+    MAX_RETRY_AFTER (retry_wait).
 
     Args:
         url: The URL.
@@ -163,9 +164,7 @@ def _read(resp, deadline, limit=None):
 
 
 # What get_page returns when the server says the page hasn't changed since
-# it was last read (HTTP 304). A page is remembered by its server's tag for
-# that version of it ("etag") and when it last changed ("lastModified"), as
-# the server gave them; either can be missing.
+# it was last read (HTTP 304).
 NOT_MODIFIED = 304
 
 

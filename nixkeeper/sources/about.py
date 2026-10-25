@@ -38,7 +38,7 @@ def taken():
     Starting over keeps a run's notes its own.
 
     Returns:
-        {source: what was noted}, by source.
+        {source: what was noted}, sorted by source.
     """
     with _lock:
         found = dict(sorted(_noted.items()))
