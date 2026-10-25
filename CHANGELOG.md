@@ -101,8 +101,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   on it when it can't be read or is too old, where eight readers each had
   a copy. Each reader keeps what makes it current and how its data is
   parsed. Nothing it does changes: two syncs with every package, before
-  and after, wrote the same 5,401 files and the same log. A digest too old
-  to use is now said the same way for each ("not used, read ...").
+  and after, wrote the same 5,401 files. The log is the same too, but for
+  a digest too old to use, now said the same way for each ("not used,
+  read ...").
 
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
