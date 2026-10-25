@@ -119,6 +119,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A failed deploy to Cloudflare is tried again, 3 attempts in all, 30 s
+  apart, before the run fails: one failed request to Cloudflare's API
+  ("An unknown error has occurred", code 10013) failed a sync's run, and
+  nixkeeper.com kept the last sync's data until the next one.
+
 - A package covering two names that one removal PR touches (segger-jlink
   with segger-jlink-headless) no longer gains or loses its "being removed"
   PR at random from one sync to the next: the row kept whichever copy of

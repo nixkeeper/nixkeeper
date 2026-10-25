@@ -197,7 +197,8 @@ publish there after they publish the data branch, which stays the syncs'
 own copy ([scripts/cloudflare.sh](../scripts/cloudflare.sh)), and only when
 the page or the data changed: a page change goes out with the next hourly
 run. Cloudflare doesn't build anything or read the repository; the
-workflows upload what they made.
+workflows upload what they made. A failed deploy is tried again (3
+attempts, 30 s apart) before the run fails.
 
 To do the same for an instance:
 

@@ -20,6 +20,11 @@
 # token with only Account → Workers Scripts → Edit). wrangler is nixpkgs'
 # (this flake's lock), unless NIXKEEPER_WRANGLER names another command (for
 # tests).
+#
+# A failed deploy is tried again, 3 attempts in all, NIXKEEPER_DEPLOY_PAUSE
+# seconds apart (30 by default; 0 in tests): Cloudflare's API sometimes fails
+# one request ("An unknown error has occurred", code 10013, 2026-10-25), and
+# the site then kept the last sync's data until the next one.
 
 set -euo pipefail
 
@@ -82,7 +87,21 @@ read -r -a wrangler <<<"${NIXKEEPER_WRANGLER:-nix run --inputs-from . nixpkgs#wr
 # Static assets only (no Worker code): wrangler uploads only the files
 # Cloudflare doesn't have yet, and the new version replaces the old all at
 # once, never a new index.json with yesterday's shards.
-"${wrangler[@]}" deploy \
-  --config "$work/wrangler.json" \
-  --message "page $(git rev-parse --short HEAD:page), data ${data:0:12}"
+# Trying again is safe: an attempt that failed replaced nothing, and the
+# files it did upload aren't uploaded twice.
+pause=${NIXKEEPER_DEPLOY_PAUSE:-30}
+attempts=3
+for attempt in $(seq "$attempts"); do
+  if "${wrangler[@]}" deploy \
+    --config "$work/wrangler.json" \
+    --message "page $(git rev-parse --short HEAD:page), data ${data:0:12}"; then
+    break
+  fi
+  if [ "$attempt" -eq "$attempts" ]; then
+    echo "::error::Cloudflare deploy failed $attempts times."
+    exit 1
+  fi
+  echo "::warning::Cloudflare deploy failed (attempt $attempt of $attempts), trying again in $pause s."
+  sleep "$pause"
+done
 echo "Published to Cloudflare ($worker): page $page, data ${data:0:12}."
