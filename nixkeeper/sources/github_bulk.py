@@ -53,8 +53,8 @@ PART = re.compile(r"[^\W_]+")
 def stem(word):
     """Return word without a plural ending.
 
-    velocities becomes velocity, triggers trigger, and patches patch; class
-    stays class.
+    velocities → velocity, triggers → trigger, patches → patch; class stays
+    class.
     """
     if len(word) > 4 and word.endswith("ies"):
         return word[:-3] + "y"
@@ -110,8 +110,9 @@ def list_open(token):
         (open PRs, open issues).
 
     Raises:
-        urllib.error.URLError, OSError, ValueError: A request failed. A
-            partial list would give wrong counts.
+        urllib.error.URLError, OSError, ValueError: A request failed, or
+            GitHub's answer was incomplete: a partial list would give wrong
+            counts.
     """
     owner, name = config.GITHUB_REPO.split("/")
     prs, issues = [], []
@@ -358,9 +359,9 @@ def list_merged(token, since, now):
         The PRs, as GraphQL nodes.
 
     Raises:
-        urllib.error.URLError, OSError, ValueError: A request failed, or a
-            window has more than search's 1,000 results (some would be
-            missing).
+        urllib.error.URLError, OSError, ValueError: A request failed,
+            GitHub's answer was incomplete, or a window has more than
+            search's 1,000 results (some would be missing).
     """
     start = datetime.fromisoformat(since.replace("Z", "+00:00"))
     end = datetime.fromisoformat(now)
