@@ -1,9 +1,12 @@
-"""The frequent check: the update checks marked `frequent = true` in
-package-lists/update-checks.nix, run about hourly for packages where a new
-release matters within hours (browsers, for their security fixes). Touches only
-those packages: their Repology data (so the comparison uses nixpkgs' current
-version) and their update check. `nixkeeper frequent-check`; from a
-checkout, `nix run .#frequent-check`."""
+"""Run the frequent update checks, about hourly.
+
+The frequent checks are the update checks marked `frequent = true` in
+package-lists/update-checks.nix, for packages where a new release matters
+within hours (browsers, for their security fixes). This touches only those
+packages: their Repology data (so the comparison uses nixpkgs' current
+version) and their update check. Run it with `nixkeeper frequent-check`,
+or `nix run .#frequent-check` from a checkout.
+"""
 
 import sys
 import urllib.error
@@ -14,15 +17,21 @@ from .changes import count_master
 from .sources import nixpkgs as nixpkgs_source
 from .sources import repology, upstream
 
-# Fields a run sets from scratch, so a copy of last run's row mustn't keep
-# them: each is set again below if it still applies.
+# Fields a run sets from scratch, so a copy of the last run's row mustn't
+# keep them: each is set again below if it still applies.
 REFRESHED = ("upstream", "outdatedSince")
 
 
 def refresh_repology(row, previous, now):
-    """Update row's nixpkgs version and status from Repology. Returns the
-    project's entries to write to its data file, or None if the lookup failed
-    (row then keeps its data, marked as not refreshed like in a full sync)."""
+    """Update row's nixpkgs version and status from Repology.
+
+    A lookup that fails leaves the row's data as it was, marked as not
+    refreshed, as in a full sync.
+
+    Returns:
+        The project's entries, to write to its data file, or None when the
+        lookup failed or found nothing.
+    """
     try:
         project, entries = repology.project_by_name(row["project"])
     except (urllib.error.URLError, OSError, ValueError) as e:
@@ -65,6 +74,7 @@ def refresh_repology(row, previous, now):
 
 
 def main():
+    """Run the frequent check, and publish what changed."""
     now = datetime.now(UTC).isoformat()
     previous, packages = partial.load()
     # Your own checks and, if the lists opt in, the community's (community.py).
