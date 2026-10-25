@@ -1,10 +1,12 @@
-"""nixkeeper-hydra's digest of Hydra's builds
-(https://github.com/nixkeeper/digest-builds): every job of Hydra's newest
-evaluation of nixpkgs master, with its newest finished build and, when that
-isn't a success, the last successful one, in one download. The daily sync
-takes the jobs it can answer from it instead of asking Hydra about each
-(hydra.py); Hydra is still asked about the rest, and about everything when
-the digest isn't current or can't be read."""
+"""Read nixkeeper-hydra's digest of Hydra's builds.
+
+The digest (https://github.com/nixkeeper/digest-builds) has every job of
+Hydra's newest evaluation of nixpkgs master, with its newest finished build
+and, when that isn't a success, the last successful one, in one download.
+The daily sync takes the jobs it can answer from it instead of asking Hydra
+about each (hydra.py). Hydra is still asked about the rest, and about
+everything when the digest isn't current or can't be read.
+"""
 
 import csv
 import gzip
@@ -18,11 +20,14 @@ from datetime import datetime, timedelta
 from .. import config
 from . import about, http
 
+# The digest's format this nixkeeper reads.
 FORMAT = 1
+# An evaluation's id, in a link to it.
 EVAL = re.compile(r"/eval/([0-9]+)")
 # The digest's statuses nixkeeper takes as they are; "queued" (a job new to
 # the digest, not built yet) is asked of Hydra.
 FINISHED = {"ok", "failed", "dependency", "unfinished"}
+# A result's fields about the job's last success.
 LAST_SUCCESS = ("lastSuccess", "lastSuccessBuild", "lastSuccessName")
 # A row's lastSuccessAt when Hydra says the job never succeeded (from
 # nixkeeper-hydra's lookups, 2026-10-08; its build and name are empty).
@@ -30,9 +35,15 @@ NEVER = "never"
 
 
 def newest_eval():
-    """The id of Hydra's newest evaluation of the jobset, from its list of
-    evaluations (one small page). Not its latest-eval: that's the newest
-    whose builds have all finished, often a day behind."""
+    """Return the id of Hydra's newest evaluation of the jobset.
+
+    It's read from the jobset's list of evaluations, one small page. Not
+    from its latest-eval, which is the newest whose builds have all
+    finished, often a day behind.
+
+    Raises:
+        ValueError: The list has no evaluations.
+    """
     path = f"/jobset/{config.HYDRA_PROJECT}/{config.HYDRA_JOBSET}/evals"
     page = http.get(config.HYDRA_URL + path) or ""
     ids = [int(i) for i in EVAL.findall(page)]
@@ -42,9 +53,15 @@ def newest_eval():
 
 
 def current(meta, now):
-    """Why the digest can be used (its meta.json), or None: it's Hydra's
-    newest evaluation, or behind it but read within
-    HYDRA_DIGEST_MAX_AGE_HOURS (its workflow catches up hourly)."""
+    """Return why the digest can be used, or None.
+
+    It can when it's of Hydra's newest evaluation, or behind it but read
+    within HYDRA_DIGEST_MAX_AGE_HOURS (its workflow catches up hourly).
+
+    Args:
+        meta: The digest's meta.json.
+        now: The run's time.
+    """
     read = datetime.fromisoformat(meta["fetchedAt"])
     hours = (datetime.fromisoformat(now) - read) / timedelta(hours=1)
     try:
@@ -61,8 +78,12 @@ def current(meta, now):
 
 
 def load(now):
-    """The digest's rows by (attr, system), or None (saying why) when it's
-    turned off, not current (current) or can't be read."""
+    """Read the digest's jobs.
+
+    Returns:
+        The digest's rows by (attr, system). None when it's turned off, or
+        (with the reason in the log) not current (current) or unreadable.
+    """
     base = config.HYDRA_DIGEST_URL
     if not base:
         return None
@@ -100,18 +121,29 @@ def load(now):
 
 
 def blocked_by(row):
-    """Which dependency failed, for a dependency-failed digest row whose page
-    the digest has read: {"blockedBy": [nixpkgs attributes, or store names
-    no job builds (rows.name_blockers names them)]}, else {}."""
+    """Return which dependency failed, for a dependency-failed digest row.
+
+    That's only known when the digest has read the build's page.
+
+    Returns:
+        {"blockedBy": [nixpkgs attributes, or store names no job builds
+        (rows.name_blockers names them)]}, or {}.
+    """
     if row["status"] == "dependency" and row.get("blockedBy"):
         return {"blockedBy": row["blockedBy"].split()}
     return {}
 
 
 def failed_because(row):
-    """Why a failed build failed, for a digest row whose log the digest has
-    read (nixkeeper-hydra's reasons, from 2026-10-08): {"failedBecause":
-    "cmake4", "failedExcerpt": the lines that say so}, else {}."""
+    """Return why a failed build failed, for a failed digest row.
+
+    That's only known when the digest has read the build's log
+    (nixkeeper-hydra's reasons, since 2026-10-08).
+
+    Returns:
+        {"failedBecause": "cmake4", say, "failedExcerpt"?: the lines that
+        say so}, or {}.
+    """
     if row["status"] == "failed" and row.get("failedBecause"):
         found = {"failedBecause": row["failedBecause"]}
         if row.get("failedExcerpt"):
@@ -121,10 +153,21 @@ def failed_because(row):
 
 
 def with_blockers(results, digest):
-    """results (Hydra's answers by job) with what the digest knows that
-    Hydra's answer doesn't say, for the same build: which dependency failed
-    (blockedBy), and why a failed build failed (failed_because). A job the
-    digest can't answer whole (its last success unknown) is asked there."""
+    """Add what the digest knows about the same builds to Hydra's answers.
+
+    That's which dependency failed (blocked_by) and why a failed build
+    failed (failed_because), which Hydra's answer doesn't say. A job the
+    digest can't answer whole (its last success unknown) is asked of Hydra,
+    and gets them here, when the digest's build is the one Hydra answered
+    about.
+
+    Args:
+        results: Hydra's answers by job, changed in place.
+        digest: load's result, or None.
+
+    Returns:
+        results.
+    """
     for job, result in results.items():
         row = (digest or {}).get(job)
         if not row or str(result.get("build")) != row["build"]:
@@ -137,11 +180,17 @@ def with_blockers(results, digest):
 
 
 def answer(row, broken, before):
-    """A job's result from its digest row, as hydra.check gives it, or None
-    when the digest can't say: the job is queued there, or its build isn't
-    a success and nothing says when it last was. broken: nixpkgs marks it
-    broken on that platform. before: the job's result at the last sync, whose
-    last success still holds for the same build."""
+    """Return a job's result from its digest row, as hydra.check gives it, or None.
+
+    None means the digest can't say: the job is queued there, or its build
+    isn't a success and nothing says when it last was.
+
+    Args:
+        row: The job's digest row.
+        broken: Whether nixpkgs marks it broken on that platform.
+        before: The job's result at the last sync, whose last success still
+            holds for the same build.
+    """
     if row["status"] not in FINISHED:
         return None
     result = {
@@ -187,11 +236,22 @@ def answer(row, broken, before):
 
 
 def answers(digest, wanted, broken, before):
-    """({job: result} for the jobs in wanted ([(attr, system)]) the digest
-    answers, [the jobs it has that Hydra must still be asked about: queued,
-    or a failing build without a known last success]). Jobs missing from it
-    are in neither: they're asked as before (hydra.due). broken: {attr:
-    [systems]}; before: the last sync's results by job (hydra.last_run)."""
+    """Answer the jobs the digest can.
+
+    Jobs missing from the digest are in neither list: they're asked of
+    Hydra as before (hydra.due).
+
+    Args:
+        digest: load's result.
+        wanted: The jobs, as [(attr, system)].
+        broken: {attr: [the systems nixpkgs marks it broken on]}.
+        before: The last sync's results by job (hydra.last_run).
+
+    Returns:
+        ({job: result} for the jobs the digest answers, [the jobs it has
+        that Hydra must still be asked about: queued, or a build that isn't
+        a success without a known last success]).
+    """
     found, ask = {}, []
     for attr, system in wanted:
         row = digest.get((attr, system))
@@ -206,13 +266,30 @@ def answers(digest, wanted, broken, before):
 
 
 def bulk_answers(digest, wanted, broken, before):
-    """{job: result} for every job in wanted, without asking Hydra (with every
-    package tracked, the jobs of packages not on the lists): the digest's
-    answer (answers); a finished build whose last success it can't say,
-    without one; a job it doesn't have, not built (the digest has every job
-    of the evaluation: Hydra would say the same), or broken; a queued job,
-    as the last sync had it (unknown if it had none). digest None (not
-    current): every job as the last sync had it."""
+    """Answer every job in wanted without asking Hydra.
+
+    This is for the jobs of packages not on the lists, with every package
+    tracked. A job gets:
+
+    - the digest's answer (answer), when it has one;
+    - for a finished build whose last success the digest can't say, the
+      result without one;
+    - for a job the digest doesn't have, "notBuilt" (the digest has every
+      job of the evaluation: Hydra would say the same), or "broken";
+    - for a queued job, its result at the last sync, or "unknown" without
+      one.
+
+    With digest None (not current), every job is as the last sync had it.
+
+    Args:
+        digest: load's result, or None.
+        wanted: The jobs, as [(attr, system)].
+        broken: {attr: [the systems nixpkgs marks it broken on]}.
+        before: The last sync's results by job (hydra.last_run).
+
+    Returns:
+        {job: result}.
+    """
     found = {}
     for attr, system in wanted:
         job = (attr, system)

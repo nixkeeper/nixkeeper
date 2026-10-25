@@ -1,11 +1,14 @@
-"""nixkeeper-updates' digest of nixpkgs-update (https://github.com/nixkeeper/
-digest-update-bot): the bot's latest attempt at every package, its log read
-with these same rules (nixpkgs_update.parse), refreshed every 3 hours. The
-daily sync takes attempts from it instead of reading each package's logs
-(nixpkgs_update.add_attempts), and still reads the logs of the lists'
-packages it can't answer: an attempt it hasn't read yet ("pending"), or
-read with other rules (another PARSER); and all of them when it isn't
-current or can't be read."""
+"""Read nixkeeper-updates' digest of the update bot's attempts.
+
+The digest (https://github.com/nixkeeper/digest-update-bot) has
+nixpkgs-update's latest attempt at every package, its log read with these
+same rules (nixpkgs_update.parse), refreshed every 3 hours. The daily sync
+takes attempts from it instead of reading each package's logs
+(nixpkgs_update.add_attempts). It still reads the logs of the lists'
+packages the digest can't answer: an attempt it hasn't read yet
+("pending"), or one read with other rules (another PARSER); and all of
+them when the digest isn't current or can't be read.
+"""
 
 import gzip
 import io
@@ -17,20 +20,29 @@ from datetime import datetime, timedelta
 from .. import config
 from . import about, http
 
+# The digest's format this nixkeeper reads.
 FORMAT = 1
 
 
 def current(meta, now):
-    """Whether the digest is recent enough: made within
-    UPDATES_DIGEST_MAX_AGE_HOURS (the workflow runs every 3 hours)."""
+    """Return whether the digest is recent enough.
+
+    It is when it was made within UPDATES_DIGEST_MAX_AGE_HOURS; its
+    workflow runs every 3 hours.
+    """
     age = datetime.fromisoformat(now) - datetime.fromisoformat(meta["fetchedAt"])
     return age <= timedelta(hours=config.UPDATES_DIGEST_MAX_AGE_HOURS)
 
 
 def load(now):
-    """{bot's attribute: entry} (python3Packages.requests, as the logs name
-    it: rows.search_term), or None (saying why) when it's turned off, not
-    current or can't be read."""
+    """Read the digest's entries.
+
+    Returns:
+        {the bot's attribute: entry}, with the attribute as the logs name
+        it (python3Packages.requests: rows.search_term). None when the
+        digest is turned off, or (with the reason in the log) not current
+        or unreadable.
+    """
     base = config.UPDATES_DIGEST_URL
     if not base:
         return None
@@ -72,13 +84,20 @@ def load(now):
 
 
 def load_queue(now):
-    """When the bot will next try each package, from the digest's copy of its
-    queue (queue.json.gz, made from ~supervisor/queue.html): {bot's
-    attribute: {"by": the day it's expected, "candidates": [[from, to,
-    source URL], ...]}}, or None (noting why) when there's none, it's too
-    old, or it can't be read. The queue goes round in "cycleDays": a
-    package at position p of n is reached about p / n of a cycle after the
-    page was made."""
+    """Read when the bot will next try each package, from its queue.
+
+    The digest keeps a copy of the bot's queue (queue.json.gz, made from
+    ~supervisor/queue.html). The queue goes round in "cycleDays": a package
+    at position p of n is reached about p / n of a cycle after the page was
+    made.
+
+    Returns:
+        {the bot's attribute: {"by": the day it's expected, "candidates":
+        [[from, to, source URL], ...], "script": whether it runs the
+        package's updateScript}}. None when the digest is turned off, or
+        (with the reason noted) has no queue, an old one, or an unreadable
+        one.
+    """
     base = config.UPDATES_DIGEST_URL
     if not base:
         return None
@@ -119,10 +138,17 @@ def load_queue(now):
 
 
 def attempt(entry, attr, parser):
-    """The latest attempt at attr (nixkeeper's attribute) from its digest
-    entry, as nixpkgs_update.latest_attempt reads it, or None when the
-    digest can't say: a newer attempt it hasn't read ("pending"), or read
-    with other rules than parser."""
+    """Return the latest attempt at attr from its digest entry, or None.
+
+    The attempt is as nixpkgs_update.latest_attempt would read it. None
+    means the digest can't say: there's a newer attempt it hasn't read
+    ("pending"), or it read this one with other rules than parser.
+
+    Args:
+        entry: The digest's entry for the package.
+        attr: nixkeeper's attribute.
+        parser: The rules' version (nixpkgs_update.PARSER).
+    """
     found = entry.get("attempt")
     if not found or "pending" in entry or found.get("parser") != parser:
         return None
@@ -130,8 +156,11 @@ def attempt(entry, attr, parser):
 
 
 def known(entry, attr):
-    """The attempt the digest last read for attr, whatever it says about a
-    newer one (for packages read in bulk only), or None."""
+    """Return the attempt the digest last read for attr, or None.
+
+    That's whatever the digest says about a newer attempt: it's only for
+    packages read in bulk.
+    """
     found = entry.get("attempt")
     if not found:
         return None

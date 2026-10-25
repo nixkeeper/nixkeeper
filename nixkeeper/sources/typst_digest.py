@@ -1,10 +1,14 @@
-"""Typst Universe's newest versions, from nixkeeper-versions' typst.json.gz
-(feeds.py): the source of nixpkgs' typstPackages, which Repology mostly
-can't compare (it sees nixpkgs alone, "unique", or the versions nixpkgs
-keeps, "legacy"). The daily sync compares typstPackages' rows with it
-instead (apply): a package's latest attribute (typstPackages.cetz) against
-Universe's newest version, the versioned ones (typstPackages.cetz_0_3_0)
-as older versions kept beside it."""
+"""Compare typstPackages with Typst Universe's newest versions.
+
+The versions come from the nixkeeper-versions digest's typst.json.gz
+(feeds.py). Typst Universe is the source of nixpkgs' typstPackages, which
+Repology mostly can't compare: it sees nixpkgs alone ("unique"), or the
+versions nixpkgs keeps ("legacy"). So the daily sync compares
+typstPackages' rows with Universe instead (apply): a package's latest
+attribute (typstPackages.cetz) against Universe's newest version, and the
+versioned ones (typstPackages.cetz_0_3_0) as older versions kept beside
+it.
+"""
 
 import sys
 
@@ -18,9 +22,13 @@ PACKAGE_URL = "https://typst.app/universe/package/{}"
 
 
 def load(now):
-    """{name: {"version", "released"?}} for every package on Typst Universe,
-    or None (saying why) when it can't be used (feeds.load): Repology's
-    verdicts stay."""
+    """Read Typst Universe's packages.
+
+    Returns:
+        {name: {"version", "released"?}} for every package, or None when
+        they can't be used (feeds.load says why); Repology's verdicts then
+        stay.
+    """
     found = feeds.load(FILE, "typst", "Typst Universe's versions", now)
     if found is None:
         return None
@@ -34,13 +42,20 @@ def load(now):
 
 
 def apply(rows, nixpkgs, packages):
-    """Compare typstPackages' rows with Typst Universe (packages: load's):
-    the row of a package's latest attribute (typstPackages.cetz) is newest
-    or outdated against Universe's newest version; a versioned one
+    """Compare typstPackages' rows with Typst Universe.
+
+    The row of a package's latest attribute (typstPackages.cetz) is newest
+    or outdated against Universe's newest version. A versioned one
     (typstPackages.cetz_0_3_0) is an older version kept beside it, unless
-    it's the same version (a row of its own when Repology doesn't list
-    the package): then it's compared too. Each says so ("feed": what it was
-    compared with). Packages Universe doesn't have keep Repology's."""
+    it's the same version (a row of its own when Repology doesn't list the
+    package): then it's compared too. Each row says what it was compared
+    with ("feed"). Packages Universe doesn't have keep Repology's verdict.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        packages: load's result, or None (then nothing changes).
+    """
     if not packages:
         return
     for row in rows:

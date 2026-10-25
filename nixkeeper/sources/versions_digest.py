@@ -1,11 +1,14 @@
-"""nixkeeper-versions' digest of Repology (https://github.com/nixkeeper/
-digest-versions): every nixpkgs project's packages in every repository, read in
-bulk the way nixpkgs-update reads Repology, refreshed daily for outdated
-projects and weekly for the rest. The daily sync takes tracked packages'
-projects from it instead of looking each up on Repology (lookup.py), and
-still asks Repology for those it can't answer: missing from it (new in
-nixpkgs), or with another version than the channel's (changed since), and
-for all of them when the digest isn't current or can't be read."""
+"""Read nixkeeper-versions' digest of Repology.
+
+The digest (https://github.com/nixkeeper/digest-versions) has every nixpkgs
+project's packages in every repository, read in bulk the way nixpkgs-update
+reads Repology, refreshed daily for outdated projects and weekly for the
+rest. The daily sync takes the tracked packages' projects from it instead
+of looking each up on Repology (lookup.py). It still asks Repology about
+those the digest can't answer: missing from it (new in nixpkgs), or with
+another version than the channel's (changed since); and about all of them
+when the digest isn't current or can't be read.
+"""
 
 import gzip
 import io
@@ -17,21 +20,29 @@ from datetime import datetime, timedelta
 from .. import config
 from . import about, http
 
+# The digest's format this nixkeeper reads.
 FORMAT = 1
 
 
 def current(meta, now):
-    """Whether the digest is recent enough: its outdated projects were read
-    within VERSIONS_DIGEST_MAX_AGE_HOURS (the workflow runs daily)."""
+    """Return whether the digest is recent enough.
+
+    It is when its outdated projects were read within
+    VERSIONS_DIGEST_MAX_AGE_HOURS; its workflow runs daily.
+    """
     age = datetime.fromisoformat(now) - datetime.fromisoformat(meta["outdatedAt"])
     return age <= timedelta(hours=config.VERSIONS_DIGEST_MAX_AGE_HOURS)
 
 
 def projects_of(lines, attrs):
-    """{attr: (project, entries, checked day)} for the attrs among a digest's
-    lines (one project each) whose nixpkgs packages they are; only those
-    projects are kept, so memory stays small (the whole digest is about
-    2 million entries)."""
+    """Pick the tracked attributes' projects from the digest's lines.
+
+    Each line is one project. Only the projects of attrs are kept, so
+    memory stays small: the whole digest is about 2 million entries.
+
+    Returns:
+        {attr: (project, entries, the day it was checked)}.
+    """
     found = {}
     for line in lines:
         project = json.loads(line)
@@ -47,18 +58,26 @@ def projects_of(lines, attrs):
 
 
 class Stale(dict):
-    """A digest that isn't current (load): what it has is only used where
-    Repology can't be reached, or for packages read in bulk, which keep the
-    last versions anyway (lookup.py)."""
+    """A digest that isn't current, as load returns it.
+
+    What it has is only used where Repology can't be reached, or for
+    packages read in bulk, which keep their last versions anyway
+    (lookup.py).
+    """
 
     stale = True
 
 
 def load(attrs, now):
-    """{attr: (project, entries, checked day)} for the tracked attrs the
-    digest has (a Stale one when it isn't current: Repology is asked first,
-    the digest only where Repology can't be reached), or None (saying why)
-    when it's turned off or can't be read."""
+    """Read the digest's projects for the tracked attributes.
+
+    Returns:
+        {attr: (project, entries, the day it was checked)} for the attrs
+        the digest has: a Stale one when it isn't current (Repology is then
+        asked first, and the digest used only where Repology can't be
+        reached). None when it's turned off, or can't be read (the log says
+        why).
+    """
     base = config.VERSIONS_DIGEST_URL
     if not base:
         return None
@@ -106,10 +125,22 @@ def load(attrs, now):
 
 
 def answer(digest, attrs, nixpkgs):
-    """(project, entries, checked day) for a tracked package (its attrs) from
-    the digest, or None when Repology must be asked: none of its attrs is in
-    the digest, or one is with another version than the channel's (nixpkgs
-    changed it since the digest was read, or Repology hasn't caught up)."""
+    """Return a tracked package's project from the digest, or None.
+
+    None means Repology must be asked: none of the package's attributes is
+    in the digest, or one is, with another version than the channel's
+    (nixpkgs changed it since the digest was read, or Repology hasn't
+    caught up).
+
+    Args:
+        digest: load's result.
+        attrs: The package's attributes.
+        nixpkgs: The package index, by attribute; {} takes the digest as it
+            is.
+
+    Returns:
+        (project, entries, the day it was checked), or None.
+    """
     found = None
     for attr in attrs:
         if attr not in digest:

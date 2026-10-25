@@ -1,18 +1,23 @@
-"""The Emacs package archives' newest versions, from nixkeeper-versions'
-emacs.json.gz (feeds.py): what nixpkgs' emacsPackages are made from, which
-Repology mostly can't compare (MELPA's versions are dates: "untrusted").
+"""Compare emacsPackages with the Emacs package archives' newest versions.
 
-nixpkgs lays the archives over each other, a later one winning (pkgs/top-
-level/emacs-packages.nix): GNU ELPA, NonGNU ELPA, MELPA Stable, MELPA, then
-its hand-written packages. So a row of emacsPackages (apply) is compared
-with:
-  1. MELPA, when its version is MELPA's, a build's date and time
-     (20251005.508);
-  2. else the first of MELPA Stable, NonGNU ELPA and GNU ELPA that has the
-     package, in nixpkgs' order;
-  3. none (Repology's verdict stays) for the hand-written packages
-     (manual-packages), the devel archives' versions (0.0.20260424.102016)
-     and packages no archive has."""
+The versions come from the nixkeeper-versions digest's emacs.json.gz
+(feeds.py). The archives are what nixpkgs' emacsPackages are made from,
+which Repology mostly can't compare: MELPA's versions are dates, which it
+calls "untrusted".
+
+nixpkgs lays the archives over each other, a later one winning
+(pkgs/top-level/emacs-packages.nix): GNU ELPA, NonGNU ELPA, MELPA Stable,
+MELPA, then its hand-written packages. So a row of emacsPackages is
+compared (apply) with:
+
+1. MELPA, when its version is MELPA's: a build's date and time
+   (20251005.508);
+2. else the first of MELPA Stable, NonGNU ELPA and GNU ELPA that has the
+   package, in nixpkgs' order;
+3. nothing, keeping Repology's verdict, for the hand-written packages
+   (manual-packages), the devel archives' versions (0.0.20260424.102016)
+   and packages no archive has.
+"""
 
 import re
 import sys
@@ -30,6 +35,7 @@ ARCHIVES = {
 }
 # Where a version that isn't MELPA's is looked for, in nixpkgs' order.
 RELEASES = ("melpaStable", "nongnu", "gnu")
+# A MELPA version: a build's date and time (20251005.508).
 MELPA_VERSION = re.compile(r"\d{8}\.\d+")
 # The devel archives' versions end in a date and time (0.0.20260424.102016):
 # not comparable with the release archives'.
@@ -39,9 +45,13 @@ MANUAL = "elisp-packages/manual-packages"
 
 
 def load(now):
-    """{archive: {name: version}} for the archives in ARCHIVES, or None
-    (saying why) when they can't be used (feeds.load): Repology's verdicts
-    stay."""
+    """Read the archives' versions.
+
+    Returns:
+        {archive: {name: version}} for the archives in ARCHIVES, or None
+        when they can't be used (feeds.load says why); Repology's verdicts
+        then stay.
+    """
     found = feeds.load(FILE, "emacs", "Emacs archives' versions", now)
     if found is None:
         return None
@@ -58,9 +68,17 @@ def load(now):
 
 
 def apply(rows, nixpkgs, archives):
-    """Compare emacsPackages' rows with the archive each comes from (the
-    module's rules): newest or outdated against its newest version there,
-    saying so ("feed"). Rows none applies to keep Repology's verdict."""
+    """Compare emacsPackages' rows with the archive each comes from.
+
+    The archive is chosen by the module's rules. Each row is newest or
+    outdated against its newest version there, and says so ("feed"). Rows
+    no rule applies to keep Repology's verdict.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        archives: load's result, or None (then nothing changes).
+    """
     if not archives:
         return
     for row in rows:

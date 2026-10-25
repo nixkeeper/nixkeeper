@@ -1,14 +1,18 @@
-"""CRAN and Bioconductor, from nixkeeper-versions' cran.json.gz (feeds.py):
-what nixpkgs' rPackages are generated from (generate-r-packages.R reads the
-same index files: CRAN's as it is that day, Bioconductor's for the release
-nixpkgs pins). The daily sync compares rPackages' rows with them instead
-of Repology (apply): outdated or newest against CRAN, or against the
-Bioconductor release nixpkgs pins. A package in none of them is no longer
-on CRAN (archived: it failed CRAN's checks, or its maintainer left) or in
-that Bioconductor release: "archived", which Repology can only call
-"unique". nixpkgs marks most of those broken already (5,841 of 6,004 on
-2026-10-07): for those it says why; the others are likely broken too, or
-due for removal."""
+"""Compare rPackages with CRAN and Bioconductor.
+
+The versions come from the nixkeeper-versions digest's cran.json.gz
+(feeds.py). They're what nixpkgs' rPackages are generated from:
+generate-r-packages.R reads the same index files, CRAN's as it is that day,
+and Bioconductor's for the release nixpkgs pins. The daily sync compares
+rPackages' rows with them instead of Repology (apply): outdated or newest
+against CRAN, or against the Bioconductor release nixpkgs pins.
+
+A package in none of them is no longer on CRAN (archived: it failed CRAN's
+checks, or its maintainer left) or in that Bioconductor release. It's
+marked "archived", which Repology can only call "unique". nixpkgs marks
+most of those broken already (5,841 of 6,004 on 2026-10-07), so for those
+it says why; the others are likely broken too, or due for removal.
+"""
 
 import sys
 
@@ -16,9 +20,12 @@ from . import about, feeds
 
 FILE = "cran.json.gz"
 PREFIX = "rPackages."
+# The digest's indexes, in the order a package is looked for: CRAN, then
+# Bioconductor's software, annotation and experiment packages.
 INDEXES = ("cran", "bioc", "annotation", "experiment")
 # nixpkgs writes a package's dots as underscores (ABC.RAP: ABC_RAP), and
-# two names it can't use as they are (generate-r-packages.R's escapeName).
+# escapes two names it can't use as they are (generate-r-packages.R's
+# escapeName).
 ESCAPED = {"r_import": "import", "r_assert": "assert"}
 CRAN_URL = "https://cran.r-project.org/package={name}"
 BIOC_URL = {
@@ -29,9 +36,13 @@ BIOC_URL = {
 
 
 def load(now):
-    """cran.json.gz's body ({"biocVersion", "cran", "bioc", ...}), or None
-    (saying why) when it can't be used (feeds.load): Repology's verdicts
-    stay."""
+    """Read CRAN's and Bioconductor's versions.
+
+    Returns:
+        cran.json.gz's body ({"biocVersion", "cran", "bioc", ...}), or None
+        when it can't be used (feeds.load says why); Repology's verdicts
+        then stay.
+    """
     found = feeds.load(FILE, "cran", "CRAN and Bioconductor", now)
     if found is None:
         return None
@@ -49,15 +60,22 @@ def load(now):
 
 
 def package_name(attr):
-    """The R package of an rPackages attribute (rPackages.ABC_RAP: ABC.RAP)."""
+    """Return the R package of an rPackages attribute (rPackages.ABC_RAP: ABC.RAP)."""
     name = attr[len(PREFIX) :]
     return ESCAPED.get(name) or name.replace("_", ".")
 
 
 def apply(rows, nixpkgs, found):
-    """Compare rPackages' rows with CRAN, else the Bioconductor release
-    nixpkgs pins (found: load's), saying so ("feed"); mark those in none of
-    them archived ("archived": true; their status stays Repology's)."""
+    """Compare rPackages' rows with CRAN, else the Bioconductor release nixpkgs pins.
+
+    Each row says what it was compared with ("feed"). A row in none of them
+    gets "archived": True, and keeps Repology's status.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute (not needed here).
+        found: load's result, or None (then nothing changes).
+    """
     if not found:
         return
     release = found["biocVersion"]
