@@ -627,7 +627,7 @@ def _other_prs(open_prs, keys, said):
 
 
 def recent(at, now):
-    """Return whether a list made at the time at (ISO) is recent enough."""
+    """Return whether a list made at `at` (ISO) is recent enough to use."""
     if not at:
         return False
     age = datetime.fromisoformat(now) - datetime.fromisoformat(at)
@@ -659,7 +659,7 @@ def _read(base, name):
 
 
 def _list(base, name, key):
-    """Read one of the digest's lists: the items under key in the file name."""
+    """Read the list under key in one of the digest's files (name)."""
     return _read(base, name).get(key) or []
 
 
@@ -713,7 +713,7 @@ def load(now, revision):
                     **node(p),
                     # Who opened and merged it, and the pkgs/by-name
                     # packages it touched (listed since 2026-10-09): what a
-                    # fix is credited by (history.fixes, build_fix_prs).
+                    # fix is credited to (history.fixes, build_fix_prs).
                     **{
                         k: p[k]
                         for k in ("author", "mergedBy", "packages", "merged")
@@ -846,7 +846,12 @@ UPDATE_TO = re.compile(r"^[\w.+-]+:\s*\S+\s*(?:->|→)\s*(\S+)")
 
 
 def in_failed(pr, versions):
-    """Return whether pr updates to one of versions, its failed builds'."""
+    """Return whether pr updates the package to one of versions.
+
+    Args:
+        pr: A merged PR.
+        versions: The versions the package's failed builds are at.
+    """
     to = UPDATE_TO.match(pr.get("title") or "")
     return bool(to) and to.group(1).removeprefix("v") in versions
 
