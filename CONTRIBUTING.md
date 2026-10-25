@@ -42,7 +42,10 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
   from the `data` branch. `logic.js` holds its rules (statuses, versions,
   ages, safe links, the tab icon's signals) without the page, so they can be
-  tested; `overview.js` the overview (the cards, trends, causes, sets,
+  tested, and the page's HTML helpers: `html`, a template tag that escapes
+  every value but markup made with `html` itself; `raw`, for markup the
+  page writes, never data; and `capitalized`, to capitalize a text without
+  taking it out of `html`'s escaping; `overview.js` the overview (the cards, trends, causes, sets,
   fixes, nixpkgs in numbers); `maintainer-view.js` a maintainer's or team's
   page (You can merge these, Can be closed) and the maintainers page;
   `package-view.js` a package's panel (Details, Updates, Builds), given what

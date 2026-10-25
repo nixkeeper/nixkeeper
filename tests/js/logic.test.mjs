@@ -12,6 +12,7 @@ import {
   botWontUpdate,
   buildFailedBecause,
   buildsWith,
+  capitalized,
   communityCheck,
   comparedRepos,
   compareVersions,
@@ -665,6 +666,21 @@ describe('links and markup from data', () => {
   test('html joins arrays, and leaves out null and undefined only', () => {
     assert.equal(String(html`${['<a>', html`<b>`]}`), '&lt;a&gt;<b>');
     assert.equal(String(html`${null}${undefined}|${0}|${false}`), '|0|false');
+  });
+  test('capitalized escapes text, and keeps markup made with html', () => {
+    // A plain string from the data is escaped, whatever it holds.
+    assert.equal(String(capitalized('failed: <img src=x>')), 'Failed: &lt;img src=x&gt;');
+    assert.equal(String(html`<p>${capitalized('<b>x</b>')}</p>`), '<p>&lt;b&gt;x&lt;/b&gt;</p>');
+    // Markup's own tags are passed over: no "&lt;span" (the old display bug).
+    assert.equal(
+      String(capitalized(html`<span class="mono">failed</span> trying`)),
+      '<span class="mono">Failed</span> trying',
+    );
+    assert.equal(String(capitalized(html`opened ${'<x>'}`)), 'Opened &lt;x&gt;');
+    // Nothing to capitalize: as it was.
+    assert.equal(String(capitalized('1.2 is out')), '1.2 is out');
+    assert.equal(String(capitalized('Already')), 'Already');
+    assert.equal(String(capitalized(null)), '');
   });
 });
 

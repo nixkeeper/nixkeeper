@@ -898,6 +898,17 @@ export function html(strings, ...values) {
 // Markup the page writes itself, as is. Never for text from the data.
 export const raw = (text) => new Markup(String(text));
 
+// Text with its first letter capitalized, as markup that's safe to show.
+// An html template's markup is kept as it is; any other value is escaped
+// first, as html would. Tags at the start are passed over, so
+// "<span>failed</span>" becomes "<span>Failed</span>".
+export function capitalized(value) {
+  const markup = value instanceof Markup ? value.text : escapeHtml(String(value ?? ''));
+  return new Markup(
+    markup.replace(/^((?:<[^>]*>)*)([a-z])/, (_, tags, letter) => tags + letter.toUpperCase()),
+  );
+}
+
 // Whether url's host is host or one of its subdomains (github.com, or
 // api.github.com), by its parsed hostname: not "github.com" anywhere in it
 // (https://example.org/?github.com). False for what isn't a URL.
