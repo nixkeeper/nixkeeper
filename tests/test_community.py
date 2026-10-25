@@ -574,7 +574,7 @@ class StatusIssue(unittest.TestCase):
             community_check.publish(
                 {"a": ("1.0", None)},
                 stale=None,
-                stale_up_to_date=stale_up,
+                stale_up=stale_up,
                 now=self.NOW,
             )
         body = update.call_args.args[3]

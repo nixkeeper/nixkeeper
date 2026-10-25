@@ -52,9 +52,9 @@ def components(version):
 
     kind is 0 for an empty value (a zero), 1 for a word (value: its first
     letter, in lower case), and 2 for a number. Trailing zeros are left
-    out: they're what padding adds. A word right after a number, with
-    nothing between them and no number after it, ranks as a letter suffix
-    (1.0a).
+    out: they're what padding adds. A word that isn't a keyword, right
+    after a number and not directly followed by a digit, ranks as a letter
+    suffix (1.0a and 1.0a.1, not 1.0a1).
     """
     found = []
     pos = 0

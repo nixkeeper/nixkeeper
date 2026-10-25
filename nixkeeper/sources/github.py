@@ -553,7 +553,7 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
 
 
 def count_warnings(rows):
-    """Warn of counts that are probably wrong, though no error says so.
+    """Return warnings about counts that are probably wrong, though no error says so.
 
     add_counts (here and in github_bulk) says them as warnings (log.warn),
     which show up as annotations on the workflow run.

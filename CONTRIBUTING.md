@@ -209,12 +209,13 @@ Around that:
 - `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
   each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the
-  sync's and the hourly checks'). It never raises on bad data, which is
-  what it looks for, and a fault in the check itself is logged without
-  stopping the write: a row's fields and their types (`Row`, a `TypedDict`,
-  from which `ROW` is made: a field added to the rows is added there and
-  to `docs/data.md`, which a test holds to it), and the manifest's counts
-  against the views they count. For now its problems are reported in the log (`Data shape: ...`)
+  sync's and the hourly checks'). It never raises on bad data, which is what
+  it looks for, and a fault in the check itself is logged without stopping
+  the write: a row's fields and their types (`Row`, a `TypedDict`, from
+  which `ROW` is made: a field added to the rows is added there and to
+  `docs/data.md`, which a test holds to it), and the manifest's counts
+  against the views they count. For now its problems are reported in the log
+  (`Data shape: ...`)
 - `page.py`: `nixkeeper page` and `nixkeeper serve`. The package carries the
   page: its build copies `page/` into `nixkeeper/page/` (and links it as
   `share/nixkeeper/www/`); from a checkout, `page/` itself

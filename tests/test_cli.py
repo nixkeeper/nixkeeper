@@ -167,6 +167,7 @@ class Exits(unittest.TestCase):
             self.assertRaises(SystemExit) as exit,
         ):
             cli.main(["sync"])
+        # A string exit code: Python prints it and exits with status 1.
         self.assertEqual(exit.exception.code, "fix this")
 
 

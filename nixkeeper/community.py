@@ -225,10 +225,10 @@ def safety(rule):
 
     It can't when it isn't a rule at all (not an attrset), or with an
     unknown field; a malformed github; a follows that's malformed or has
-    other fields beside it; a url that isn't https to a public host, or
-    that names a port or credentials; or a pattern that's too long or
-    could take very long to match (a nested repeat, or a reference back to
-    a group).
+    other fields beside it; a url that isn't https to a public host, or that
+    names a port other than 443, or credentials; or a pattern that's too
+    long or could take very long to match (a nested repeat, or a reference
+    back to a group).
     """
     if not isinstance(rule, dict):
         return "not a rule"
@@ -249,7 +249,7 @@ def safety(rule):
         if parts.scheme != "https":
             return "url must be https://"
         if parts.port not in (None, 443) or parts.username or parts.password:
-            return "url can't name a port or credentials"
+            return "url can't name a port other than 443, or credentials"
         if not is_public_host(parts.hostname):
             return "url must name a public host, not an address or local name"
     for field in ("tags", "pattern"):

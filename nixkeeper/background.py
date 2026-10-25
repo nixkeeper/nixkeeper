@@ -10,8 +10,8 @@ import threading
 class Background:
     """A function call running in a thread of its own, started at once.
 
-    The thread is a daemon, so a sync that stops early (sys.exit) doesn't
-    wait for it.
+    The thread is a daemon, so a sync that stops early (a Problem raised,
+    which cli.main turns into an exit) doesn't wait for it.
 
     Args:
         fn: The function to call.

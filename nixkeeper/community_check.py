@@ -195,7 +195,7 @@ def stale_ignores(names=None, file=None):
     return found
 
 
-def report(results, stale=None, stale_up_to_date=None):
+def report(results, stale=None, stale_up=None):
     """Print the community checks' results, and add them to the job summary.
 
     That's run()'s, stale_ignores()' and stale_up_to_date()'s results, also
@@ -216,7 +216,7 @@ def report(results, stale=None, stale_up_to_date=None):
             print(f"  ignore rule {name} {version}: can go ({why})")
             stale_lines.append(f"| {name} | {version} | {why} |")
     stale_up_lines = []
-    for name, (version, why) in sorted((stale_up_to_date or {}).items()):
+    for name, (version, why) in sorted((stale_up or {}).items()):
         print(f"  up-to-date rule {name} {version}: can go ({why})")
         stale_up_lines.append(f"| {name} | {version} | {why} |")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -290,7 +290,7 @@ def track(results, previous, now):
     return broken, newly, recovered
 
 
-def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
+def issue_body(results, broken, now, stale=None, stale_up=None):
     """Write the community rules' status issue's body.
 
     It lists the broken update checks and the ignore and up-to-date rules
@@ -342,7 +342,7 @@ def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
         lines.append("**All still apply.**")
 
     lines += ["", "### Up-to-date rules", ""]
-    if stale_up_to_date:
+    if stale_up:
         lines += [
             "**These no longer do anything** (nixpkgs has moved on, or Repology "
             "now shows a newer version elsewhere), so they can go from "
@@ -353,7 +353,7 @@ def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
         ]
         lines += [
             f"| `{name}` | {version} | {why} |"
-            for name, (version, why) in sorted(stale_up_to_date.items())
+            for name, (version, why) in sorted(stale_up.items())
         ]
     else:
         lines.append("**All still apply.**")
@@ -364,7 +364,7 @@ def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
     return "\n".join(lines)
 
 
-def publish(results, stale=None, stale_up_to_date=None, now=None):
+def publish(results, stale=None, stale_up=None, now=None):
     """Update the community rules' status issue with a run's results.
 
     The issue is in NIXKEEPER_GITHUB_REPO, or the workflow's own
@@ -398,7 +398,7 @@ def publish(results, stale=None, stale_up_to_date=None, now=None):
         repo,
         token,
         ISSUE_TITLE,
-        issue_body(results, broken, now, stale, stale_up_to_date),
+        issue_body(results, broken, now, stale, stale_up),
         comment,
         label=ISSUE_LABEL,
         about="The community rules' status, kept up to date by nixkeeper",
