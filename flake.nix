@@ -341,7 +341,7 @@
           scripts =
             let
               src = checkSource [
-                ./scripts
+                ./scripts/cloudflare.sh # the one script tests/sh/ runs
                 ./tests/sh
               ];
             in

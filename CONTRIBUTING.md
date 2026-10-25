@@ -258,8 +258,8 @@ nix run .#brand           # regenerate assets/brand/ and the page's favicon
 
 New files must be `git add`ed before Nix sees them. Each flake check reads
 only its own files (its `checkSource` list in `flake.nix`), so an edit
-elsewhere doesn't run it again: a check that starts reading another file
-needs it added there, or it fails not finding it.
+elsewhere doesn't run it again. A check that starts reading another file
+needs it added to that list; otherwise the check can't find it.
 
 Where the time goes: a sync's log ends with its phases, the longest first
 (`Phases: 1 min 17 s in all`, then each one's time and share). The page
