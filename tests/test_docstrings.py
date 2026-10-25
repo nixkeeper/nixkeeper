@@ -1,5 +1,8 @@
-"""nixkeeper/'s docstrings: every module, class and function has one, in the
-layout CONTRIBUTING describes."""
+"""Check nixkeeper/'s docstrings against the layout CONTRIBUTING describes.
+
+Every module, class and function has a docstring, and its first line is the
+whole summary.
+"""
 
 import ast
 import os
@@ -19,10 +22,11 @@ def modules():
 
 
 def problems(source):
-    """Return what's wrong with a module's docstrings, as "name: why" lines.
+    """Return what's wrong with a module's docstrings, as "line: name: why".
 
     Dunder methods other than __init__ (__eq__, __repr__, ...) need none.
-    A docstring's first line is its summary: a second line must be blank.
+    A docstring's first line is its summary: it can't be blank, and a
+    second line must be.
     """
     found = []
     for node in ast.walk(ast.parse(source)):
@@ -33,11 +37,14 @@ def problems(source):
         name = getattr(node, "name", "the module")
         if name.startswith("__") and name.endswith("__") and name != "__init__":
             continue
+        line = getattr(node, "lineno", 1)
         doc = ast.get_docstring(node, clean=False)
         if not doc:
-            found.append(f"{name}: no docstring")
+            found.append(f"{line}: {name}: no docstring")
+        elif not doc.split("\n")[0].strip():
+            found.append(f"{line}: {name}: starts with a blank line")
         elif len(lines := doc.split("\n")) > 1 and lines[1].strip():
-            found.append(f"{name}: its summary runs onto a second line")
+            found.append(f"{line}: {name}: its summary runs onto a second line")
     return found
 
 
@@ -46,7 +53,7 @@ class Docstrings(unittest.TestCase):
         found = []
         for path in modules():
             with open(os.path.join(PACKAGE, path)) as f:
-                found += [f"{path}: {p}" for p in problems(f.read())]
+                found += [f"{path}:{p}" for p in problems(f.read())]
         self.assertEqual(found, [], "\n" + "\n".join(found))
 
     def test_the_check_itself(self):
@@ -64,6 +71,12 @@ def missing():
     pass
 
 
+def blank():
+    """
+    The summary, a line late.
+    """
+
+
 class Thing:
     """A thing."""
 
@@ -73,9 +86,10 @@ class Thing:
         self.assertEqual(
             problems(source),
             [
-                "the module: no docstring",
-                "wrapped: its summary runs onto a second line",
-                "missing: no docstring",
+                "1: the module: no docstring",
+                "6: wrapped: its summary runs onto a second line",
+                "11: missing: no docstring",
+                "15: blank: starts with a blank line",
             ],
         )
 
