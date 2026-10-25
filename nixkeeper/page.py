@@ -25,7 +25,9 @@ _CHECKOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "page
 def page_dir():
     """Return the page's folder: the package's copy, or a checkout's page/.
 
-    Exits when there's neither: this copy of nixkeeper was built without it.
+    Raises:
+        SystemExit: There's neither: this copy of nixkeeper was built
+            without the page.
     """
     if _PACKAGED.is_dir():
         return str(_PACKAGED)
@@ -37,7 +39,11 @@ def page_dir():
 
 
 def _data_dir_or_exit():
-    """Return the data folder, or exit when no sync has written data there."""
+    """Return the data folder, or exit when no sync has written data there.
+
+    Raises:
+        SystemExit: The data folder has no index.json yet.
+    """
     data = config.data_dir()
     if not os.path.exists(os.path.join(data, "index.json")):
         sys.exit(f"No data in {data} yet: run `nixkeeper sync` first.")
@@ -63,10 +69,14 @@ def write(folder):
     """Write the page and a copy of the data into folder.
 
     The folder is created if needed. Only an empty folder or an earlier
-    page is written into, never anything else; otherwise this exits.
+    page is written into, never anything else.
 
     Returns:
         The folder, as an absolute path.
+
+    Raises:
+        SystemExit: There's no data yet, or folder is neither empty nor an
+            earlier page.
     """
     data = _data_dir_or_exit()
     folder = os.path.abspath(folder)
@@ -82,7 +92,7 @@ def write(folder):
         shutil.copyfile(os.path.join(source, name), target)
         os.chmod(target, 0o644)  # read-only when copied from the Nix store
     # The data is copied aside, then swapped in whole, so a host never
-    # serves half of it.
+    # serves half of it; it does find none while the old copy is deleted.
     staged = os.path.join(folder, "data.tmp")
     shutil.rmtree(staged, ignore_errors=True)
     shutil.copytree(data, staged)
