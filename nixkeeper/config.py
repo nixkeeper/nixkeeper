@@ -61,11 +61,15 @@ NOTIFICATIONS = os.environ.get("NIXKEEPER_NOTIFICATIONS")
 def data_dir(out_dir=None):
     """Return the data folder: out_dir, or the configured one by default.
 
-    OUT_DIR is read when this is called, not when the caller's module was
+    The configured one is OUT_DIR, set by --data-dir or NIXKEEPER_DATA_DIR.
+    It's read when this is called, not when the caller's module was
     imported, so the command's --data-dir and tests that set it apply.
 
     Args:
         out_dir: A data folder the caller was given, or None.
+
+    Returns:
+        out_dir, or OUT_DIR when out_dir is None or empty.
     """
     return out_dir or OUT_DIR
 

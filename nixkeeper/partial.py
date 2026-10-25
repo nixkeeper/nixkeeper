@@ -14,7 +14,7 @@ def load():
     previous = history.load_previous_run()
     if not previous["packages"]:
         sys.exit(
-            f"No previous run in {config.OUT_DIR}: run the full sync first "
+            f"No previous run in {config.data_dir()}: run the full sync first "
             "(nixkeeper sync; from a checkout, nix run .#sync)."
         )
     return previous, copy.deepcopy(previous["packages"])
