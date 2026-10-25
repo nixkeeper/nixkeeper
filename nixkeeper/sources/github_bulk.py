@@ -1,13 +1,17 @@
-"""nixpkgs' pull requests and issues, listed in bulk instead of two or three
-searches per package (github.py): every open PR and issue in about 120
-GraphQL requests (100 of each per request), and the PRs merged into master
-since the channel's commit in about 10 more, however many packages are
-tracked. Each package's open PR and issue counts, its open update PR and its
-update PR merged into master are then found in the lists locally:
-add_counts, add_master_prs. The lists come from nixkeeper-prs' digest when
-it's current (prs_digest), else from GitHub here. The daily sync falls back
-to the searches when a listing fails; the hourly update-PR check
-(prcheck.py), for a few packages, keeps them."""
+"""List nixpkgs' pull requests and issues in bulk.
+
+Instead of two or three searches per package (github.py), every open PR
+and issue is listed in about 120 GraphQL requests (100 of each per
+request), and the PRs merged into master since the channel's commit in
+about 10 more, however many packages are tracked. Each package's open PR
+and issue counts, its open update PR and its update PR merged into master
+are then found in the lists locally (add_counts, add_master_prs).
+
+The lists come from nixkeeper-prs' digest when it's current (prs_digest),
+else from GitHub here. The daily sync falls back to the searches when a
+listing fails; the hourly update-PR check (prcheck.py), for a few
+packages, keeps using them.
+"""
 
 import re
 import sys
@@ -17,6 +21,8 @@ from datetime import datetime, timedelta
 from .. import config
 from . import github
 
+# One page of open PRs and issues; each kind stops being asked for once it
+# has no next page.
 QUERY = """query($owner: String!, $name: String!, $prs: String, $issues: String,
                $morePrs: Boolean!, $moreIssues: Boolean!) {
   repository(owner: $owner, name: $name) {
@@ -31,20 +37,25 @@ QUERY = """query($owner: String!, $name: String!, $prs: String, $issues: String,
   }
 }"""
 
-# GitHub's title search matches whole words, in any case, the way checked
-# against its answers: "wine" doesn't match "winetricks: ...", but does
-# "... WINE_BIN ..." (a title's words are also split at underscores), while
-# "_1password-gui" matches "_1password-gui: ..." and not "1password-gui:
-# ..." (a search's words keep theirs). And it stems English words: "trigger"
-# matches "... triggers", "velocity" "... velocities" (plurals here; GitHub
-# goes further, "zoom" matching "zoomer", which isn't copied).
+# GitHub's title search matches whole words, in any case, as checked
+# against its answers. "wine" doesn't match "winetricks: ...", but does
+# match "... WINE_BIN ..." (a title's words are also split at underscores),
+# while "_1password-gui" matches "_1password-gui: ..." and not
+# "1password-gui: ..." (a search's words keep theirs). It also stems English
+# words: "trigger" matches "... triggers", "velocity" "... velocities".
+# Plurals are copied here; GitHub goes further ("zoom" matching "zoomer"),
+# which isn't.
 WORD = re.compile(r"\w+")
+# A word's parts between underscores.
 PART = re.compile(r"[^\W_]+")
 
 
 def stem(word):
-    """word without a plural ending: velocities -> velocity, triggers ->
-    trigger, patches -> patch, class -> class."""
+    """Return word without a plural ending.
+
+    velocities → velocity, triggers → trigger, patches → patch; class stays
+    class.
+    """
     if len(word) > 4 and word.endswith("ies"):
         return word[:-3] + "y"
     if len(word) > 4 and word.endswith(("sses", "xes", "zes", "ches", "shes")):
@@ -55,14 +66,19 @@ def stem(word):
 
 
 def words(text):
-    """A search's words: each run of letters, digits and underscores, stemmed,
-    in lower case."""
+    """Return a search's words.
+
+    That's each run of letters, digits and underscores, stemmed, in lower
+    case.
+    """
     return {stem(w.lower()) for w in WORD.findall(text or "")}
 
 
 def title_words(text):
-    """A title's words: as a search's, and also each part between
-    underscores (WINE_BIN: wine_bin, wine, bin)."""
+    """Return a title's words: as a search's, and each part between underscores.
+
+    WINE_BIN gives wine_bin, wine and bin.
+    """
     found = set()
     for word in WORD.findall(text or ""):
         word = word.lower()
@@ -79,14 +95,25 @@ NAME = re.compile(r"[A-Za-z0-9_][\w.+-]*")
 
 
 def title_names(text):
-    """The names in a title, in lower case: "pkg: 2.7.5 -> 2.8.4" has pkg,
-    "Build failure: pkg-config" pkg-config, not pkg."""
+    """Return the names in a title, in lower case.
+
+    "pkg: 2.7.5 -> 2.8.4" has pkg; "Build failure: pkg-config" has
+    pkg-config, not pkg.
+    """
     return {n.rstrip(".").lower() for n in NAME.findall(text or "")}
 
 
 def list_open(token):
-    """(open pull requests, open issues) of nixpkgs, as GraphQL nodes; raises
-    if a request fails (a partial list would give wrong counts)."""
+    """List nixpkgs' open pull requests and issues, as GraphQL nodes.
+
+    Returns:
+        (open PRs, open issues).
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: A request failed, or
+            GitHub's answer was incomplete: a partial list would give wrong
+            counts.
+    """
     owner, name = config.GITHUB_REPO.split("/")
     prs, issues = [], []
     cursors = {"prs": None, "issues": None}
@@ -123,17 +150,20 @@ def list_open(token):
 
 
 class Listing:
-    """Open pull requests and issues, indexed by the names and the words in
-    their titles, and by the package their titles start with
-    ("wesnoth-devel: ...")."""
+    """Open pull requests and issues, indexed for the per-package lookups.
+
+    They're indexed by the names and the words in their titles, and the PRs
+    by the package their titles start with ("wesnoth-devel: ...").
+    """
 
     def __init__(self, prs, issues):
+        """Index prs and issues, as GraphQL nodes."""
         self.prs, self.issues = prs, issues
         self.pr_words = self._index(prs)
         self.issue_words = self._index(issues)
         self.issue_names = self._index(issues, title_names)
         self.by_package = {}
-        self.pr_packages = {}  # the same, in lower case: PRs' counts
+        self.pr_packages = {}  # by_package in lower case, for the PR counts
         for i, pr in enumerate(prs):
             for package in github.title_packages(pr.get("title")):
                 self.by_package.setdefault(package, []).append(pr)
@@ -141,6 +171,7 @@ class Listing:
 
     @staticmethod
     def _index(nodes, split=title_words):
+        """Index nodes by the words split takes from their titles."""
         index = {}
         for i, node in enumerate(nodes):
             for word in split(node.get("title")):
@@ -149,7 +180,7 @@ class Listing:
 
     @staticmethod
     def _matching(index, term):
-        """The nodes whose titles have every word of term."""
+        """Return the nodes whose titles have every word of term."""
         found = None
         for word in words(term):
             ids = index.get(word, set())
@@ -157,25 +188,37 @@ class Listing:
         return found or set()
 
     def search_counts(self, term):
-        """(open PRs, open issues) with term's words in their titles, as
-        GitHub's `in:title term` search counts them."""
+        """Count the open PRs and issues with term's words in their titles.
+
+        That's as GitHub's `in:title term` search counts them.
+
+        Returns:
+            (open PRs, open issues).
+        """
         return (
             len(self._matching(self.pr_words, term)),
             len(self._matching(self.issue_words, term)),
         )
 
     def counts(self, row):
-        """(open PRs, open issues) about row: PRs whose titles name it, or one
-        of its attributes, as nixpkgs' convention does ("pkg: 2.7.5 ->
-        2.8.2", "foo, pkg: ..."; title_packages), and issues, free-form, with
-        its name or search term whole in their title ("Build failure:
-        pkg", not "pkg-config" or "pkgs/"). Not GitHub's search's count,
-        whose words matched far more for a name that's a word: "pkg" 120 PRs
-        and 96 issues, against the 2 PRs about it ("pkg: remove unicode
-        arrow") and 8 issues; 1,000 of the 13,523 needing attention counted
-        fewer (2026-10-23)."""
+        """Count the open PRs and issues about row.
+
+        A PR counts when its title names the row, or one of its attributes,
+        as nixpkgs' convention does ("pkg: 2.7.5 -> 2.8.2", "foo, pkg: ...";
+        title_packages). Issues are free-form, so one counts when it has the
+        row's name or search term whole in its title ("Build failure: pkg",
+        not "pkg-config" or "pkgs/"). That isn't GitHub's search's count,
+        whose words match far more for a name that's a word: "pkg" matched
+        120 PRs and 96 issues, against the 2 PRs about it ("pkg: remove
+        unicode arrow") and 8 issues; 1,000 of the 13,523 rows needing
+        attention count fewer this way (2026-10-23).
+
+        Returns:
+            (open PRs, open issues).
+        """
 
         def naming(index, names):
+            """Count the nodes index has under any of names, any case."""
             names = {n.lower() for n in names}
             return len(set().union(*(index.get(n, set()) for n in names)))
 
@@ -187,13 +230,15 @@ class Listing:
         )
 
     def open_update_pr(self, row):
-        """The open update PR for row, as github.open_update_pr finds it among
-        a search's results, here among all open PRs whose title starts with
-        one of its names."""
+        """Return the open update PR for row, as github.open_update_pr finds it.
+
+        github.open_update_pr picks it among a search's results; here, it
+        picks among all open PRs whose title starts with one of row's names.
+        """
         return github.open_update_pr(row, self.titled(row))
 
     def titled(self, row):
-        """The open PRs whose titles start with one of row's names."""
+        """Return the open PRs whose titles start with one of row's names."""
         found = {}
         for n in github.pr_names(row):
             for pr in self.by_package.get(n, []):
@@ -202,12 +247,22 @@ class Listing:
 
 
 def add_counts(rows, now, listed=None):
-    """Every row's open PR and issue counts and open update PR ("openPRs",
-    "openIssues", "openPR"), from one listing of all open ones (listed:
-    (PRs, issues) from the digest, else listed here), dated now
-    ("countedAt"). Returns False, changing nothing, when there's no listing
-    and no token, or the listing fails (the sync then searches per
-    package)."""
+    """Count every row's open PRs and issues, and find its open update PR.
+
+    Each row gets "openPRs", "openIssues" and "openPR", from one listing of
+    all open PRs and issues, dated now ("countedAt"); and
+    "searchShowsMore" where GitHub's search, which the page links, finds
+    more than those that name the row.
+
+    Args:
+        rows: The rows, changed in place.
+        now: The run's time.
+        listed: (PRs, issues) from the digest, or None to list them here.
+
+    Returns:
+        True, or False, changing nothing, when there's no listing and no
+        token, or the listing fails (the sync then searches per package).
+    """
     if listed is not None:
         listing = Listing(*listed)
     else:
@@ -227,8 +282,8 @@ def add_counts(rows, now, listed=None):
     for row in rows:
         prs, issues = listing.counts(row)
         row.update(openPRs=prs, openIssues=issues, countedAt=now)
-        # Where GitHub's search, which the page links, shows more than name
-        # it: the page's hover says so.
+        # Where GitHub's search, which the page links, finds more than those
+        # that name the row, the page's hover says so.
         search = listing.search_counts(row["searchTerm"])
         more = [
             k
@@ -252,6 +307,7 @@ def add_counts(rows, now, listed=None):
     return True
 
 
+# One page of the PRs a search finds.
 MERGED = """query($q: String!, $after: String) {
   search(type: ISSUE, query: $q, first: 100, after: $after) {
     issueCount
@@ -259,6 +315,7 @@ MERGED = """query($q: String!, $after: String) {
     nodes { ... on PullRequest { number title url isDraft baseRefName } }
   }
 }"""
+# When a commit was committed.
 COMMIT_DATE = """query($owner: String!, $name: String!, $rev: String!) {
   repository(owner: $owner, name: $name) {
     object(expression: $rev) { ... on Commit { committedDate } }
@@ -270,7 +327,7 @@ WINDOW_HOURS = 12
 
 
 def channel_date(token, revision):
-    """When the channel's commit was committed (ISO), or None."""
+    """Return when the channel's commit was committed (ISO), or None."""
     owner, name = config.GITHUB_REPO.split("/")
     data = github.graphql(
         token, COMMIT_DATE, {"owner": owner, "name": name, "rev": revision}
@@ -279,9 +336,12 @@ def channel_date(token, revision):
 
 
 def merged_since(revision):
-    """When the channel's commit (revision) was made, for the per-package
-    searches of merged PRs (github.add_update_prs); None when there's no
-    token, the revision isn't known, or GitHub can't say."""
+    """Return when the channel's commit was made, or None.
+
+    It's for the per-package searches of merged PRs (github.add_update_prs).
+    None when there's no token, the revision isn't known, or GitHub can't
+    say.
+    """
     tok = github.token()
     if not tok or not revision or revision == config.NIXPKGS_BRANCH:
         return None
@@ -293,9 +353,16 @@ def merged_since(revision):
 
 
 def list_merged(token, since, now):
-    """PRs merged into master from since to now (ISO times), as GraphQL
-    nodes; raises if a request fails, or a window has more than search's
-    1,000 results (some would be missing)."""
+    """List the PRs merged into master between since and now (ISO times).
+
+    Returns:
+        The PRs, as GraphQL nodes.
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: A request failed,
+            GitHub's answer was incomplete, or a window has more than
+            search's 1,000 results (some would be missing).
+    """
     start = datetime.fromisoformat(since.replace("Z", "+00:00"))
     end = datetime.fromisoformat(now)
     found = []
@@ -320,12 +387,22 @@ def list_merged(token, since, now):
 
 
 def add_master_prs(rows, revision, now, listed=None):
-    """Each row's update PR merged into master since the channel's commit
-    (revision), which the channel doesn't have yet ("masterPR"), from one
-    listing of the PRs merged since (listed: the digest's, since that same
-    commit, else listed here). Returns False, changing nothing, when there's
-    no listing and no token, or the listing fails (the sync then searches
-    per package)."""
+    """Find each row's update PR merged into master since the channel's commit.
+
+    That's an update the channel doesn't have yet ("masterPR"), found in
+    one listing of the PRs merged since.
+
+    Args:
+        rows: The rows, changed in place.
+        revision: The channel's commit.
+        now: The run's time.
+        listed: The digest's merged PRs (since that same commit), or None
+            to list them here.
+
+    Returns:
+        True, or False, changing nothing, when there's no listing and no
+        token, or the listing fails (the sync then searches per package).
+    """
     if listed is not None:
         merged, since = listed, "the digest"
     else:
