@@ -22,6 +22,7 @@ import {
   onMaster,
   raw,
   safeUrl,
+  setHtml,
   shortAge,
   targetVersion,
   waitingForChannel,
@@ -305,7 +306,7 @@ export function fillUpdate(pkg, el) {
     ? html`<div class="stale-note">Not read on the last sync: with every package, nixpkgs-update's attempts come from a digest of them, which hasn't read this package's yet.${u ? ' Showing the last attempt read.' : ''}</div>`
     : '';
   if (unread && !u) {
-    el.innerHTML = html`${unread}<div class="pd">${queueHtml(pkg)}</div>`;
+    setHtml(el, html`${unread}<div class="pd">${queueHtml(pkg)}</div>`);
     return;
   }
   const stale = html`${unread}${staleNote(
@@ -314,7 +315,9 @@ export function fillUpdate(pkg, el) {
     'Showing the last known attempt.',
   )}`;
   if (!u) {
-    el.innerHTML = html`${stale}<div class="pd">
+    setHtml(
+      el,
+      html`${stale}<div class="pd">
       <div class="pd-head"><span class="pd-verdict neutral">Not tried</span></div>
       <p class="pd-text">${
         pkg.set
@@ -322,7 +325,8 @@ export function fillUpdate(pkg, el) {
           : "nixpkgs-update hasn't tried to update this package (it may have no update source it understands)."
       }</p>
       ${queueHtml(pkg)}
-    </div>`;
+    </div>`,
+    );
     return;
   }
   const dir = u.log.slice(0, u.log.lastIndexOf('/') + 1); // every attempt's log
@@ -344,7 +348,9 @@ export function fillUpdate(pkg, el) {
     : u.outcome === 'failed'
       ? `the log doesn't say why in a way nixkeeper recognises${u.excerpt?.length ? '; its last lines are below' : ''}`
       : o.text(u, pkg);
-  el.innerHTML = html`${stale}<div class="pd">
+  setHtml(
+    el,
+    html`${stale}<div class="pd">
     <div class="pd-head">
       <span class="pd-verdict ${tone}">${o.label(u)}</span>
       <dl class="pd-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
@@ -366,7 +372,8 @@ export function fillUpdate(pkg, el) {
       <a class="pd-link" href="${safeUrl(u.log)}" target="_blank" rel="noopener">${icon('file-text')}Log</a>
       <a class="pd-link" href="${safeUrl(dir)}" target="_blank" rel="noopener">${icon('history')}All attempts</a>
     </div>
-  </div>`;
+  </div>`,
+  );
 }
 
 // A blocking package's address, where the page has every package
@@ -383,15 +390,24 @@ export function fillBuilds(pkg, el, page) {
   const none = (label, text) =>
     html`<div class="pd"><div class="pd-head"><span class="pd-verdict neutral">${label}</span></div><p class="pd-text">${text}</p></div>`;
   if (pkg.unfree) {
-    el.innerHTML = html`${stale}${none('Not built', "Hydra doesn't build unfree packages, so there are no build results for this one.")}`;
+    setHtml(
+      el,
+      html`${stale}${none('Not built', "Hydra doesn't build unfree packages, so there are no build results for this one.")}`,
+    );
     return;
   }
   if (!hydraBuildsIt(pkg) && pkg.markedBroken) {
-    el.innerHTML = html`${stale}${none('Marked broken', html`nixpkgs marks this package broken (<span class="mono">meta.broken</span>), so Hydra doesn't build it.${safeUrl(pkg.source) ? html` <a class="files-link" href="${safeUrl(pkg.source)}" target="_blank" rel="noopener">Source ↗</a>` : ''}`)}`;
+    setHtml(
+      el,
+      html`${stale}${none('Marked broken', html`nixpkgs marks this package broken (<span class="mono">meta.broken</span>), so Hydra doesn't build it.${safeUrl(pkg.source) ? html` <a class="files-link" href="${safeUrl(pkg.source)}" target="_blank" rel="noopener">Source ↗</a>` : ''}`)}`,
+    );
     return;
   }
   if (!hydraBuildsIt(pkg)) {
-    el.innerHTML = html`${stale}${none('Not built', html`Hydra doesn't build this package (nixpkgs may exclude it with <span class="mono">hydraPlatforms</span>).`)}`;
+    setHtml(
+      el,
+      html`${stale}${none('Not built', html`Hydra doesn't build this package (nixpkgs may exclude it with <span class="mono">hydraPlatforms</span>).`)}`,
+    );
     return;
   }
   // Each platform's line says how it stands: no summary above them (a
@@ -403,14 +419,17 @@ export function fillBuilds(pkg, el, page) {
     .filter(Boolean)
     .sort()[0];
   const age = checked && daysText(checked);
-  el.innerHTML = html`${stale}<div class="pd">
+  setHtml(
+    el,
+    html`${stale}<div class="pd">
     <div class="br-list">${groupedBuilds(pkg.builds).map(([b, alike]) => buildLine(pkg, b, alike, blockerHref(page)))}</div>
     ${
       checked && age !== 'today'
         ? html`<p class="pd-foot" title="${new Date(checked).toLocaleString()}">Checked on Hydra ${age} ago.</p>`
         : ''
     }
-  </div>`;
+  </div>`,
+  );
 }
 
 // "…/pkgs/by-name/we/wesnoth/package.nix#L147" -> "package.nix"
@@ -804,7 +823,9 @@ export function fillDetail(pkg, el, entries, page) {
     safeUrl(pkg.source) &&
       html`<a class="pd-link" href="${safeUrl(pkg.source)}" target="_blank" rel="noopener" title="Where nixpkgs defines this package">${icon('file-code')}${sourceFileName(pkg.source)}</a>`,
   ].filter(Boolean);
-  el.innerHTML = html`<div class="pd">
+  setHtml(
+    el,
+    html`<div class="pd">
     <div class="pd-head">
       <span class="pd-verdict ${verdict[0]}">${verdict[1]}</span>
       <dl class="pd-facts">${facts.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
@@ -846,7 +867,8 @@ export function fillDetail(pkg, el, entries, page) {
     ${githubSection(pkg)}
     ${people.length ? html`<div class="pd-people">${people}</div>` : ''}
     <div class="pd-links">${links}<span class="pd-links-end">${hideButton(page.isHidden(pkg), page.needsAttention(pkg))}</span></div>
-  </div>`;
+  </div>`,
+  );
   el.querySelector('.pd-hide')?.addEventListener('click', () =>
     page.setHidden(pkg, !page.isHidden(pkg)),
   );

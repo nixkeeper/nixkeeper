@@ -46,6 +46,7 @@ import {
   onPlatform,
   raw,
   safeUrl,
+  setHtml,
   shortAge,
   TOP_LEVEL,
   targetVersion,
@@ -862,13 +863,15 @@ export function renderStats() {
     state.teamFilter && !store.community
       ? html`<button class="plat-filter" data-clear="team" title="Show every team's packages">team: ${teamName()} ✕</button>`
       : '';
-  document.getElementById('stats').innerHTML =
-    html`${attentionChip}${buttons}${platformChip}${teamChip}${store.community ? '' : teamOutChips()}`;
+  setHtml(
+    document.getElementById('stats'),
+    html`${attentionChip}${buttons}${platformChip}${teamChip}${store.community ? '' : teamOutChips()}`,
+  );
   // Without every package, the list's narrowing under the counts; with
   // every package, it's in the list's header, under the tiles.
   const refine = document.getElementById('refine');
   refine.hidden = store.community;
-  refine.innerHTML = store.community ? '' : refineHtml();
+  setHtml(refine, store.community ? html`` : refineHtml());
   const checked = document.getElementById('checked');
   checked.classList.toggle('stale', stale);
   // The exact time on hover: "checked 4h ago" is friendly, but vague.
@@ -886,7 +889,7 @@ export function renderStats() {
     ? `${exact} The daily sync hasn't updated the data in over 2 days. Check where it runs (on GitHub: the Actions tab).`
     : exact;
   checked.textContent = `checked ${timeAgo(store.checkedAt)}${stale ? ' — sync may be failing' : ''}`;
-  document.getElementById('sourcesPanel').innerHTML = sourcesHtml();
+  setHtml(document.getElementById('sourcesPanel'), sourcesHtml());
 }
 
 // Whether the page shown is the visitor's team's (Your team), or their own
@@ -941,13 +944,13 @@ export function renderLists() {
     // The visitor's own: their packages and their team. This instance's
     // lists ("maintained", its named lists) mean little to them: not shown,
     // though their addresses (?list=) still work.
-    el.innerHTML = html`${mineHtml()}${myTeamHtml()}`;
+    setHtml(el, html`${mineHtml()}${myTeamHtml()}`);
     return;
   }
   const listNames = allLists();
   if (state.listFilter && !listNames.includes(state.listFilter)) listNames.push(state.listFilter); // e.g. a renamed list
   if (listNames.length < 2) {
-    el.innerHTML = '';
+    el.textContent = '';
     return;
   }
   const base = store.packages.filter((p) => inPlatform(p) && inPeople(p) && refined(p, 'all'));
@@ -955,13 +958,16 @@ export function renderLists() {
     store.community
       ? store.manifest.views.lists[name] || 0
       : base.filter((p) => (p.lists || []).includes(name)).length;
-  el.innerHTML = html`<span class="lists-label">lists</span>${listNames.map((name) => {
-    const pressed = state.listFilter === name;
-    const count = listCount(name);
-    return html`<button class="stat-btn" type="button" data-list="${name}" aria-pressed="${pressed}"
+  setHtml(
+    el,
+    html`<span class="lists-label">lists</span>${listNames.map((name) => {
+      const pressed = state.listFilter === name;
+      const count = listCount(name);
+      return html`<button class="stat-btn" type="button" data-list="${name}" aria-pressed="${pressed}"
         title="${pressed ? 'Show every list' : `Show only the ${name} list (shareable: it's in the address)`}">
         <b>${count}</b> ${name}</button>`;
-  })}`;
+    })}`,
+  );
 }
 
 // A fold's lead: how many more it stands for, a button showing or folding

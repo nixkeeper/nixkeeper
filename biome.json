@@ -1,5 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "plugins": ["./biome-plugins/no-raw-html.grit"],
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2,

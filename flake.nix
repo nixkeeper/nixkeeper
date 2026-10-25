@@ -74,7 +74,9 @@
             ruff-check.enable = true; # safe auto-fixes, e.g. import order
             biome = {
               enable = true;
-              settings = builtins.fromJSON (builtins.readFile ./biome.json);
+              # Without the plugins: they're for checks.lint's biome lint, and
+              # their paths don't resolve from the config treefmt writes.
+              settings = removeAttrs (builtins.fromJSON (builtins.readFile ./biome.json)) [ "plugins" ];
             };
           };
           settings.formatter.biome.includes = [
@@ -320,6 +322,7 @@
                 (lib.fileset.fileFilter (f: f.hasExt "nix") ./.)
                 ./pyproject.toml # ruff's and mypy's settings
                 ./biome.json
+                ./biome-plugins # its rules for the page (no-raw-html.grit)
               ];
             in
             pkgs.runCommand "nixkeeper-lint" { nativeBuildInputs = linters; } ''

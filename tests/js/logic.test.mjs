@@ -7,6 +7,7 @@ import { describe, test } from 'node:test';
 
 import {
   aheadOnMaster,
+  appendHtml,
   attentionPrint,
   attentionRank,
   botWontUpdate,
@@ -61,6 +62,7 @@ import {
   safeUrl,
   sameRelease,
   searchHandle,
+  setHtml,
   severityRank,
   shardOf,
   shortAge,
@@ -714,6 +716,34 @@ describe('links and markup from data', () => {
     assert.equal(String(capitalized('nixpkgs-update tried')), 'nixpkgs-update tried');
     assert.equal(String(capitalized('r-ryantm opened it')), 'r-ryantm opened it');
     assert.equal(String(capitalized('nixpkgsfoo')), 'Nixpkgsfoo');
+  });
+});
+
+describe('setHtml and appendHtml', () => {
+  // No DOM in Node: an element as far as they use one.
+  const element = () => ({
+    innerHTML: '',
+    insertAdjacentHTML(where, text) {
+      assert.equal(where, 'beforeend');
+      this.innerHTML += text;
+    },
+  });
+
+  test('only markup html`` or raw() made', () => {
+    const el = element();
+    assert.throws(() => setHtml(el, '<b>bold</b>'), TypeError);
+    assert.throws(() => appendHtml(el, '<b>bold</b>'), TypeError);
+    assert.equal(el.innerHTML, '');
+  });
+
+  test('what html escaped, as it escaped it', () => {
+    const el = element();
+    setHtml(el, html`<b>${'<script>alert(1)</script>'}</b>`);
+    assert.equal(el.innerHTML, '<b>&lt;script&gt;alert(1)&lt;/script&gt;</b>');
+    appendHtml(el, raw('<i>more</i>'));
+    assert.equal(el.innerHTML, '<b>&lt;script&gt;alert(1)&lt;/script&gt;</b><i>more</i>');
+    setHtml(el, html``);
+    assert.equal(el.innerHTML, '');
   });
 });
 

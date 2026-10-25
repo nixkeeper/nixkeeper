@@ -80,6 +80,10 @@ happen. For what nixkeeper does and how to set up your own, see the
   - `html`: a template tag that escapes every value except markup made
     with `html` itself
   - `raw`: markup the page writes itself, never text from the data
+  - `setHtml` and `appendHtml`: the only way the page writes markup into an
+    element, taking only what `html` or `raw` made. A Biome plugin
+    (`biome-plugins/no-raw-html.grit`, in `checks.lint`) fails on
+    `innerHTML`, `outerHTML` or `insertAdjacentHTML` anywhere else
   - `capitalized`: capitalizes a text's first letter, keeping it escaped
     (the names in `LOWERCASE_NAMES`, nixkeeper's and nixpkgs', stay lowercase)
   - `withoutLeadingJoiner`: takes the joining punctuation ("— ", ", ") off

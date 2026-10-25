@@ -5,7 +5,12 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { hideButton, queueHtml, stagingNextBlockedNote } from '../../page/package-view.js';
+import {
+  fillUpdate,
+  hideButton,
+  queueHtml,
+  stagingNextBlockedNote,
+} from '../../page/package-view.js';
 import { store } from '../../page/store.js';
 
 // The visible text of some HTML, its tags removed until none is left.
@@ -59,5 +64,31 @@ describe('queueHtml', () => {
     store.sources = { queue: { used: true } };
     assert.match(text(queueHtml({ name: 'p' })), /Not in nixpkgs-update's queue ↗/);
     store.sources = null;
+  });
+});
+
+describe('fillUpdate', () => {
+  test("the bot's attempt, from its logs, written escaped", () => {
+    // Text from the data, in the fields the panel shows (setHtml).
+    const bad = '<script>alert(1)</script>';
+    const el = {};
+    fillUpdate(
+      {
+        name: 'p',
+        nixVersion: '1.0',
+        update: {
+          outcome: 'failed',
+          date: '2026-10-01',
+          from: '1.0',
+          to: bad,
+          reason: bad,
+          excerpt: [bad],
+          log: 'https://nixpkgs-update-logs.nix-community.org/p/2026-10-01.log',
+        },
+      },
+      el,
+    );
+    assert.ok(!el.innerHTML.includes('<script>'));
+    assert.ok(el.innerHTML.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   });
 });

@@ -898,6 +898,20 @@ export function html(strings, ...values) {
 // Markup the page writes itself, as is. Never for text from the data.
 export const raw = (text) => new Markup(String(text));
 
+// The one way the page writes markup: only what html`` or raw() made, so
+// text from the data is always escaped. A Biome plugin
+// (biome-plugins/no-raw-html.grit) keeps innerHTML and its kin to this file.
+export function setHtml(el, markup) {
+  if (!(markup instanceof Markup)) throw new TypeError('setHtml needs html`` or raw()');
+  el.innerHTML = markup.text;
+}
+
+// The same, added after what el holds (as many rows at once).
+export function appendHtml(el, markup) {
+  if (!(markup instanceof Markup)) throw new TypeError('appendHtml needs html`` or raw()');
+  el.insertAdjacentHTML('beforeend', markup.text);
+}
+
 // A value as markup: an html template's kept as it is, anything else
 // escaped as html would.
 const asMarkup = (value) => (value instanceof Markup ? value : html`${value}`);

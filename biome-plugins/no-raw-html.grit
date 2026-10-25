@@ -1,0 +1,12 @@
+// The page writes markup only through setHtml and appendHtml (page/logic.js),
+// which take only html`` or raw(): text from the data is then always escaped.
+language js
+
+or {
+  `$el.innerHTML = $value`,
+  `$el.outerHTML = $value`,
+  `$el.insertAdjacentHTML($where, $value)`
+} as $write where {
+  not $filename <: r".*/logic\.js",
+  register_diagnostic(span=$write, message="Write markup with setHtml or appendHtml (page/logic.js), which take only html`` or raw(): text from the data is escaped.")
+}
