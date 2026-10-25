@@ -495,12 +495,14 @@ class Collectors(unittest.TestCase):
         views = datastore._Views()
         for row in (self.FAILING, self.IN_SET):
             views.add(row, "f")
-        self.assertEqual(views.size("attention"), 1)
+        files, sizes = views.result()
+        self.assertEqual(sizes["attention"], 1)
         self.assertEqual(
-            [r["name"] for r in views.found["views/maintainer/ann.json"]], ["f", "s"]
+            [p["name"] for p in files["views/maintainer/ann.json"]["packages"]],
+            ["f", "s"],
         )
         self.assertEqual(
-            [r["name"] for r in views.found["views/set/rPackages.json"]], ["s"]
+            [p["name"] for p in files["views/set/rPackages.json"]["packages"]], ["s"]
         )
 
     def test_counts_count_a_sets_rows_apart(self):

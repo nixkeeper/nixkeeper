@@ -938,90 +938,85 @@ def views(rows, out):
         teams' and lists' sizes ({name: count}), and each set's counts
         ({name: {"packages", "outdated", "failed", "broken", ...}}).
     """
-    found, counts, names, facets = _Views(), _Counts(), _Names(), _Facets()
-    maintainers, ages, sets = _Maintainers(), _Ages(), _Sets()
-    blockers, staging = _Blockers(), _StagingNextBlockers()
+    # Every collector sees every row. A new output is a new collector: add it
+    # to the tuple, and name it on the line after, in the same place.
     collectors = (
-        found,
-        counts,
-        names,
-        facets,
-        maintainers,
-        ages,
-        blockers,
-        staging,
-        sets,
+        _Views(),
+        _Counts(),
+        _Names(),
+        _Facets(),
+        _Maintainers(),
+        _Ages(),
+        _Blockers(),
+        _StagingNextBlockers(),
+        _Sets(),
+    )
+    view_files, counts, names, facets, maintainers, ages, blockers, staging, sets = (
+        collectors
     )
     for row in rows:
         letter = status(row)
         for collector in collectors:
             collector.add(row, letter)
-    found.write(out)
+    files, view_sizes = view_files.result()
+    out.update(files)
     out["names.json"] = names.result()
     out["facets.json"] = facets.result()
     out["maintainers.json"] = maintainers.result()
-    # Why things fail across packages (causes.py): failed builds grouped by
-    # their error, each group a view of its packages.
-    groups = causes.build_groups(rows)
-    for group in groups:
-        out[f"views/cause/{group['key']}.json"] = {
-            "packages": [summary_entry(row) for row in group["rows"]],
-            **{k: v for k, v in group.items() if k != "rows"},
-        }
-    # Every group, for the overview's card when it's expanded (loaded only
-    # then).
-    if groups:
-        out["views/causes.json"] = {
-            "groups": [{k: v for k, v in g.items() if k != "rows"} for g in groups]
-        }
+    counted = counts.result()
     return {
-        "counts": counts.result(),
-        "highlights": ages.result(counts.counts),
+        "counts": counted,
+        "highlights": ages.result(counted),
         # The overview's "Blocking the most", on master and, before it's
         # merged into master, on staging-next.
         "blockers": {
             **blockers.result(),
             **({"stagingNext": staging.result()} if staging.stops else {}),
         },
-        # The overview's "Why things fail": the biggest groups of failed
-        # builds sharing an error (causes.SHOWN of them, each {"key",
-        # "count", "reason", "signature", "line", "title"?, "about"?}), how
-        # many groups and packages there are in all, and the update bot's
-        # failures by cause.
-        "causes": {
-            "builds": [
-                {k: v for k, v in group.items() if k != "rows"}
-                for group in groups[: causes.SHOWN]
-            ],
-            "groups": len(groups),
-            "packages": len({row["name"] for g in groups for row in g["rows"]}),
-            "bot": causes.bot_causes(rows),
-        },
-        "views": {
-            **{
-                name: found.size(name)
-                for name in (
-                    "attention",
-                    "broken",
-                    "blocked",
-                    "backport",
-                    "unbuilt",
-                    "superseded",
-                )
-            },
-            # Sorted with capitals first, as Python sorts strings; the page
-            # sorts them its own way.
-            "teams": dict(sorted(found.teams.items())),
-            "lists": dict(sorted(found.lists.items())),
-            "sets": sets.result(),
-        },
+        "causes": _causes(rows, out),
+        "views": {**view_sizes, "sets": sets.result()},
+    }
+
+
+def _causes(rows, out):
+    """Group the failed builds that share an error, for "Why things fail".
+
+    Each group is a view of its packages (views/cause/<key>.json), and
+    views/causes.json lists every group, for the overview's card when it's
+    expanded (loaded only then). Both are added to out.
+
+    Returns:
+        The manifest's "causes": the biggest groups (causes.SHOWN of them,
+        each {"key", "count", "reason", "signature", "line", "title"?,
+        "about"?}), how many groups and packages there are in all, and the
+        update bot's failures by cause.
+    """
+    groups = causes.build_groups(rows)
+    for group in groups:
+        out[f"views/cause/{group['key']}.json"] = {
+            "packages": [summary_entry(row) for row in group["rows"]],
+            **{k: v for k, v in group.items() if k != "rows"},
+        }
+    if groups:
+        out["views/causes.json"] = {
+            "groups": [{k: v for k, v in g.items() if k != "rows"} for g in groups]
+        }
+    return {
+        "builds": [
+            {k: v for k, v in group.items() if k != "rows"}
+            for group in groups[: causes.SHOWN]
+        ],
+        "groups": len(groups),
+        "packages": len({row["name"] for g in groups for row in g["rows"]}),
+        "bot": causes.bot_causes(rows),
     }
 
 
 # The collectors views() fills in one pass over the rows: each one output,
-# with add(row, letter) for each row (letter: status(row)) and what it
-# makes once every row is added. A row in a set updated in bulk reaches
-# every collector; each decides for itself whether that row counts.
+# with add(row, letter) for each row (letter: status(row)), and result()
+# once every row is added (_Ages' also takes the counts, for its cards). A
+# row in a set updated in bulk reaches every collector; each decides for
+# itself whether that row counts.
 
 
 class _Views:
@@ -1032,12 +1027,12 @@ class _Views:
 
     def __init__(self):
         """Start with no views."""
-        self.found = {}  # {path: [rows]}, each in the order rows come
+        self.files = {}  # {path: [rows]}, each in the order rows come
         self.teams, self.lists = {}, {}
 
     def put(self, path, row):
         """Add row to the view at path."""
-        self.found.setdefault(path, []).append(row)
+        self.files.setdefault(path, []).append(row)
 
     def add(self, row, letter):
         """Add row to every view it's in."""
@@ -1074,14 +1069,34 @@ class _Views:
         if letter[0] in "fmo" or letter.endswith("v") or row.get("backport"):
             self.put("views/attention.json", row)
 
-    def size(self, name):
-        """Return how many rows the view views/<name>.json has."""
-        return len(self.found.get(f"views/{name}.json", []))
+    def result(self):
+        """Return the views, and their sizes for the manifest.
 
-    def write(self, out):
-        """Add every view to out, each as {"packages": [summary entries]}."""
-        for path, members in self.found.items():
-            out[path] = {"packages": [summary_entry(row) for row in members]}
+        Returns:
+            ({path: {"packages": [summary entries]}}, {"attention",
+            "broken", "blocked", "backport", "unbuilt", "superseded": each
+            view's size, "teams", "lists": {name: packages}}).
+        """
+        files = {
+            path: {"packages": [summary_entry(row) for row in members]}
+            for path, members in self.files.items()
+        }
+        sizes = {
+            name: len(self.files.get(f"views/{name}.json", []))
+            for name in (
+                "attention",
+                "broken",
+                "blocked",
+                "backport",
+                "unbuilt",
+                "superseded",
+            )
+        }
+        # Sorted with capitals first, as Python sorts strings; the page
+        # sorts them its own way.
+        sizes["teams"] = dict(sorted(self.teams.items()))
+        sizes["lists"] = dict(sorted(self.lists.items()))
+        return files, sizes
 
 
 class _Counts:
