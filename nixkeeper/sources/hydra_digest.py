@@ -141,8 +141,8 @@ def failed_because(row):
     (nixkeeper-hydra's reasons, since 2026-10-08).
 
     Returns:
-        {"failedBecause": "cmake4", say, "failedExcerpt"?: the lines that
-        say so}, or {}.
+        {"failedBecause": the reason (such as "cmake4"), "failedExcerpt"?:
+        the lines that say so}, or {}.
     """
     if row["status"] == "failed" and row.get("failedBecause"):
         found = {"failedBecause": row["failedBecause"]}

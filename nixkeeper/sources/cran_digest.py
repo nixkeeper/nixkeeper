@@ -73,7 +73,8 @@ def apply(rows, nixpkgs, found):
 
     Args:
         rows: The rows, changed in place.
-        nixpkgs: The package index, by attribute (not needed here).
+        nixpkgs: The package index, by attribute. Unused here: every feed's
+            apply takes it, as sync.py calls them alike.
         found: load's result, or None (then nothing changes).
     """
     if not found:

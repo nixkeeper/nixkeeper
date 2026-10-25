@@ -158,8 +158,9 @@ def attempt(entry, attr, parser):
 def known(entry, attr):
     """Return the attempt the digest last read for attr, or None.
 
-    That's whatever the digest says about a newer attempt: it's only for
-    packages read in bulk.
+    Unlike attempt(), this ignores a newer attempt the digest hasn't read
+    yet ("pending"): it's only for packages read in bulk, which keep the
+    last attempt read.
     """
     found = entry.get("attempt")
     if not found:
