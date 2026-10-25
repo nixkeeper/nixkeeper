@@ -131,11 +131,12 @@
           "nixkeeper-lockup-tight*.svg"
           "tokens.css"
         ];
+        # The same files, for a fileset: keep it in step with brandCopies.
         isBrandCopy =
           name:
-          lib.any (
-            glob: builtins.match (lib.replaceStrings [ "." "*" ] [ "\\." ".*" ] glob) name != null
-          ) brandCopies;
+          (lib.hasPrefix "favicon" name && lib.hasSuffix ".svg" name)
+          || (lib.hasPrefix "nixkeeper-lockup-tight" name && lib.hasSuffix ".svg" name)
+          || name == "tokens.css";
 
         # Regenerates the brand assets in assets/brand/ (scripts/brand/): the
         # mark's SVGs, the lockups with the wordmark outlined, the colour
@@ -347,7 +348,14 @@
                 cmp -s "$TMPDIR/tokens/$f" "assets/brand/$f" ||
                   drift "assets/brand/$f" "differs from what scripts/brand/tokens.py writes: edit that, then run nix run .#brand"
               done
+              # A glob that matches nothing is left out, not taken as a name.
+              shopt -s nullglob
               cd ${src}/assets/brand
+              for glob in ${lib.concatMapStringsSep " " (g: "'${g}'") brandCopies}; do
+                found=($glob)
+                [ ''${#found[@]} -gt 0 ] ||
+                  drift "assets/brand/$glob" "matches no file: run nix run .#brand"
+              done
               for f in ${copies}; do
                 cmp -s "$f" "../../page/$f" ||
                   drift "page/$f" "differs from assets/brand/$f: run nix run .#brand"
