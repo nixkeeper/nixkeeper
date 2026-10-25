@@ -25,6 +25,7 @@ pkgs.testers.runNixOSTest {
         install -d -o nixkeeper -g nixkeeper /var/lib/nixkeeper /var/lib/nixkeeper/data
         cat > /var/lib/nixkeeper/data/index.json <<EOF
         {"checkedAt": "$(date -u -d '1 minute ago' +%Y-%m-%dT%H:%M:%S+00:00)",
+         "verdicts": 1,
          "packages": [{"name": "unciv", "attrs": ["unciv"], "nixStatus": "newest"}]}
         EOF
         chown nixkeeper:nixkeeper /var/lib/nixkeeper/data/index.json
@@ -60,6 +61,17 @@ pkgs.testers.runNixOSTest {
             "journalctl -u nixkeeper-checks.service | grep -q 'unmet condition'"
         )
         machine.succeed("mv /root/index.json /var/lib/nixkeeper/data/index.json")
+
+    with subtest("the checks wait for a sync by this version"):
+        # Data from an older nixkeeper (no "verdicts"): nothing published.
+        machine.succeed(
+            "cp /var/lib/nixkeeper/data/index.json /root/index.json"
+            " && sed -i 's/\"verdicts\": 1,//' /var/lib/nixkeeper/data/index.json"
+        )
+        machine.succeed("systemctl start nixkeeper-checks.service")
+        journal = machine.succeed("journalctl -u nixkeeper-checks.service")
+        assert "until a full sync" in journal, journal
+        machine.succeed("cp /root/index.json /var/lib/nixkeeper/data/index.json")
 
     with subtest("the frequent checks run against the data"):
         machine.succeed("systemctl start nixkeeper-checks.service")
