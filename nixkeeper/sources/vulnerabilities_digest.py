@@ -1,28 +1,33 @@
-"""nixkeeper-vulnerabilities' digest (https://github.com/nixkeeper/
-digest-vulnerabilities): what the NixOS security tracker and OSV say about nixpkgs
-packages, in one download, read by the daily sync.
+"""Read nixkeeper-vulnerabilities' digest, and give each row its CVEs.
+
+The digest (https://github.com/nixkeeper/digest-vulnerabilities) has what
+the NixOS security tracker and OSV say about nixpkgs packages, in one
+download, read by the daily sync.
 
 Each row gets "vulnerabilities": its CVEs (the tracker's) and advisories
 (OSV's), each with a verdict:
 
-- the tracker's issue says "not affected" or "not for us": "dismissed";
-  "won't fix": "wontFix" (counted);
-- else nixVersion against the CVE record's affected ranges, as nixkeeper
-  orders versions: "affected" (counted) in one, "fixed" outside them all.
-  The tracker's own status is that same check, but on the version a
-  branch had when it last evaluated it, often long ago (2026-10-08: 487
-  of its 873 "affected on master" already fixed in nixpkgs): it's used
-  only when a range can't be read, "tracker" (counted) when it said
-  affected, "fixed" unaffected, "unconfirmed" otherwise;
-- OSV's advisories, "osv" (counted), but not for a CVE the tracker has;
-- and a counted one nixpkgs patches (a patch named after the CVE, on the
-  channel's commit): "patched", not counted (2026-10-08: 28 packages).
+- When the CVE's tracker issue says "not affected" or "not for us":
+  "dismissed". When it says "won't fix": "wontFix" (counted).
+- Otherwise nixVersion is checked against the CVE record's affected
+  ranges, as nixkeeper orders versions: "affected" (counted) in one,
+  "fixed" outside them all. The tracker's own status is that same check,
+  but on the version a branch had when it last evaluated it, often long
+  ago (2026-10-08: 487 of its 873 "affected on master" were already fixed
+  in nixpkgs). So it's used only when a range can't be read: "tracker"
+  (counted) when it said affected, "fixed" when unaffected, "unconfirmed"
+  otherwise.
+- OSV's advisories get "osv" (counted), but not for a CVE the tracker has.
+- A counted one that nixpkgs patches (a patch named after the CVE, on the
+  channel's commit) gets "patched", not counted (2026-10-08: 28
+  packages).
 
 A row is vulnerable (changes.is_vulnerable) when one is counted, nixpkgs
-marks it insecure, or Repology flags it: the tracker's entries cover some
-of a package's CVEs, not necessarily those Repology flags it for, so its
-flag stays a source of its own. Without a usable digest, Repology's flag
-and nixpkgs' mark decide, as before."""
+marks it insecure, or Repology flags it. The tracker's entries cover some
+of a package's CVEs, not necessarily those Repology flags it for, so
+Repology's flag stays a source of its own. Without a usable digest,
+Repology's flag and nixpkgs' mark decide, as before.
+"""
 
 import gzip
 import json
@@ -36,19 +41,25 @@ from ..changes import COUNTED_VULNERABILITIES
 from ..versions import version_key
 from . import about, http, nixpkgs
 
+# The digest's format this nixkeeper reads.
 FORMAT = 1
 # Verdicts that make a row vulnerable: changes.COUNTED_VULNERABILITIES.
 COUNTED = COUNTED_VULNERABILITIES
-# Worst first: the order a row's list is in, and its worst severity.
+# Severities, worst first: the order a row's list is sorted in, and how its
+# worst severity is picked.
 SEVERITIES = ("critical", "high", "medium", "moderate", "low")
 # The tracker's status of a package, worst first, over a row's attributes.
 STATUS_ORDER = ("affected", "unknown", "unaffected", None)
+# One clause of a range: an operator and a version (">= 1.0", "<v2.1.*").
 CLAUSE = re.compile(r"(<=|>=|<|>|==|=)\s*v?(\d[\w.+~-]*?)(?:\.\*)?")
 
 
 def current(meta, now):
-    """Why the digest can be used, or None: the tracker read through once
-    (complete), and recently (within VULNERABILITIES_DIGEST_MAX_AGE_HOURS)."""
+    """Return why the digest can be used, or None.
+
+    It can when the tracker was read through once (complete), and recently:
+    within VULNERABILITIES_DIGEST_MAX_AGE_HOURS.
+    """
     tracker = meta.get("tracker") or {}
     if not tracker.get("complete") or not tracker.get("readAt"):
         return None
@@ -60,8 +71,16 @@ def current(meta, now):
 
 
 def load(now):
-    """The digest ({"tracker", "osv"}), or None (saying why) when it's turned
-    off, not current or can't be read."""
+    """Read the digest.
+
+    The newest release branch the tracker evaluates is worked out too, and
+    that release's channel versions and commit are read, for the backports.
+
+    Returns:
+        {"tracker", "osv", "newestRelease", "stable", "stableRevision"}, or
+        None when the digest is turned off, or (with the reason in the log)
+        not current or unreadable.
+    """
     base = config.VULNERABILITIES_DIGEST_URL
     if not base:
         return None
@@ -120,7 +139,7 @@ def load(now):
 
 
 def stable_revision(newest):
-    """The newest release's channel commit, or None when it can't be read."""
+    """Return the newest release's channel commit, or None when it can't be read."""
     if not newest or not config.STABLE_INDEX_URL:
         return None
     url = config.STABLE_REVISION_URL.format(release=newest.removeprefix("release-"))
@@ -131,9 +150,12 @@ def stable_revision(newest):
 
 
 def stable_versions(newest):
-    """{attribute: version} of the newest release's channel (its package
-    index), or {} when it can't be read (the tracker's status for it is used
-    then)."""
+    """Read the versions in the newest release's channel.
+
+    Returns:
+        {attribute: version} from its package index, or {} when it can't be
+        read (the tracker's status for the release is used then).
+    """
     if not newest or not config.STABLE_INDEX_URL:
         return {}
     release = newest.removeprefix("release-")
@@ -153,8 +175,11 @@ def stable_versions(newest):
 
 
 def newest_release(digest):
-    """The newest release branch the tracker evaluates ("release-26.05"),
-    by its version, or None: where a fix on master still needs backporting."""
+    """Return the newest release branch the tracker evaluates, or None.
+
+    That's a branch such as "release-26.05", picked by its version: where a
+    fix on master may still need backporting.
+    """
     names = {
         branch
         for s in (digest["tracker"].get("suggestions") or {}).values()
@@ -168,9 +193,15 @@ def newest_release(digest):
 
 
 def matches(version, expression):
-    """Whether version is in a range as the tracker gives it (from the CVE
-    record: "<1.2", "==>= 1.0, < 1.2", "=<1.1", "==1.0", "*"): True, False,
-    or None when it can't be read (a list of versions, "x.59.21")."""
+    """Return whether version is in a range as the tracker gives it.
+
+    The ranges come from the CVE record: "<1.2", "==>= 1.0, < 1.2",
+    "=<1.1", "==1.0", "*".
+
+    Returns:
+        True or False, or None when the range can't be read (a list of
+        versions, "x.59.21").
+    """
     e = (expression or "").strip()
     if e == "*":
         return True
@@ -201,9 +232,17 @@ def matches(version, expression):
 
 
 def by_version(version, affected):
-    """ "affected", "fixed" or None (can't tell) for version against a
-    suggestion's affected products' ranges ([["affected", "<1.2"],
-    ["unaffected", ">=1.2"], ...])."""
+    """Check version against a suggestion's affected products' ranges.
+
+    Args:
+        version: The version.
+        affected: The products, each with "versions": [["affected",
+            "<1.2"], ["unaffected", ">=1.2"], ...].
+
+    Returns:
+        "affected", "fixed", or None when it can't tell: no ranges, ranges
+        it can't read, or ranges that disagree.
+    """
     if not version or not affected:
         return None
     hit, cleared, unreadable, any_range = False, False, False, False
@@ -228,17 +267,26 @@ def by_version(version, affected):
     return "fixed"
 
 
+# A commit used as a range's bound, for a package without releases.
 COMMIT = re.compile(r"(?=[0-9]*[a-f])[0-9a-f]{7,40}")
 
 
 def fixed_in(version, affected):
-    """The first version past version that none of a suggestion's affected
-    ranges takes in ("affected <2026.2.16593": 2026.2.16593), or None: the
-    bounds the ranges name ("<X", an "unaffected" ">=X"), the lowest newer
-    than version that by_version calls fixed. What an update needs to reach,
-    for the page to say whether the newest release or an update PR does.
-    Only for a version the ranges call affected; and versions only, not a
-    commit ("<44b2f096...", for a package without releases)."""
+    """Return the first version past version that no affected range takes in.
+
+    That's what an update needs to reach, so the page can say whether the
+    newest release or an update PR does (2026.2.16593 for "affected
+    <2026.2.16593").
+
+    The candidates are the bounds the ranges name ("<X", or ">=X" in an
+    "unaffected" range); the lowest one newer than version that by_version
+    calls fixed wins. It's only worked out for a version the ranges call
+    affected, and only versions count, not a commit ("<44b2f096...", for a
+    package without releases).
+
+    Returns:
+        The version, or None.
+    """
     if by_version(version, affected) != "affected":
         return None
     bounds = set()
@@ -262,8 +310,12 @@ def fixed_in(version, affected):
 
 
 def tracker_status(row, packages):
-    """The tracker's entries for a row's attributes, by suggestion: {id:
-    (worst status, its branches)}."""
+    """Return the tracker's entries for a row's attributes, by suggestion.
+
+    Returns:
+        {suggestion id: (the worst status over the row's attributes, the
+        attribute it's for)}.
+    """
     found = {}
     for attr in row.get("attrs") or [row["name"]]:
         for entry in packages.get(attr) or []:
@@ -278,10 +330,16 @@ def tracker_status(row, packages):
 
 
 def releases(suggestion, attr, newest=None, version=None):
-    """{release branch: status} of a suggestion's package, master left out
-    (what the verdict's from): where a fix may still need backporting. The
-    tracker's status for each, but the newest release's by its current
-    version against the CVE's ranges, when known and they can be read."""
+    """Return where a fix of a suggestion may still need backporting.
+
+    That's each release branch's status for the package, master left out
+    (the verdict is about it). It's the tracker's status, except for the
+    newest release, whose status comes from its current version against
+    the CVE's ranges, when that's known and the ranges can be read.
+
+    Returns:
+        {release branch: status}.
+    """
     branches = (suggestion.get("packages", {}).get(attr) or {}).get("branches") or {}
     found = {b: v.get("status") for b, v in sorted(branches.items()) if b != "master"}
     if newest and version:
@@ -292,9 +350,12 @@ def releases(suggestion, attr, newest=None, version=None):
 
 
 def verdict(row, suggestion, status, issue):
-    """The verdict on one of the tracker's CVEs for a row: its issue's
-    verdict when people gave one, else nixVersion against the CVE's ranges,
-    else (ranges it can't read) the tracker's last status."""
+    """Return the verdict on one of the tracker's CVEs for a row.
+
+    That's the CVE's issue's verdict when people gave one, else nixVersion
+    against the CVE's ranges, else (when the ranges can't be read) the
+    tracker's last status.
+    """
     issue_status = (issue or {}).get("status")
     if issue_status in ("notAffected", "notForUs"):
         return "dismissed"
@@ -307,24 +368,30 @@ def verdict(row, suggestion, status, issue):
 
 
 def stable_version(attr, attrs, stable):
-    """The newest release's version of a row's package: attr's, else any of
-    its attributes'; None when not known."""
+    """Return the newest release's version of a row's package, or None.
+
+    That's attr's, else any of the row's attributes'.
+    """
     return stable.get(attr) or next((stable[a] for a in attrs if a in stable), None)
 
 
 def counted_first(entry):
-    """Sort key: counted verdicts before the others."""
+    """Return a sort key that puts counted verdicts first."""
     return 0 if entry["verdict"] in COUNTED else 1
 
 
 def severity_rank(entry):
+    """Return a sort key that puts the worst severity first."""
     severity = entry.get("severity")
     return SEVERITIES.index(severity) if severity in SEVERITIES else len(SEVERITIES)
 
 
 def for_row(row, digest):
-    """A row's CVEs and advisories with their verdicts ("vulnerabilities"),
-    counted ones first, worst severity first; [] when the digest has none."""
+    """Return a row's CVEs and advisories with their verdicts.
+
+    That's the row's "vulnerabilities": counted ones first, then the worst
+    severity first. [] when the digest has none for the row.
+    """
     tracker, osv = digest["tracker"], digest["osv"]
     suggestions, issues = tracker.get("suggestions") or {}, tracker.get("issues") or {}
     newest, stable = digest.get("newestRelease"), digest.get("stable") or {}
@@ -347,9 +414,9 @@ def for_row(row, digest):
             **({"github": issue["github"]} if (issue or {}).get("github") else {}),
             **{k: s[k] for k in ("severity", "score") if s.get(k) is not None},
             **({"summary": s["title"]} if s.get("title") else {}),
-            # The version that fixes it, for an affected one: not for an
-            # older series kept beside a newer one, whose CVEs' ranges are
-            # written for the newer (firefox-esr: "fixed in 158").
+            # The version that fixes an affected one. Not for an older
+            # series kept beside a newer one, as its CVEs' ranges are written
+            # for the newer (firefox-esr would read "fixed in 158").
             **(
                 {"fixedIn": f}
                 if not row.get("keptBeside")
@@ -362,7 +429,8 @@ def for_row(row, digest):
                 else {}
             ),
         }
-        # Several suggestions for one CVE (several packages): the worst.
+        # Several suggestions for one CVE (one per package): a counted one
+        # wins.
         known = found.get(cve)
         if known is None or counted_first(entry) < counted_first(known):
             found[cve] = entry
@@ -387,9 +455,14 @@ def for_row(row, digest):
 
 
 def to_backport(found, newest):
-    """The CVEs of found (a row's "vulnerabilities") fixed on master (by
-    version, or by a patch) but still affected on newest, the newest
-    release branch."""
+    """Return a row's CVEs fixed on master that still affect the newest release.
+
+    Fixed means by version or by a patch.
+
+    Args:
+        found: The row's "vulnerabilities".
+        newest: The newest release branch.
+    """
     return [
         v["id"]
         for v in found
@@ -399,12 +472,16 @@ def to_backport(found, newest):
     ]
 
 
+# A CVE id, as patch names write it.
 CVE_ID = re.compile(r"CVE-\d{4}-\d+", re.IGNORECASE)
 
 
 def cve_ids(entry):
-    """The CVE ids a patch fixing entry would be named after: its own (a
-    tracker entry's), or its aliases (an OSV advisory's)."""
+    """Return the CVE ids a patch fixing entry would be named after.
+
+    That's its own id (a tracker entry's), or its aliases (an OSV
+    advisory's).
+    """
     return [
         i.upper()
         for i in [entry["id"], *(entry.get("cves") or [])]
@@ -413,10 +490,15 @@ def cve_ids(entry):
 
 
 def patched(rows, revision, wanted):
-    """{row name: {CVE ids in its patches}} at revision, for the rows
-    wanted(row) picks: nixpkgs' patches named after a CVE (a file
-    CVE-2026-1234.patch, a fetchpatch's name or URL). {} when nixpkgs can't
-    be evaluated there (each CVE then stands as it is)."""
+    """Find the CVEs nixpkgs patches at revision, for the rows wanted picks.
+
+    A patch counts when it's named after a CVE: a file CVE-2026-1234.patch,
+    or a fetchpatch's name or URL.
+
+    Returns:
+        {row name: {the CVE ids in its patches}}, or {} when nixpkgs can't
+        be evaluated there (each CVE then stands as it is).
+    """
     picked = [row for row in rows if wanted(row)]
     if not picked or not revision or revision == config.NIXPKGS_BRANCH:
         return {}
@@ -437,12 +519,22 @@ def patched(rows, revision, wanted):
 
 
 def add(rows, digest, revision=None):
-    """Give each row its "vulnerabilities" (only when the digest has any for
-    it), and "backport": those fixed on master, still affected on the
-    newest release branch, when there's a digest. A counted CVE nixpkgs
-    patches at revision (the channel's commit) is "patched", not counted;
-    one to backport that the newest release's channel patches isn't one.
-    Returns how many rows got some."""
+    """Give each row its vulnerabilities, and what's to backport.
+
+    Each row gets "vulnerabilities" (only when the digest has any for it),
+    and "backport": its CVEs fixed on master that still affect the newest
+    release branch. A counted CVE nixpkgs patches at revision (the
+    channel's commit) becomes "patched", not counted; one to backport that
+    the newest release's channel patches is no longer to backport.
+
+    Args:
+        rows: The rows, changed in place.
+        digest: load's result, or None (then nothing changes).
+        revision: The channel's commit, for the patches.
+
+    Returns:
+        How many rows got vulnerabilities.
+    """
     if digest is None:
         return 0
     newest = digest.get("newestRelease") or newest_release(digest)
@@ -455,6 +547,7 @@ def add(rows, digest, revision=None):
             n += 1
 
     def counted(row):
+        """Return whether row has a counted vulnerability."""
         return any(v["verdict"] in COUNTED for v in row.get("vulnerabilities") or [])
 
     on_unstable = patched(rows, revision, counted)
@@ -488,11 +581,17 @@ def add(rows, digest, revision=None):
 
 
 def summary(row):
-    """The list's view of a row with "vulnerabilities" ("vuln" in its
-    summary entry): {"n", "severity"?, "by"} of what's counted, its sources
-    with nixpkgs' insecure mark and Repology's flag; None when none says
-    so. A row without "vulnerabilities" has no "vuln": Repology's flag and
-    nixpkgs' mark decide, as before."""
+    """Return the list's view of a row's vulnerabilities ("vuln" in its summary).
+
+    It says how many are counted ("n"), the worst severity among them
+    ("severity"), and the sources that say so ("by"), nixpkgs' insecure
+    mark and Repology's flag among them. A row without "vulnerabilities"
+    has no "vuln": Repology's flag and nixpkgs' mark decide, as before.
+
+    Returns:
+        {"n", "severity"?, "by"}, or None when no source says it's
+        vulnerable.
+    """
     counted = [v for v in row["vulnerabilities"] if v["verdict"] in COUNTED]
     by = (
         sorted({v["source"] for v in counted})
