@@ -496,14 +496,15 @@ def _other_prs(open_prs, keys, said):
     the package the PR's title names, so a removal isn't shown as removing
     the other packages it touches. Every copy of a PR is merged, in the
     names' sorted order, so a fact one copy has is kept and the result
-    doesn't depend on any order. It once kept the last copy met in a set,
-    whose order changes from one run to the next, and segger-jlink (with
-    segger-jlink-headless) lost and regained its "being removed" PR between
-    syncs (2026-10-25).
+    doesn't depend on any order. The copies differ only by the facts one
+    leaves out; were a field to differ, the last name's copy would win. It
+    once kept the last copy met in a set, whose order changes from one run
+    to the next, and segger-jlink (with segger-jlink-headless) lost and
+    regained its "being removed" PR between syncs (2026-10-25).
 
     Args:
         open_prs: The digest's open PRs by package (facts' "open").
-        keys: The row's names (package_key).
+        keys: The row's names (package_key), in any order: sorted here.
         said: The numbers of the PRs already shown (the update PR, the fixes).
 
     Returns:
