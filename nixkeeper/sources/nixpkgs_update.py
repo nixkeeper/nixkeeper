@@ -1,7 +1,12 @@
-"""nixpkgs-update (the r-ryantm bot): the outcome of its latest attempt to
-update each tracked package, read from its public logs. The logs carry no exit
-code, so the outcome is recognised from how the log reads (the approach of
-github.com/asymmetric/nixpkgs-update-notifier)."""
+"""Read the update bot's attempts from its public logs.
+
+nixpkgs-update (the r-ryantm bot) tries to update packages and logs each
+attempt. This module finds the outcome of its latest attempt at each
+tracked package. The logs carry no exit code, so the outcome is recognised
+from how the log reads, as github.com/asymmetric/nixpkgs-update-notifier
+does. Where the nixkeeper-updates digest has already read an attempt
+(updates_digest), it's taken from there instead.
+"""
 
 import copy
 import re
@@ -16,30 +21,36 @@ from ..changes import is_outdated, on_master
 from ..rows import search_term
 from . import http, updates_digest
 
+# A log's file name in a package's directory listing: the attempt's date.
 LOG_NAME = re.compile(r'href="(\d{4}-\d{2}-\d{2})\.log"')
 # The version of parse()'s rules, stored with each attempt ("parser"). A sync
-# reuses the previous run's reading of a log it has already read (same
-# attribute, same date) instead of downloading it again, but only one read
-# with these same rules: bump this whenever parse() changes how it reads a
-# log, so the next sync reads every log again and the change applies at once.
+# reuses the previous run's reading of a log it has already read (the same
+# attribute and date) instead of downloading it again, but only a reading
+# made with these same rules. Bump this whenever parse() changes how it
+# reads a log, so the next sync reads every log again and the change
+# applies at once.
 PARSER = 5
 # What add_attempts adds to an attempt after reading its log, from the
-# state of nixpkgs and the rules at the time; as_read() takes them off.
+# state of nixpkgs and the rules at the time. as_read() takes them off, so
+# they're judged again.
 JUDGED = ("supersededOutcome", "supersededOn", "reason", "community")
-# "UPDATE_INFO: egoboo 2.7.3 -> 2.8.1 https://..."; "0 -> 1" when the
-# package's own updateScript decides the version.
+# The update a log is for: "UPDATE_INFO: egoboo 2.7.3 -> 2.8.1 https://...",
+# or "0 -> 1" when the package's own updateScript decides the version.
 UPDATE_INFO = re.compile(r"UPDATE_INFO: \S+ (\S+) -> (\S+)")
 UPDATE_SCRIPT = "0"  # the "from" of an updateScript attempt
 UPDATE_SCRIPT_TO = "1"  # and its "to", before the script runs
-# With an updateScript, what nixpkgs had shows as its name-version instead:
+# With an updateScript, what nixpkgs had shows as a name-version instead:
 # "Going to be running update for following packages:\n - wesnoth-devel-1.19.24".
 UPDATE_SCRIPT_PACKAGE = re.compile(
     r"Going to be running update for following packages:\s*\n\s*- (\S+)"
 )
+# Where the update's diff starts in a log.
 DIFF_HEAD = "Diff after rewrites:\n"
+# The PR the bot opened, or found open, as its API URL names it.
 PR = re.compile(r"api\.github\.com/repos/NixOS/nixpkgs/(?:pulls|issues)/(\d+)")
 PR_EXISTS = "There might already be an open PR"
-# Several already open for this update's branch (nixpkgs-update's GH.hs).
+# Several PRs are already open for this update's branch (nixpkgs-update's
+# GH.hs).
 TOO_MANY_PRS = "Too many open PRs from "
 # Every rewriter left the package as it was. After an updateScript attempt
 # ("0 -> 1") that means there was nothing to update; after a real version
@@ -50,6 +61,7 @@ NO_REWRITES = "No rewrites performed on derivation."
 # Why the rewriters that could have applied didn't: "[version] generic
 # version rewriter does not support multiple hashes".
 REWRITER = re.compile(r"^\[(?:version|updateScript)\] (\S.*)$", re.MULTILINE)
+# Logs saying the update changed nothing.
 NO_CHANGE = (
     EMPTY_DIFF,
     NO_REWRITES,
@@ -80,8 +92,8 @@ NO_VERSION = re.compile(r"^The derivation has no 'version' attribute.*$", re.MUL
 # The version rewriter changed the version but not where the source comes
 # from: the bot can't update this package.
 SOURCE_UNCHANGED = re.compile(r"^Source url did not change\.", re.MULTILINE)
-# A request that failed, GitHub's API most often (opening the PR): the dump of
-# the request is no excerpt, its host and answer are.
+# A request that failed, most often to GitHub's API (opening the PR). The
+# dump of the request is no use as an excerpt; its host and the answer are.
 HTTP_ERROR = re.compile(r"^HTTPError \(HttpExceptionRequest", re.MULTILINE)
 HTTP_HOST = re.compile(r'host\s*=\s*"([^"]+)"')
 HTTP_STATUS = re.compile(r'statusCode = (\d+), statusMessage = "([^"]*)"')
@@ -89,18 +101,19 @@ HTTP_EXCEPTION = re.compile(
     r"\b(ConnectionTimeout|ResponseTimeout|ConnectionFailure|TooManyRedirects|"
     r"InternalException|ConnectionClosed)\b"
 )
-# The bot's own checks before it tries anything: a line right after one of
-# these that no other rule reads is why it stopped there, on purpose (its
+# The bot's own checks before it tries anything. A line right after one of
+# these that no other rule reads is why it stopped there on purpose (its
 # skiplist: "Derivation file opts-out of auto-updates", "Do not update GNOME
 # during a release cycle", "Python package with too many package rebuilds
-# 3150 > 100", "rocm packages are upgraded in lockstep ...", "same as dune_3").
+# 3150 > 100", "rocm packages are upgraded in lockstep ...", "same as
+# dune_3").
 CHECKS = re.compile(
     r"^(?:attrpath: \S+|Checking auto update branch\.\.\."
     r"|No auto update branch exists)$"
 )
-# nix build errors, nixpkgs-update's own, and update script errors; and its
-# checks of a build that went wrong (Nix.hs, Check.hs), which can end a log
-# with no error line of nix's.
+# What makes an attempt failed: nix's build errors, nixpkgs-update's own
+# and update scripts' errors, and the bot's checks of a build that went
+# wrong (Nix.hs, Check.hs), which can end a log with no error line of nix's.
 FAILED = re.compile(
     r"^error:|ExitFailure|failed with|^nix build failed\.|"
     r"nix log failed trying to get build logs|Could not find result link|"
@@ -108,15 +121,18 @@ FAILED = re.compile(
     r"Failed to read expected nix boolean",
     re.MULTILINE,
 )
-# Why a failed attempt failed ("failedBecause"): the first rule, in this
-# order, that one of the log's lines meets, that line and the next ones its
-# excerpt. Taken from ~200 failed attempts' logs (2026-10-07): a reason
-# found earlier in the list is the cause of those found later (a missing
-# dependency makes the build fail, a source gone makes nix-update fail).
-# The bot's own machine failing, not the package (2026-10-08: 1,306 failed
-# attempts said "the build users group 'nixbld' has no members"): first, as
-# it explains whatever follows it. Still an update failure (someone should
-# tell nixpkgs-update's maintainers), told apart by its reason.
+# Why a failed attempt failed ("failedBecause"): the first rule in
+# FAILED_BECAUSE, in order, that one of the log's lines meets; that line and
+# the next ones are its excerpt. The rules come from ~200 failed attempts'
+# logs (2026-10-07). A reason earlier in the list causes those later (a
+# missing dependency makes the build fail, a source gone makes nix-update
+# fail).
+#
+# BOT_FAILURE is the bot's own machine failing, not the package
+# (2026-10-08: 1,306 failed attempts said "the build users group 'nixbld'
+# has no members"). It comes first, as it explains whatever follows it. It
+# still counts as an update failure (someone should tell nixpkgs-update's
+# maintainers), told apart by its reason.
 BOT_FAILURE = (
     r"build users group '\S+' has no members"
     r"|cannot connect to socket at '\S*daemon-socket\S*'"
@@ -191,24 +207,28 @@ FAILED_BECAUSE = tuple(
         ),
     )
 )
-# nix's wrapping of a failed build: the reason comes before.
+# nix's wrapping of a failed build: the reason comes before it.
 WRAPPING = re.compile(
     r"^error: (?:Cannot build|builder for|\d+ dependencies of derivation|build of)"
     r"|^\s*For full logs, run:"
 )
-# Lines no rule reads: that, and a lookup the bot makes of every Go
-# package's source that fails harmlessly.
+# Lines no rule reads as a reason: nix's wrapping, and a lookup the bot
+# makes of every Go package's source that fails harmlessly.
 NOT_A_REASON = re.compile(
     rf"{WRAPPING.pattern}|in selection path '\S+\.originalSrc' not found"
 )
 # What the bot runs, not what it printed.
 NOT_OUTPUT = ("Raw command:", "Standard output:")
+# An update script failing, in the bot's words.
 UPDATE_SCRIPT_FAILED = "The update script for"
+# Terminal colour codes.
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# How many lines an excerpt keeps.
 EXCERPT_LINES = 3
 
 
 def attempts_url(attr):
+    """Return the URL of the directory holding the bot's logs for attr."""
     return f"{config.NIXPKGS_UPDATE_LOGS_URL}/{search_term(attr)}/"
 
 
@@ -217,16 +237,22 @@ def attempts_url(attr):
 DIRECTORY = re.compile(
     r'<a href="([^"/]+)/">[^<]*</a>\s+(\d{2}-[A-Z][a-z]{2}-\d{4} \d{2}:\d{2})'
 )
-# Fewer than this many directories: not the page it should be.
+# Fewer directories than this means the page isn't the index it should be.
 MIN_DIRECTORIES = 1000
 
 
 def directory_dates():
-    """{directory: when it last changed} for every package the bot has logs
-    for, from the site's front page: one request instead of one listing per
-    package (see unchanged). None if it can't be read, so every package is
-    listed as before. A directory also changes when old logs are cleaned up,
-    so a change doesn't mean a new attempt; no change means none."""
+    """Read when each package's log directory last changed, from the index.
+
+    The log site's front page lists them all: one request instead of one
+    listing per package (see unchanged). A directory also changes when old
+    logs are cleaned up, so a change doesn't mean a new attempt; but no
+    change means none.
+
+    Returns:
+        {directory: when it last changed}, or None when the index can't be
+        read, so every package is listed as before.
+    """
     try:
         page = http.get(f"{config.NIXPKGS_UPDATE_LOGS_URL}/", compressed=True)
     except (urllib.error.URLError, OSError) as e:
@@ -249,10 +275,17 @@ def directory_dates():
 
 
 def unchanged(attr, dates, since):
-    """Whether the bot's logs for attr can't have changed since since (an ISO
-    time, when they were last listed): its directory, by dates
-    (directory_dates), last changed before then, or it has none (the bot has
-    never tried). A minute's margin: the index only shows minutes."""
+    """Return whether the bot's logs for attr can't have changed since since.
+
+    They can't have when the package's directory last changed before since
+    (with a minute's margin, as the index only shows minutes), or when it
+    has no directory (the bot has never tried it).
+
+    Args:
+        attr: The attribute.
+        dates: directory_dates' result, or None.
+        since: When the logs were last listed (ISO), or None.
+    """
     if dates is None or not since:
         return False
     changed = dates.get(search_term(attr))
@@ -262,7 +295,7 @@ def unchanged(attr, dates, since):
 
 
 def latest_date(attr):
-    """Date of the bot's latest attempt at attr, or None if it never tried."""
+    """Return the date of the bot's latest attempt at attr, or None."""
     listing = http.get(attempts_url(attr))
     time.sleep(1)  # be polite
     dates = LOG_NAME.findall(listing or "")
@@ -270,8 +303,11 @@ def latest_date(attr):
 
 
 def excerpt(log):
-    """The last few meaningful lines: where a failed build stops is usually
-    the reason (the ExitFailure line itself just says "Received ExitFailure")."""
+    """Return the last few meaningful lines of a log.
+
+    Where a failed build stops is usually the reason; the ExitFailure line
+    itself only says "Received ExitFailure".
+    """
     lines = [
         ANSI.sub("", line).rstrip()[:200]
         for line in log.splitlines()
@@ -281,7 +317,7 @@ def excerpt(log):
 
 
 def meaningful_lines(log):
-    """log's lines without colours, trailing spaces and blank lines."""
+    """Return log's lines without colours, trailing spaces or blank lines."""
     return [
         line
         for line in (ANSI.sub("", raw).rstrip() for raw in log.splitlines())
@@ -290,9 +326,13 @@ def meaningful_lines(log):
 
 
 def http_excerpt(log):
-    """What a failed request was: ["HTTPError from api.github.com: 500
-    Internal Server Error"], or the exception's name when there was no
-    answer (a timeout)."""
+    """Describe a failed request, as an excerpt.
+
+    Returns:
+        One line, such as "HTTPError from api.github.com: 500 Internal
+        Server Error", with the exception's name instead of the status when
+        there was no answer (a timeout).
+    """
     host = HTTP_HOST.search(log)
     status = HTTP_STATUS.search(log)
     exception = HTTP_EXCEPTION.search(log)
@@ -307,9 +347,12 @@ def http_excerpt(log):
 
 
 def output_lines(log):
-    """What the builds and scripts printed in log: its meaningful lines,
-    without the diff of the update, the rewriters' notes ("[version] ..."),
-    the commands the bot ran, and the "> " nix puts before a build's lines."""
+    """Return what the builds and scripts printed in log.
+
+    That's its meaningful lines without the update's diff, the rewriters'
+    notes ("[version] ...") and the commands the bot ran, and without the
+    "> " nix puts before a build's lines.
+    """
     lines, in_diff = [], False
     for raw in log.splitlines():
         line = ANSI.sub("", raw).rstrip()
@@ -329,10 +372,15 @@ def output_lines(log):
 
 
 def failed_because(log):
-    """(why a failed attempt failed, its excerpt): the first of
-    FAILED_BECAUSE's rules a line of log meets, and that line with the
-    next; ("other", the last lines before nix's wrapping of the failure, or
-    the log's last) when none does."""
+    """Work out why a failed attempt failed.
+
+    Returns:
+        (reason, excerpt). The reason is the first of FAILED_BECAUSE's rules
+        that a line of log meets, and the excerpt is that line and the ones
+        after it. When none does, the reason is "updateScript" if an update
+        script failed, else "other", and the excerpt is the last lines
+        before nix's wrapping of the failure, or the log's last lines.
+    """
     lines = output_lines(log)
     for because, rule in FAILED_BECAUSE:
         for i, line in enumerate(lines):
@@ -351,8 +399,10 @@ def failed_because(log):
 
 
 def skip_reason(log):
-    """Why the bot stopped right after its own checks (CHECKS), on purpose:
-    the line that came next, when it's the log's last; else None."""
+    """Return why the bot stopped right after its own checks, or None.
+
+    That's the line after the checks (CHECKS), when it's the log's last.
+    """
     lines = meaningful_lines(log)
     if len(lines) >= 2 and CHECKS.match(lines[-2]) and not CHECKS.match(lines[-1]):
         return lines[-1][:200]
@@ -360,10 +410,20 @@ def skip_reason(log):
 
 
 def diff_versions(log, was):
-    """(from, to) from the diff of an updateScript log ("0 -> 1"), when every
-    version change in it updates the version in `was` (wesnoth-devel-1.19.24)
-    to the same new version; None otherwise (no diff, or the script failed
-    before writing one)."""
+    """Read an updateScript attempt's versions from its diff.
+
+    An updateScript log says "0 -> 1", so the versions come from the diff:
+    every version change in it must update the version in was to the same
+    new version.
+
+    Args:
+        log: The log.
+        was: What nixpkgs had, as a name-version (wesnoth-devel-1.19.24).
+
+    Returns:
+        (from, to), or None when there's no diff (the script failed before
+        writing one) or its changes don't agree.
+    """
     if not was or DIFF_HEAD not in log:
         return None
     diff = log.split(DIFF_HEAD, 1)[1].splitlines()
@@ -390,24 +450,34 @@ def diff_versions(log, was):
 
 
 def parse(log):
-    """{"outcome", "from"?, "to"?, "was"?, "pr"?, "excerpt"?,
-    "failedBecause"?} for one log.
-    outcome: prOpened, prExists, branchExists (the bot already pushed this
-    update to its branch), cantUpdate (a newer version, but no way for the
-    bot to update the package: excerpt says why), noChange (excerpt: why,
-    when the log says), skipped (the bot passed it over on purpose: excerpt
-    says why), failed (failedBecause: why, see FAILED_BECAUSE; "request"
-    when the bot's own request failed), or other. was: what
-    nixpkgs had when the bot tried, as a version (2.7.3) or, with an
-    updateScript, a name-version (wesnoth-devel-1.19.24)."""
+    """Read the attempt one log tells of.
+
+    Returns:
+        {"outcome", "from"?, "to"?, "was"?, "pr"?, "excerpt"?,
+        "failedBecause"?}. outcome is one of:
+
+        - prOpened or prExists;
+        - branchExists: the bot already pushed this update to its branch;
+        - cantUpdate: there's a newer version, but no way for the bot to
+          update the package (excerpt says why);
+        - noChange: excerpt says why, when the log does;
+        - skipped: the bot passed it over on purpose (excerpt says why);
+        - failed: failedBecause says why (see FAILED_BECAUSE), "request"
+          when the bot's own request failed;
+        - other.
+
+        was is what nixpkgs had when the bot tried: a version (2.7.3) or,
+        with an updateScript, a name-version (wesnoth-devel-1.19.24).
+    """
     result = {}
     if info := UPDATE_INFO.search(log):
         result["from"], result["to"] = info.groups()
         if result["from"] != UPDATE_SCRIPT:
             result["was"] = result["from"]
         if "://" in result["to"]:
-            # No new version, only where it would come from (ocamlPackages.
-            # labltk's "8.06.16 -> https://github.com/...", 2026-10-03).
+            # No new version, only where it would come from
+            # (ocamlPackages.labltk's "8.06.16 -> https://github.com/...",
+            # 2026-10-03).
             del result["to"]
     if "was" not in result and (package := UPDATE_SCRIPT_PACKAGE.search(log)):
         result["was"] = package.group(1)
@@ -455,12 +525,20 @@ def parse(log):
 
 
 def latest_attempt(attr, known=None, same=False):
-    """The bot's latest attempt at attr: {"attr", "date", "outcome", ...}, or
-    None if it never tried. known: an attempt read before (the previous
-    run's); if it's this same one, read with the same rules, its reading is
-    taken (as_read) instead of downloading the log again. same: known is
-    still the latest, as the logs haven't changed since it was read
-    (unchanged): then nothing is asked at all."""
+    """Return the bot's latest attempt at attr, or None if it never tried.
+
+    Args:
+        attr: The attribute.
+        known: An attempt read before (the previous run's). If it's this
+            same attempt, read with the same rules, its reading is reused
+            (as_read) instead of downloading the log again.
+        same: Whether known is still the latest, as the logs haven't
+            changed since it was read (unchanged). Then nothing is
+            requested at all.
+
+    Returns:
+        {"attr", "date", "log", "parser", and parse's fields}, or None.
+    """
     if same:
         if known is None:
             return None  # it hadn't tried, and still hasn't
@@ -479,10 +557,16 @@ def latest_attempt(attr, known=None, same=False):
 
 
 def as_read(known, attr, date):
-    """known as its log read, if it's the attempt at attr on date, read by
-    these rules (PARSER): without what add_attempts judged afterwards
-    (superseded, ignored), which depends on the state of nixpkgs and the
-    rules now, so it's judged again. A copy; None if it can't be reused."""
+    """Return known as its log was read, if that reading can be reused.
+
+    It can be when it's the attempt at attr on date, read by these rules
+    (PARSER). What add_attempts judged afterwards (JUDGED: superseded,
+    ignored) is left out, as it depends on the state of nixpkgs and the
+    rules now, and is judged again.
+
+    Returns:
+        A copy, or None when it can't be reused.
+    """
     if not known or known.get("parser") != PARSER:
         return None
     if known.get("attr") != attr or known.get("date") != date:
@@ -496,8 +580,10 @@ def as_read(known, attr, date):
 
 
 def moved_on(attempt, version):
-    """Whether version differs from what nixpkgs had when the bot tried.
-    Unknown (False) when the log doesn't say what that was."""
+    """Return whether version differs from what nixpkgs had when the bot tried.
+
+    False when the log doesn't say what that was.
+    """
     was = attempt.get("was")
     if not was or not version or was == UPDATE_SCRIPT:
         return False
@@ -506,9 +592,12 @@ def moved_on(attempt, version):
 
 
 def superseded(attempt, nix_version, master=None):
-    """Where nixpkgs has moved on since the attempt (someone updated it
-    another way), so its failure no longer matters: "nixos-unstable" (the
-    channel), "master" (merged, not in the channel yet), or None."""
+    """Return where nixpkgs has moved on since the attempt, or None.
+
+    Someone updated the package another way, so the attempt's failure no
+    longer matters. "nixos-unstable" is the channel; "master" means merged,
+    but not in the channel yet.
+    """
     if moved_on(attempt, nix_version):
         return "nixos-unstable"
     if moved_on(attempt, master):
@@ -521,14 +610,20 @@ def superseded(attempt, nix_version, master=None):
 SUPERSEDABLE = ("failed", "cantUpdate")
 
 
+# BOT_FAILURE, to search an attempt's excerpt with.
 BOT_FAILED = re.compile(BOT_FAILURE)
 
 
 def with_bot_reason(attempt):
-    """attempt, its reason "bot" when its log's excerpt says the bot's
-    machine failed: for attempts read before that reason was (2026-10-08),
-    by nixkeeper-updates or a log read earlier, without reading them again
-    (the excerpt holds the error)."""
+    """Give attempt the reason "bot" when its excerpt says the bot's machine failed.
+
+    That's for attempts read before that reason existed (2026-10-08), by
+    nixkeeper-updates or by an earlier sync, without reading their logs
+    again: the excerpt holds the error.
+
+    Returns:
+        attempt, changed in place.
+    """
     if (
         attempt
         and attempt.get("outcome") == "failed"
@@ -540,17 +635,26 @@ def with_bot_reason(attempt):
 
 
 def supersede(attempt, where):
-    """Mark attempt superseded, keeping what it was ("superseded" says
-    "failed" or "couldn't update")."""
+    """Mark attempt superseded, keeping its outcome in supersededOutcome.
+
+    The page then says what it was: "failed" or "couldn't update".
+
+    Args:
+        attempt: The attempt, changed in place.
+        where: "nixos-unstable", "master" (superseded), or "ignored".
+    """
     attempt.update(
         supersededOutcome=attempt["outcome"], outcome="superseded", supersededOn=where
     )
 
 
 def recheck_superseded(rows):
-    """Mark failures superseded that are, now that more is known about master
-    (an update PR merged there, found after the logs were read): so a row
-    waiting for the channel doesn't also show as failed."""
+    """Mark failed attempts superseded by an update found on master since.
+
+    An update PR merged into master can be found after the logs were read.
+    Marking the attempt superseded keeps a row that's waiting for the
+    channel from also showing as failed.
+    """
     for row in rows:
         attempt = row.get("update")
         if not attempt or attempt.get("outcome") not in SUPERSEDABLE:
@@ -562,9 +666,11 @@ def recheck_superseded(rows):
 
 
 def at_version(attempt, version):
-    """Whether attempt is for version: its target ("to"), or, when an
-    updateScript failed before picking one ("0 -> 1"), the version in "was"
-    that nixpkgs had."""
+    """Return whether attempt is for version.
+
+    That's its target ("to"), or, when an updateScript failed before
+    picking one ("0 -> 1"), the version nixpkgs had ("was").
+    """
     if not attempt or not version or version == UPDATE_SCRIPT_TO:
         return False
     if attempt.get("to") != UPDATE_SCRIPT_TO:
@@ -573,11 +679,20 @@ def at_version(attempt, version):
 
 
 def ignored(attempt, rules, outdated=False):
-    """The reason a manual rule gives for ignoring a failed attempt, or None.
-    rules: {version: reason}, the row's entry in package-lists/ignored-updates.nix.
-    Matches the version the bot tried to update to ("to"), or, when an
-    updateScript failed before picking one ("0 -> 1") and the package isn't
-    outdated, the version nixpkgs had ("was")."""
+    """Return the reason a manual rule gives for ignoring a failed attempt.
+
+    Args:
+        attempt: The attempt.
+        rules: {version: reason}, the row's entry in
+            package-lists/ignored-updates.nix. A rule matches the version
+            the bot tried to update to ("to"), or, when an updateScript
+            failed before picking one ("0 -> 1") and the package isn't
+            outdated, the version nixpkgs had ("was").
+        outdated: Whether the package is outdated.
+
+    Returns:
+        The reason, or None when no rule matches.
+    """
     if attempt.get("outcome") != "failed" or not rules:
         return None
     if attempt.get("to") == UPDATE_SCRIPT_TO and outdated:
@@ -589,11 +704,25 @@ def ignored(attempt, rules, outdated=False):
 
 
 def read_attempts(attrs, old, dates, since, digest=None):
-    """The bot's latest attempt at each of attrs it has tried, and how many
-    came from the digest: from it where it can say (updates_digest.attempt),
-    else from the logs, reusing the last sync's reading (old: its row) of a
-    log that hasn't changed since (since; dates: directory_dates). Raises
-    when the logs can't be read."""
+    """Read the bot's latest attempt at each of attrs it has tried.
+
+    Each comes from the nixkeeper-updates digest where it can say
+    (updates_digest.attempt), else from the logs, reusing the last sync's
+    reading of a log that hasn't changed since.
+
+    Args:
+        attrs: The row's attributes in nixpkgs.
+        old: The row in the last sync's data, or None.
+        dates: directory_dates' result, or None.
+        since: When the last sync listed the logs (ISO).
+        digest: The updates digest (updates_digest.load), or None.
+
+    Returns:
+        (the attempts, how many of them came from the digest).
+
+    Raises:
+        urllib.error.URLError, OSError: The logs can't be read.
+    """
     known = (old or {}).get("update")
     # Read fine last time: what it found still holds while the logs haven't
     # changed.
@@ -607,7 +736,7 @@ def read_attempts(attrs, old, dates, since, digest=None):
             if found := updates_digest.attempt(entry, attr, PARSER):
                 attempts.append(found)
                 taken += 1
-                continue  # else read it: an attempt the digest hasn't
+                continue  # else read the log: the digest hasn't read it
         if dates is not None and search_term(attr) not in dates:
             continue  # no logs at all: the bot has never tried it
         mine = known if (known or {}).get("attr") == attr else None
@@ -622,9 +751,14 @@ def read_attempts(attrs, old, dates, since, digest=None):
 
 
 def read_last_time(old):
-    """Whether the last sync read the row's attempts (old: its row then):
-    not if it couldn't (notRefreshed), nor if its turn hadn't come (unread,
-    with every package)."""
+    """Return whether the last sync read the row's attempts.
+
+    Not when it couldn't (notRefreshed), nor when the row's turn hadn't
+    come (unread, with every package).
+
+    Args:
+        old: The row in the last sync's data, or None.
+    """
     return (
         old is not None
         and "update" not in (old.get("notRefreshed") or {})
@@ -633,9 +767,11 @@ def read_last_time(old):
 
 
 def to_read(row, attrs, old, dates, since):
-    """Whether reading row's attempts takes a request: one of attrs has logs
-    whose directory changed since the last sync read them (or that sync
-    couldn't read them)."""
+    """Return whether reading row's attempts takes a request.
+
+    It does when one of attrs has logs whose directory changed since the
+    last sync read them, or when that sync couldn't read them.
+    """
     known = (old or {}).get("update")
     refreshed = read_last_time(old)
     for attr in attrs:
@@ -652,12 +788,18 @@ def to_read(row, attrs, old, dates, since):
 
 
 def bulk_turns(rows, nixpkgs, before, dates, since, bulk):
-    """With every package: the names of the rows in bulk (not on the lists,
-    not of a set updated in bulk) whose attempts are read this sync, at most
-    UPDATE_LOGS_BUDGET of those that take a request (to_read): outdated or
-    failing ones first, then those waiting longest (the rest keep their last
-    attempt until a later sync). None of them when the log site's index
-    can't be read (each would take a request)."""
+    """Choose the rows in bulk whose attempts are read this sync.
+
+    With every package, the rows in bulk (not on the lists, and not in a
+    set updated in bulk) can't all be read each sync. Of those that take a
+    request (to_read), at most UPDATE_LOGS_BUDGET are read: outdated or
+    failing ones first, then those waiting longest. The rest keep their
+    last attempt until a later sync.
+
+    Returns:
+        The rows' names; none when the log site's index can't be read, as
+        each row would then take a request.
+    """
     if dates is None:
         return set()
     waiting = []
@@ -675,11 +817,20 @@ def bulk_turns(rows, nixpkgs, before, dates, since, bulk):
 
 
 def add_queue(rows, nixpkgs, queue):
-    """Give each row the bot will try again ("queued": {"by": the day
-    expected, "candidates": [[version, source URL], ...]}) from its queue
-    (updates_digest.load_queue): its soonest attribute's, and the versions
-    the bot would update it to that nixpkgs doesn't have yet. Rows not in
-    nixpkgs or not in the queue get none; nothing at all without a queue."""
+    """Mark the rows the update bot will try again, from its queue.
+
+    Each such row gets "queued": {"by": the day it's expected, "candidates":
+    [[version, source URL], ...], "script"?}, from its soonest attribute's
+    entry in the queue (updates_digest.load_queue). The candidates are the
+    versions the bot would update it to that nixpkgs doesn't have yet;
+    "script" says it also runs the package's updateScript. Rows not in
+    nixpkgs or not in the queue get none.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        queue: The queue, or None (then nothing changes).
+    """
     if not queue:
         return
     for row in rows:
@@ -693,7 +844,8 @@ def add_queue(rows, nixpkgs, queue):
         soonest = min(found, key=lambda e: e["by"])
         candidates = []
         for candidate in soonest["candidates"]:
-            # [from, to, source URL]; the URL "" when the queue had none.
+            # Each is [from, to, source URL], without a URL when the queue
+            # had none.
             to, source = candidate[1], (candidate[2:] or [""])[0]
             if to != row.get("nixVersion") and [to, source] not in candidates:
                 candidates.append([to, source])
@@ -715,20 +867,34 @@ def add_attempts(
     bulk=frozenset(),
     digest=None,
 ):
-    """Give every row in nixpkgs the bot's latest attempt ("update", None if
-    it never tried) and whether that failed ("updateFailure"). With several
-    attrs, the most recently attempted one counts. A row whose lookup fails
-    keeps the previous run's result and is marked as not refreshed.
-    ignored_updates: {row name: {version: reason}}, versions whose failed
-    attempts count as superseded (a version that was never really released,
-    say). community: the (row name, version) of those that are community
-    rules (community.py), marked so on the attempt. digest: nixkeeper-
-    updates' (updates_digest.load), the attempts it can answer taken from
-    it instead of the logs. bulk: with every package, the rows not on the
-    lists: the digest's last read attempt (without one, they're read within
-    a budget: bulk_turns, but not those of sets updated in bulk, which the
-    bot rarely tries); one with none says it wasn't read ("unread":
-    ["update"])."""
+    """Give every row in nixpkgs the update bot's latest attempt.
+
+    Each row gets "update" (None when the bot never tried) and
+    "updateFailure" (whether that attempt failed). With several attributes,
+    the most recently attempted one counts. A row whose logs can't be read
+    keeps the previous run's result and is marked as not refreshed. A
+    failed attempt is marked superseded when nixpkgs has moved past it, or
+    when a manual rule ignores it.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        previous: The last run's data.
+        now: The run's time.
+        ignored_updates: {row name: {version: reason}}: versions whose
+            failed attempts count as superseded (a version that was never
+            really released, say).
+        community: The (row name, version) pairs of ignored_updates that
+            are community rules (community.py); their attempts are marked
+            so.
+        bulk: With every package, the names of the rows not on the lists.
+            They get the digest's last read attempt, and one with none gets
+            "unread": ["update"]. Without the digest, they're read within a
+            budget (bulk_turns), except those in sets updated in bulk, which
+            the bot rarely tries.
+        digest: The nixkeeper-updates digest (updates_digest.load): the
+            attempts it can answer are taken from it instead of the logs.
+    """
     ignored_updates = ignored_updates or {}
     print("Checking nixpkgs-update logs...", file=sys.stderr)
     before = {row["name"]: row for row in previous["packages"]}
@@ -752,7 +918,8 @@ def add_attempts(
                 continue  # sets updated in bulk: the digest's attempts only
             old = before.get(row["name"])
             if digest is not None:
-                # The digest's last read attempts, whatever it hasn't read yet.
+                # The digest's last read attempts, even where it hasn't read
+                # the newest yet.
                 entries = [(a, digest.get(search_term(a))) for a in attrs]
                 attempts = [
                     found
@@ -826,7 +993,8 @@ def add_attempts(
             ):
                 attempt["community"] = True
         for version in ignored_updates.get(row["name"]) or {}:
-            # The community's own tidy-up lists those (community-check).
+            # Community rules are listed by the community's own tidy-up
+            # (community-check), not here.
             if (row["name"], version) in community:
                 continue
             if not at_version(attempt, version):
