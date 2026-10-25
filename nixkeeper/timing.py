@@ -20,6 +20,7 @@ class Phases:
     """
 
     def __init__(self, clock=time.monotonic):
+        """Start timing: the first phase begins now."""
         self._clock = clock
         self._last = self._start = clock()
         self.laps = []  # [(name, seconds)], in the order they ran
