@@ -1,9 +1,10 @@
-"""Comparing version strings, for the update checks and for what master has:
-Repology's algorithm (libversion, https://github.com/repology/libversion,
-doc/ALGORITHM.md), so nixkeeper orders versions as Repology does. The page
-has the same in JavaScript (page/logic.js: compareVersions); both are
-tested against Repology's test suite (tests/data/version-comparison-
-tests.txt).
+"""Compare version strings the way Repology does.
+
+This is Repology's algorithm (libversion, https://github.com/repology/
+libversion, doc/ALGORITHM.md), used for the update checks and for what
+master has, so nixkeeper orders versions as Repology does. The page has the
+same in JavaScript (page/logic.js: compareVersions); both are tested
+against Repology's test suite (tests/data/version-comparison-tests.txt).
 
 A version is split into numeric and alphabetic components (anything else
 separates them), each ranked: pre-release (alpha, beta, rc, pre..., and
@@ -21,20 +22,23 @@ unstable-2015-10-15 has none before it, as 0). It's compared by that
 version first, then a snapshot comes after the version itself, then by
 what follows the word (its date): 1.2 < 1.2-unstable-2025-05-01 < 1.3,
 0-unstable-2022-07-13 < 0.0.1. libversion, not knowing the word, would
-take it for a pre-release, before the version it follows."""
+take it for a pre-release, before the version it follows.
+"""
 
 import functools
 import re
 
+# A component's ranks, lowest first.
 PRE_RELEASE, ZERO, POST_RELEASE, NONZERO, LETTER_SUFFIX = range(5)
-# A component: letters, or digits; and whether letters follow digits with
-# nothing between them (a letter suffix's chance).
+# A component: a run of letters, or of digits.
 TOKEN = re.compile(r"([A-Za-z]+)|([0-9]+)")
 
 
 def keyword(word):
-    """A word's rank as Repology classifies it (libversion's
-    classify_keyword), or None when it's no keyword."""
+    """Return a word's rank as Repology classifies it, or None when it's no keyword.
+
+    That's libversion's classify_keyword.
+    """
     w = word.lower()
     if w in ("alpha", "beta", "rc") or w.startswith("pre"):
         return PRE_RELEASE
@@ -44,9 +48,12 @@ def keyword(word):
 
 
 def components(version):
-    """version's components as (rank, kind, value) tuples: kind 0 for an
-    empty value (a zero), 1 for a word (its first letter, lowercase), 2 for
-    a number. Trailing zeros are left out: they're what padding adds."""
+    """Split version into its components, as (rank, kind, value) tuples.
+
+    kind is 0 for an empty value (a zero), 1 for a word (value: its first
+    letter, in lower case), and 2 for a number. Trailing zeros are left
+    out: they're what padding adds.
+    """
     found = []
     pos = 0
     for m in TOKEN.finditer(version):
@@ -69,13 +76,18 @@ def components(version):
     return tuple(found)
 
 
+# The word that marks a nixpkgs snapshot version.
 UNSTABLE = re.compile(r"unstable", re.IGNORECASE)
+# What a shorter version is padded with: a zero.
 PAD = (ZERO, 0, 0)
 
 
 def compare_components(a, b):
-    """-1, 0 or 1: a's components against b's, the shorter padded with
-    zeros."""
+    """Compare a's components with b's, the shorter padded with zeros.
+
+    Returns:
+        -1, 0 or 1.
+    """
     for i in range(max(len(a), len(b))):
         x = a[i] if i < len(a) else PAD
         y = b[i] if i < len(b) else PAD
@@ -92,10 +104,12 @@ RELEASE_WORDS = re.compile(
 
 
 def is_pre_release(version):
-    """Whether version is a pre-release as Repology orders it (158.0b1,
-    5.0.0-beta8, 1.7.0-rc0): a component ranked before a release's. Not a
-    snapshot ("unstable"), which comes after its version, nor a release
-    named so (4.7.2-stable)."""
+    """Return whether version is a pre-release, as Repology orders it.
+
+    That's a version with a component ranked before a release's (158.0b1,
+    5.0.0-beta8, 1.7.0-rc0). Not a snapshot ("unstable"), which comes after
+    its version, nor a release named so (4.7.2-stable).
+    """
     if not version or UNSTABLE.search(version):
         return False
     return any(
@@ -104,20 +118,23 @@ def is_pre_release(version):
 
 
 def without_release_words(version):
-    """version without the words naming it a release (4.7.2-stable: 4.7.2)."""
+    """Return version without the words naming it a release (4.7.2-stable: 4.7.2)."""
     return RELEASE_WORDS.sub(" ", version or "")
 
 
 @functools.total_ordering
 class Version:
-    """A version as (its components before "unstable", whether it's a
-    snapshot, its components after), compared as libversion compares
-    components: the version, then a snapshot after it, then the snapshot's
-    date."""
+    """A version, compared as Repology compares it, with nixpkgs' snapshots.
+
+    It's held as (its components before "unstable", whether it's a
+    snapshot, its components after), and compared by the version, then a
+    snapshot after it, then the snapshot's date.
+    """
 
     __slots__ = ("parts",)
 
     def __init__(self, version):
+        """Split version into its parts."""
         version = version or ""
         if m := UNSTABLE.search(version):
             self.parts = (
@@ -129,6 +146,7 @@ class Version:
             self.parts = (components(version), 0, ())
 
     def _compare(self, other):
+        """Compare with other: -1, 0 or 1."""
         (a, snap_a, after_a), (b, snap_b, after_b) = self.parts, other.parts
         found = compare_components(a, b)
         if found or snap_a != snap_b:
@@ -149,13 +167,18 @@ class Version:
 
 
 def version_key(version):
-    """Sort key for version strings, ordered as Repology orders them
-    (1.19.28 > 1.19.9, 1.0rc1 < 1.0 == 1 < 1.0.1)."""
+    """Return a sort key for version strings, ordering them as Repology does.
+
+    1.19.28 > 1.19.9, and 1.0rc1 < 1.0 == 1 < 1.0.1.
+    """
     return Version(version)
 
 
 def is_newer(version, than):
-    """Whether version is newer than than: False if either is missing (an
-    empty version counts as 0 in Repology's order, which is above an
-    unstable one, 0-unstable-2022-07-13: no version isn't a newer one)."""
+    """Return whether version is newer than than.
+
+    False when either is missing: an empty version counts as 0 in
+    Repology's order, which is above an unstable one
+    (0-unstable-2022-07-13), and no version isn't a newer one.
+    """
     return bool(version) and bool(than) and version_key(version) > version_key(than)
