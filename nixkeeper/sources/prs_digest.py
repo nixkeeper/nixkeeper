@@ -1,21 +1,25 @@
-"""nixkeeper-prs' digest (https://github.com/nixkeeper/digest-prs): every
-open PR and issue of nixpkgs, and the PRs merged into master since the
-nixos-unstable channel's commit, as its hourly workflow lists them. The
+"""Read nixkeeper-prs' digest of nixpkgs' PRs and issues.
+
+The digest (https://github.com/nixkeeper/digest-prs) lists every open PR
+and issue of nixpkgs, and the PRs merged into master since the
+nixos-unstable channel's commit, refreshed by its hourly workflow. The
 daily sync counts each package's open PRs and issues, and finds its open
 and merged update PRs, in these lists (github_bulk) instead of listing
 them itself.
 
-With the lists come the digest's own findings (facts): each PR's merge-bot
-eligibility, update state, whether it blocks the update bot and which PRs
-duplicate it; the PRs touching a package whose build fails on Hydra; and
-the issues it checked (a build failure against Hydra now, an update
-request against nixpkgs' version). add_facts gives each row those of its
-own package, for its panel.
+The lists come with the digest's own findings (facts): for each PR,
+whether the merge bot can merge it, its update's state, whether it blocks
+the update bot, and which PRs duplicate it; the PRs touching a package
+whose build fails on Hydra; and the issues it checked (a build failure
+against Hydra now, an update request against nixpkgs' version). add_facts
+gives each row the findings for its own package, for its panel.
 
-Each list is used while it was made recently (PRS_DIGEST_MAX_AGE_HOURS),
-and the merged PRs only when they were listed since the very channel
-commit the sync reads (a newer channel would count PRs it has as not in
-it yet): else the sync lists them itself, as it did before the digest."""
+Each list is used only while it's recent (PRS_DIGEST_MAX_AGE_HOURS). The
+merged PRs are used only when they were listed since the same channel
+commit the sync reads: with a newer channel, PRs it has would be counted
+as not in it yet. Otherwise the sync lists them itself, as it did before
+the digest.
+"""
 
 import json
 import re
@@ -33,19 +37,21 @@ FORMAT = 1
 BOT = "r-ryantm"
 PR_URL = "https://github.com/NixOS/nixpkgs/pull/"
 ISSUE_URL = "https://github.com/NixOS/nixpkgs/issues/"
-# At most so many PRs and issues of a package in its panel (the rest are a
-# GitHub search away).
+# The most PRs and issues of each kind a package's panel shows; the rest are
+# a GitHub search away.
 SHOWN = 5
-# Issue checks worth showing: something to do (close it, or still failing).
+# The issue checks' verdicts worth showing: those that ask for something
+# (closing the issue, or a build still failing).
 BUILD_SHOWN = {"builds", "failing"}
 UPDATE_SHOWN = {"done", "partly"}
-# The package a PR's title names, nixpkgs' convention ("foo: drop").
+# The package a PR's title names, by nixpkgs' convention ("foo: drop").
 TITLE_PACKAGE = re.compile(r"^([\w.+-]+):")
-# A PR's kind, as the digest reads its title (nixkeeper-prs' facts.py).
+# A PR's kinds, as the digest reads them from its title (nixkeeper-prs'
+# facts.py).
 KINDS = ("drop", "init", "update")
-# The digest calls any "foo: drop ..." or "foo: remove ..." a drop; most
-# remove something from the package ("drop unused libmatthew_java",
-# "remove meta.changelog": 85 of 125 on 2026-10-09). A removal of the
+# The digest calls any "foo: drop ..." or "foo: remove ..." PR a drop, but
+# most remove something from the package ("drop unused libmatthew_java",
+# "remove meta.changelog": 85 of 125 on 2026-10-09). A PR removing the
 # package itself says nothing more, or says so: "foo: drop", "foo: remove
 # package", "foo: drop in favor of bar", "foo: drop, bar: init at 1.0",
 # "fmt_9: remove version".
@@ -54,13 +60,17 @@ REMOVAL = re.compile(
     r"|\s+in\s+favou?r\b|\s+(?:as|since|because|due)\b|\s+version\b)",
     re.IGNORECASE,
 )
-# Titles name Python packages by their alias; rows by the versioned set.
+# PR titles name Python packages by their alias (python3Packages), rows by
+# the versioned set it points to.
 PYTHON_ALIAS = ("python3packages.", "python313packages.")
 
 
 def package_key(name):
-    """A package's name as facts are kept by: lower case, Python's alias as
-    the versioned set it points to."""
+    """Return the key the digest's findings are kept under for a package.
+
+    That's the name in lower case, with Python's alias replaced by the
+    versioned set it points to.
+    """
     key = (name or "").lower()
     if key.startswith(PYTHON_ALIAS[0]):
         key = PYTHON_ALIAS[1] + key[len(PYTHON_ALIAS[0]) :]
@@ -68,11 +78,19 @@ def package_key(name):
 
 
 def pr_facts(pr, duplicates):
-    """What the digest found of a PR, as a row's update PR keeps it:
-    "mergeBot" ("ready": CI green and no conflict, else "eligible"),
-    "state" (superseded, overtaken, downgrade...) with nixpkgs' version
-    ("now"), "blocksBot" (the day the bot is expected to try, or True), and
-    "duplicates" (the PRs it duplicates). {} when none."""
+    """Return what the digest found about a PR, as a row's update PR keeps it.
+
+    Args:
+        pr: The digest's PR.
+        duplicates: {PR number: the numbers of the PRs it duplicates}.
+
+    Returns:
+        Any of: "mergeBot" ("ready" when CI is green and there's no
+        conflict, else "eligible"); "state" (superseded, overtaken,
+        downgrade...), with nixpkgs' version as "now"; "blocksBot" (the day
+        the update bot is expected to try, or True); "duplicates" (at most
+        SHOWN). {} when there's none.
+    """
     found = {}
     if mb := pr.get("mergeBot"):
         ready = mb.get("ready") and pr.get("mergeable") != "CONFLICTING"
@@ -88,16 +106,24 @@ def pr_facts(pr, duplicates):
     return found
 
 
-# A removal PR this long without activity is only proposed, not likely.
+# A removal PR without activity for this many days is only proposed, not
+# likely.
 REMOVAL_STALE_DAYS = 90
 
 
 def removal_proposed(pr, now):
-    """Why a PR removing a package is only proposed (the panel says so, the
-    list's "being removed" badge stays off), or None when the removal looks
-    likely: a committer asked for changes, or nothing has happened on it for
-    REMOVAL_STALE_DAYS days (7 of 26 on 2026-10-20: telepresence's, fmt_10's,
-    ...)."""
+    """Return why a PR removing a package is only proposed, or None.
+
+    A removal is only proposed when a committer asked for changes, or when
+    nothing has happened on it for REMOVAL_STALE_DAYS days (7 of 26 on
+    2026-10-20: telepresence's, fmt_10's, ...). The panel then says so, and
+    the list's "being removed" badge stays off. None means the removal
+    looks likely.
+
+    Args:
+        pr: The digest's PR.
+        now: The time to measure from (ISO), or None.
+    """
     if pr.get("review") == "CHANGES_REQUESTED":
         return "changes requested"
     updated = pr.get("updated")
@@ -109,11 +135,23 @@ def removal_proposed(pr, now):
 
 
 def facts(prs, groups, issues, now=None):
-    """The digest's findings, by PR number and by package (package_key):
-    {"prs": {number: pr_facts}, "fixes": {package: [PRs touching it while
-    its build fails on Hydra]}, "issues": {package: [checked issues]},
-    "open": {package: [its open PRs, not drafts: by the package its title
-    names or the pkgs/by-name directories it touches]}}."""
+    """Collect the digest's findings, by PR number and by package.
+
+    Args:
+        prs: The digest's open PRs.
+        groups: Its groups of duplicate PRs, each {"prs": [numbers]}.
+        issues: Its open issues.
+        now: The time to measure from (ISO), for removal_proposed.
+
+    Returns:
+        {"prs": {number: pr_facts}, "fixes": {package: the PRs touching it
+        while its build fails on Hydra}, "issues": {package: its checked
+        issues}, "open": {package: its open PRs, drafts left out}}, with
+        packages by package_key. An open PR is listed under the package its
+        title names and under each pkgs/by-name package it touches; a
+        removal's "kind" and "proposed" are only on the copy under the
+        package its title names.
+    """
     duplicates = {}
     for group in groups:
         for n in group.get("prs") or []:
@@ -129,7 +167,7 @@ def facts(prs, groups, issues, now=None):
         item = {"number": pr["n"], "title": pr["title"]}
         kind = next((k for k in KINDS if k in (pr.get("buckets") or [])), None)
         if kind == "drop" and not REMOVAL.match(pr["title"]):
-            kind = None  # removes something from it, not the package
+            kind = None  # it removes something from the package, not the package
         if kind:
             item["kind"] = kind
         if kind == "drop" and (why := removal_proposed(pr, now)):
@@ -139,8 +177,9 @@ def facts(prs, groups, issues, now=None):
         named = TITLE_PACKAGE.match(pr["title"])
         title_key = package_key(named.group(1)) if named else None
         keys = {package_key(p) for p in pr.get("packages") or []} | {title_key}
-        # Only the package its title names is removed: the others it touches
-        # move off it (fmt_11: remove version, imhex's package.nix to fmt).
+        # Only the package its title names is removed; the others it touches
+        # are moved off it ("fmt_11: remove version" moves imhex's
+        # package.nix to fmt).
         touched = {k: v for k, v in item.items() if k not in ("kind", "proposed")}
         for key in keys - {None}:
             mine = item if key == title_key or kind != "drop" else touched
@@ -176,14 +215,23 @@ def facts(prs, groups, issues, now=None):
 
 
 def cross_check(rows):
-    """What nixkeeper knows of a row that its update PR's facts (the
-    digest's) don't, added to them ("openPR"'s "facts"): "behind", upstream's
-    newer version (refVersion) when it's newer than the PR's: merged, the
-    package would still be outdated (496 open update PRs on 2026-10-18, 152
-    of them ready for the merge bot); "vulnerable", the package counts as
-    vulnerable (changes.is_vulnerable): a PR worth reviewing first (98).
-    After the versions and vulnerabilities are in: the sync's last word, and
-    the hourly check's after add_facts."""
+    """Add what nixkeeper knows about a row to its update PR's facts.
+
+    The digest doesn't know these, so they're added to "openPR"'s "facts":
+
+    - "behind": upstream's newer version (refVersion), when it's newer than
+      the PR's. Merged, the PR would still leave the package outdated (496
+      open update PRs on 2026-10-18, 152 of them ready for the merge bot).
+    - "vulnerable": the package counts as vulnerable
+      (changes.is_vulnerable), so the PR is worth reviewing first (98 PRs).
+
+    Both are worked out again each time (CROSS). Call it after the versions
+    and vulnerabilities are in: the sync calls it last, and the hourly
+    check after add_facts.
+
+    Args:
+        rows: The rows, changed in place.
+    """
     for row in rows:
         pr = row.get("openPR")
         if not pr:
@@ -200,22 +248,32 @@ def cross_check(rows):
             pr.pop("facts", None)
 
 
-# The facts cross_check adds: worked out again each time.
+# The facts cross_check adds, worked out again each time.
 CROSS = ("behind", "vulnerable")
+# A CVE's id, as issue titles write it.
 CVE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.IGNORECASE)
-# A CVE's verdicts that say nixpkgs' version isn't affected
-# (vulnerabilities_digest): outside every affected range, or patched.
+# The verdicts on a CVE (vulnerabilities_digest) that say nixpkgs' version
+# isn't affected: outside every affected range, or patched.
 NOT_AFFECTED = ("fixed", "patched")
 
 
 def add_cve_prs(rows, prs):
-    """Open PRs patching a package's CVE: their diff adds its id (a patch
-    named after it, mostly: the digest's diffFacts "cves", 17 PRs on
-    2026-10-23), on each of its vulnerabilities still affecting it, as
-    "prs" ([{"number", "title", "base"?: not master, "draft"?}], at most
-    SHOWN): "is someone fixing this?" in its panel. A PR touching other
-    packages only doesn't count; one the digest maps to none does (a patch
-    in a shared file: binutils, gimp). After the vulnerabilities are in."""
+    """Add the open PRs patching a row's CVEs to its vulnerabilities.
+
+    A PR patches a CVE when its diff adds the CVE's id, mostly in a patch
+    named after it (the digest's diffFacts "cves", 17 PRs on 2026-10-23).
+    The panel then answers "is someone fixing this?". Only vulnerabilities
+    still affecting the package get them, as "prs": [{"number", "title",
+    "base"? (when it isn't master), "draft"?}], at most SHOWN, by number. A
+    PR that only touches other packages doesn't count; one the digest maps
+    to no package does (a patch in a shared file: binutils, gimp).
+
+    Call it after the vulnerabilities are in.
+
+    Args:
+        rows: The rows, changed in place.
+        prs: The digest's open PRs, or None.
+    """
     by_cve = {}
     for pr in prs or []:
         for cve in (pr.get("diffFacts") or {}).get("cves") or []:
@@ -251,15 +309,23 @@ def add_cve_prs(rows, prs):
 
 
 def add_cve_issues(rows, issues):
-    """An open issue naming CVEs (in its title) that nixkeeper finds don't
-    affect a package's nixpkgs version, every one of them (its
-    vulnerabilities' verdicts: fixed or patched): a candidate to close, in
-    that package's issue checks ({"kind": "cve", "verdict": "cveFixed",
-    "cves"}), after the digest's (4 of the 17 such issues on 2026-10-18).
-    issues: the digest's open ones ({"number", "title"}). After the
-    vulnerabilities are in: the sync's, and the hourly check's after
-    add_facts, which replaces the checks."""
-    # Worked out again each time: an earlier run's are dropped first.
+    """Add CVE issues that could be closed to their packages' issue checks.
+
+    An open issue whose title names CVEs could be closed for a package when
+    nixkeeper finds that none of them affects the package's nixpkgs version
+    (each of its vulnerabilities' verdicts is fixed or patched): 4 of the
+    17 such issues on 2026-10-18. It's added after the digest's checks, as
+    {"kind": "cve", "verdict": "cveFixed", "cves"}, while there are fewer
+    than SHOWN.
+
+    Call it after the vulnerabilities are in: in the sync, and in the
+    hourly check after add_facts, which replaces the checks.
+
+    Args:
+        rows: The rows, changed in place.
+        issues: The digest's open issues, each {"number", "title"}.
+    """
+    # Worked out again each time, so an earlier call's are dropped first.
     for row in rows:
         if checks := row.get("issueChecks"):
             if kept := [c for c in checks if c.get("kind") != "cve"]:
@@ -300,14 +366,25 @@ def add_cve_issues(rows, issues):
 
 
 def mergeable(prs, rows):
-    """The PRs a maintainer can merge now with the merge bot (nixpkgs'
-    @NixOS/nixpkgs-merge-bot): eligible, as nixpkgs' CI labels them (or the
-    digest finds them), CI green, no conflict, no changes requested, not a
-    draft, and touching packages of rows; with who can ("who": the
-    maintainers of every package it touches, the digest's merge_bot), and,
-    for an update, "behind" (upstream's newer version) and "vulnerable" as
-    cross_check has them, for the maintainer and team views' "You can merge
-    these" (views/merge.json). Oldest first: the longest waiting."""
+    """List the PRs a maintainer can merge now with the merge bot.
+
+    The merge bot is nixpkgs' @NixOS/nixpkgs-merge-bot. A PR is listed when
+    it's eligible (as nixpkgs' CI labels it, or as the digest finds), CI is
+    green, it has no conflict and no changes requested, it isn't a draft,
+    and it touches packages that have rows. The list is for the maintainer
+    and team views' "You can merge these" (views/merge.json).
+
+    Args:
+        prs: The digest's open PRs.
+        rows: The rows.
+
+    Returns:
+        The PRs, oldest (longest waiting) first, each {"number", "title",
+        "author", "created", "base", "packages": the rows' names, "who":
+        the maintainers of every package it touches (the digest's
+        merge_bot), "approvedBy"?}. An update also has "behind" (upstream's
+        newer version) and "vulnerable", as cross_check works them out.
+    """
     by_key = {package_key(r["name"]): r for r in rows}
     for row in rows:
         for attr in row.get("attrs") or []:
@@ -351,15 +428,29 @@ def mergeable(prs, rows):
 
 
 def mark_superseded(prs, rows):
-    """Mark each row's open update PRs nixpkgs is already past: the digest's
-    state "superseded" (nixpkgs has the PR's version, or a newer one: 255 on
-    2026-10-23, most of them r-ryantm's), as "supersededPRs" ([{"number",
-    "title", "author", "created", "now": nixpkgs' version, "draft"?}],
-    oldest first), for a maintainer's and a team's "Can be closed" and the
-    list's filter. And init PRs for an attribute nixpkgs has now (added
-    another way while they waited: the digest's "alreadyIn", 68 on
-    2026-10-23), with "init": true. Returns {"prs", "bot": r-ryantm's of
-    them, "init"} for the overview, or None without the digest's list."""
+    """Mark each row's open PRs that nixpkgs is already past.
+
+    Two kinds are marked:
+
+    - update PRs the digest finds "superseded": nixpkgs has the PR's
+      version, or a newer one (255 on 2026-10-23, most of them r-ryantm's);
+    - init PRs for an attribute nixpkgs has now, added another way while
+      they waited (the digest's "alreadyIn", 68 on 2026-10-23), with
+      "init": True.
+
+    They go in the row's "supersededPRs", [{"number", "title", "author",
+    "created", "now": nixpkgs' version, "draft"?, "init"?}], oldest first,
+    for a maintainer's and a team's "Can be closed" and the list's filter.
+    An earlier call's are replaced.
+
+    Args:
+        prs: The digest's open PRs, or None without the digest's list.
+        rows: The rows, changed in place.
+
+    Returns:
+        {"prs", "bot": how many of them are r-ryantm's, "init"}, for the
+        overview, or None without the digest's list.
+    """
     if prs is None:
         return None
     by_key = {package_key(r["name"]): r for r in rows}
@@ -402,14 +493,17 @@ def mark_superseded(prs, rows):
     return found
 
 
-# Waiting over so many days, in the overview's merge line.
+# How many days of waiting the overview's merge line counts as long.
 MERGE_LONG_DAYS = 90
 
 
 def merge_summary(prs, now):
-    """The overview's line on mergeable's PRs: {"prs", "maintainers" (who
-    could merge at least one), "over90" (waiting over MERGE_LONG_DAYS
-    days)}."""
+    """Summarize mergeable's PRs, for the overview's line.
+
+    Returns:
+        {"prs": how many, "maintainers": how many could merge at least one,
+        "over90": how many have waited over MERGE_LONG_DAYS days}.
+    """
     then = datetime.fromisoformat(now) - timedelta(days=MERGE_LONG_DAYS)
     return {
         "prs": len(prs),
@@ -423,13 +517,24 @@ def merge_summary(prs, now):
 
 
 def add_facts(rows, digest):
-    """Give each row the digest's findings for its own package (facts'): its
-    update PR's ("openPR"'s "facts", with "fixesBuild" when it touches the
-    package while its build fails on Hydra), the other open PRs that do
-    ("fixPRs"), its other open PRs ("otherPRs", a removal first, then the
-    newest), and its checked issues ("issueChecks"), at most SHOWN of each;
-    and "dropPR" when an open PR removes it from nixpkgs (the list's
-    badge). Replaces the last sync's."""
+    """Give each row the digest's findings for its own package.
+
+    Each row gets, from facts, at most SHOWN of each:
+
+    - its update PR's facts ("openPR"'s "facts"), with "fixesBuild" when
+      the PR touches the package while its build fails on Hydra;
+    - the other open PRs that do ("fixPRs");
+    - its other open PRs ("otherPRs"), a removal first, then the newest;
+    - its checked issues ("issueChecks");
+    - "dropPR", when an open PR removes the package from nixpkgs (the
+      list's "being removed" badge).
+
+    The last sync's are replaced.
+
+    Args:
+        rows: The rows, changed in place.
+        digest: load's result, or None.
+    """
     found = (digest or {}).get("facts")
     for row in rows:
         for field in ("fixPRs", "issueChecks", "otherPRs", "dropPR"):
@@ -443,8 +548,8 @@ def add_facts(rows, digest):
         keys = sorted(
             {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
         )
-        # The update PR is said once: as the update PR, which touches the
-        # failing build too, not again among the fixes.
+        # The update PR is shown once, as the update PR (marked as touching
+        # the failing build too), not again among the fixes.
         if pr and any(
             fix["number"] == pr["number"]
             for key in keys
@@ -460,7 +565,8 @@ def add_facts(rows, digest):
                         items.append(item)
             if items:
                 row[field] = items[:SHOWN]
-        # Its other open PRs: not the update PR nor the fixes (said above).
+        # Its other open PRs: neither the update PR nor the fixes, shown
+        # above.
         said = {pr["number"]} if pr else set()
         said |= {fix["number"] for fix in row.get("fixPRs") or []}
         others = _other_prs(found.get("open", {}), keys, said)
@@ -469,8 +575,9 @@ def add_facts(rows, digest):
         )
         if ordered:
             row["otherPRs"] = ordered[:SHOWN]
-        # Being removed: when the title names the row's own package (not one
-        # of its other attributes: "sqlite-interactive: drop" leaves sqlite).
+        # Being removed: only when the PR's title names the row's own
+        # package, not one of its other attributes ("sqlite-interactive:
+        # drop" leaves sqlite).
         mine = package_key(row["name"])
         if drop := next(
             (
@@ -484,7 +591,7 @@ def add_facts(rows, digest):
         ):
             row["dropPR"] = {"number": drop["number"], "title": drop["title"]}
             if drop.get("proposed"):
-                # Only proposed (removal_proposed): no badge in the list.
+                # Only proposed (removal_proposed): the list shows no badge.
                 row["dropPR"]["proposed"] = drop["proposed"]
 
 
@@ -520,7 +627,7 @@ def _other_prs(open_prs, keys, said):
 
 
 def recent(at, now):
-    """Whether a list made at (ISO) is recent enough to use."""
+    """Return whether a list made at the time at (ISO) is recent enough."""
     if not at:
         return False
     age = datetime.fromisoformat(now) - datetime.fromisoformat(at)
@@ -528,7 +635,7 @@ def recent(at, now):
 
 
 def node(pr):
-    """A PR as github_bulk's listings have it (GraphQL's names)."""
+    """Return a PR as github_bulk's listings have it (GraphQL's names)."""
     return {
         "number": pr["n"],
         "title": pr["title"],
@@ -539,7 +646,12 @@ def node(pr):
 
 
 def _read(base, name):
-    """A file of the digest (name), as written."""
+    """Read one of the digest's files, checking its format.
+
+    Raises:
+        ValueError: The file is empty or in a format this nixkeeper doesn't
+            read.
+    """
     data = json.loads(http.get(base + name, compressed=True) or "null")
     if not data or data.get("format") != FORMAT:
         raise ValueError(f"no {name} in a format this nixkeeper reads")
@@ -547,16 +659,26 @@ def _read(base, name):
 
 
 def _list(base, name, key):
-    """A list of the digest (name: its file), as written: its key's items."""
+    """Read one of the digest's lists: the items under key in the file name."""
     return _read(base, name).get(key) or []
 
 
 def load(now, revision):
-    """{"open": (PRs, issues) or None, "merged": PRs or None, "facts"?:
-    the digest's findings, with the open lists (facts)}, as
-    github_bulk's listings give them (each None when it's not recent, or
-    merged when listed since another channel commit than revision), or None
-    (saying why) when it's turned off or can't be read."""
+    """Read the digest, as github_bulk's listings would give it.
+
+    Args:
+        now: The run's time (ISO).
+        revision: The channel commit the sync reads.
+
+    Returns:
+        {"open": (PRs, issues), "merged": PRs, "staging": {"prs",
+        "stagingNext"}, "facts"?: the digest's findings (facts), "raw"?:
+        the open PRs as the digest wrote them}. "open", "merged" and
+        "staging" are each None when that list isn't recent, and "merged"
+        also when it was listed since another channel commit than revision.
+        None when the digest is turned off (no PRS_DIGEST_URL), or can't be
+        read (the log says why).
+    """
     base = config.PRS_DIGEST_URL
     if not base:
         return None
@@ -590,8 +712,8 @@ def load(now, revision):
                 {
                     **node(p),
                     # Who opened and merged it, and the pkgs/by-name
-                    # packages it touched (since 2026-10-09): what a fix is
-                    # credited to (history.fixes, build_fix_prs).
+                    # packages it touched (listed since 2026-10-09): what a
+                    # fix is credited by (history.fixes, build_fix_prs).
                     **{
                         k: p[k]
                         for k in ("author", "mergedBy", "packages", "merged")
@@ -601,8 +723,9 @@ def load(now, revision):
                 for p in _list(base, "merged.json", "prs")
                 if p.get("n")
             ]
-        # Merged into staging or staging-next, not on master yet (since
-        # 2026-10-16): where each is, and the staging-next cycle.
+        # PRs merged into staging or staging-next but not on master yet
+        # (listed since 2026-10-16): where each is, and the staging-next
+        # cycle.
         if recent(staging_meta.get("at"), now):
             data = _read(base, "staging.json")
             found["staging"] = {
@@ -651,15 +774,22 @@ def load(now, revision):
 
 
 def add_staging_prs(rows, staging):
-    """Each row's update PR merged into staging or staging-next that master
-    doesn't have yet ("stagingPR"): the one aiming highest, staging-next's
-    before staging's, to a version newer than nixpkgs' and than master's.
-    Its "on" says where it is; on staging-next, "cycle" the open staging-next
-    PR it reaches master with ({"n", "cut"}). staging: load's, or None
-    (then rows keep none: there's no other way to know)."""
-    # What the sync found of each on staging-next's builds (branches.
-    # apply_staging_next): kept while it's the same PR, as the hourly check
-    # doesn't read them.
+    """Give each row its update PR merged into staging or staging-next.
+
+    That's an update PR master doesn't have yet ("stagingPR"): the one
+    going to the highest version, newer than nixpkgs' and master's, with
+    staging-next's before staging's on a tie. Its "on" says which branch
+    it's on; on staging-next, "cycle" is the open staging-next PR it
+    reaches master with ({"n", "cut"}).
+
+    Args:
+        rows: The rows, changed in place.
+        staging: load's "staging", or None. With None, rows keep no
+            stagingPR: there's no other way to know.
+    """
+    # What the sync found about each PR's builds on staging-next
+    # (branches.apply_staging_next) is kept while it's the same PR, as the
+    # hourly check doesn't read those builds.
     before = {row["name"]: row.pop("stagingPR") for row in rows if row.get("stagingPR")}
     if not staging:
         return
@@ -708,32 +838,41 @@ def add_staging_prs(rows, staging):
 # ("treewide: remove explicit strictDeps"): a build fix is credited to it
 # only when its title names the package.
 FIX_MAX_TOUCHED = 3
-# Marking a package broken stops Hydra building it: not a fix to credit.
+# Marking a package broken stops Hydra building it: that's not a fix to
+# credit.
 MARKS_BROKEN = re.compile(r"\bmark\w*\b.*\bbroken\b", re.IGNORECASE)
-# An update's title: "tgrep: 1.1.0 -> 1.2.4", the version it goes to.
+# An update's title ("tgrep: 1.1.0 -> 1.2.4"), and the version it goes to.
 UPDATE_TO = re.compile(r"^[\w.+-]+:\s*\S+\s*(?:->|→)\s*(\S+)")
 
 
 def in_failed(pr, versions):
-    """Whether PR is an update to one of versions, its failed builds'."""
+    """Return whether pr updates to one of versions, its failed builds'."""
     to = UPDATE_TO.match(pr.get("title") or "")
     return bool(to) and to.group(1).removeprefix("v") in versions
 
 
 def build_fix_prs(rows, merged, previous):
-    """Give each row whose build is failing the PR merged into master since
-    it began failing (failingSince) that touched it ("buildFixPR": number,
-    title, url, author, mergedBy, merged): by the package its title names
-    or a pkgs/by-name directory of it (of a PR touching at most
-    FIX_MAX_TOUCHED packages: not a treewide change in passing); the newest
-    such. Likely its fix, once
-    Hydra builds it (history.fixes credits a build fix to it). merged: the
-    digest's merged PRs (those since the channel's commit); a row still
-    failing keeps the one the last sync found, which a channel move may
-    have taken off that list. previous: the last run's data.
+    """Credit each failing row's build fix, and its cause, to merged PRs.
+
+    A row whose build is failing gets "buildFixPR": the newest PR merged
+    into master since it began failing (failingSince) that touched it, by
+    the package its title names or a pkgs/by-name directory of it. Only a
+    PR touching at most FIX_MAX_TOUCHED packages counts by directory, so a
+    treewide change in passing isn't credited. It's likely the fix, once
+    Hydra builds the package (history.fixes credits a build fix to it). A
+    row still failing keeps the one the last sync found, which a channel
+    move may have taken off the list.
+
     An update PR to the version a failed build is at is in that build: not
-    its fix but likely what broke it ("buildCausePR", the same fields:
-    tgrep's #575734, 1.1.0 -> 1.2.4, failing at 1.2.4 since)."""
+    its fix, but likely what broke it. It goes in "buildCausePR" instead
+    (tgrep's #575734, 1.1.0 -> 1.2.4, failing at 1.2.4 since). Both are
+    {"number", "title", "url", "author"?, "mergedBy"?, "merged"?}.
+
+    Args:
+        rows: The rows, changed in place.
+        merged: The digest's merged PRs, those since the channel's commit.
+        previous: The last run's data.
+    """
     before = {row["name"]: row for row in previous.get("packages") or []}
     touching = {}
     for pr in merged or []:
@@ -751,6 +890,7 @@ def build_fix_prs(rows, merged, previous):
             touching.setdefault(key, []).append(pr)
 
     def entry(pr):
+        """Return pr as a row's buildFixPR or buildCausePR keeps it."""
         return {
             "number": pr["number"],
             "title": pr["title"],
@@ -759,13 +899,13 @@ def build_fix_prs(rows, merged, previous):
         }
 
     for row in rows:
-        old = row.pop("buildFixPR", None)  # this run's data: worked out below
+        old = row.pop("buildFixPR", None)  # worked out again below
         old_cause = row.pop("buildCausePR", None)
         failed = [b for b in row.get("builds") or [] if b["status"] == "failed"]
         if not failed:
             continue
         # The versions its failed builds are at, when they last built at
-        # another: they began failing with that update.
+        # another version: they began failing with that update.
         broke_at = {
             b["version"]
             for b in failed
