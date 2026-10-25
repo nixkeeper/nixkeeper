@@ -141,7 +141,8 @@ def restored(row, run):
     """Put back the timestamps elided() left out of row.
 
     Every build and update check has a "checkedAt", and a row with counts
-    ("openPRs") has a "countedAt", so a missing one must have been run.
+    ("openPRs") has a "countedAt", so a missing one was left out because
+    it equalled run.
 
     Args:
         row: The row as read from its shard. It's changed in place.
@@ -442,8 +443,7 @@ FIXED_RECENT_DAYS = 7
 
 
 def read_fixed(out_dir=None):
-    """Return the fixes the last run's history.json keeps, or [] if it can't
-    be read."""
+    """Return the fixes kept in the last run's history.json, or []."""
     out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("fixed") or []
@@ -516,8 +516,12 @@ def fixed_summary(fixed, run):
 
 
 def _lasted(fix):
-    """Return how many seconds fix's problem had lasted when it was fixed,
-    or -1 when the fix doesn't say since when."""
+    """Return how long fix's problem had lasted, in seconds.
+
+    Returns:
+        The seconds from when the problem began to when it was fixed, or -1
+        when the fix doesn't say when it began.
+    """
     try:
         since = datetime.fromisoformat(fix["since"])
         if since.tzinfo is None:  # a day without a time: midnight UTC
@@ -565,8 +569,7 @@ def _day_before(run, days):
 
 
 def read_events(out_dir=None):
-    """Return the trend markers the last run's history.json keeps, or [] if
-    it can't be read."""
+    """Return the trend markers kept in the last run's history.json, or []."""
     out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("events") or []
@@ -604,8 +607,7 @@ def with_events(events, new, run):
 
 
 def read_history(out_dir=None):
-    """Return the last run's history.json points, or [] if there are none or
-    the file can't be read."""
+    """Return the last run's history.json points, or []."""
     out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("points") or []
@@ -759,9 +761,11 @@ UNBUILT_KEYS = ("x86_64-linux", "aarch64-linux", "darwin")
 
 
 def _on_platform(row, key):
-    """Return whether row is listed for key, a family ("linux") or a system
-    ("x86_64-linux"), as the page's onPlatform does. A row without a
-    restriction ("platforms": null) is listed for every one."""
+    """Return whether row is listed for key, as the page's onPlatform does.
+
+    key is a family ("linux") or a system ("x86_64-linux"). A row without a
+    restriction ("platforms": null) is listed for every one.
+    """
     platforms = row.get("platforms", {})
     if platforms is None:
         return True
@@ -773,8 +777,11 @@ def _on_platform(row, key):
 
 
 def _on_system(system, key):
-    """Return whether a build's system is key, a system, or is in key, a
-    family."""
+    """Return whether a build's system matches key.
+
+    key is the same system ("x86_64-linux"), or a family ("linux") the
+    system is one of.
+    """
     return system == key if "-" in key else system.endswith("-" + key)
 
 
@@ -1207,8 +1214,11 @@ def views(rows, out):
 
 
 def _write_file(path, text):
-    """Write text to path through a temporary file, so a failed write never
-    leaves the file half-written."""
+    """Write text to path, through a temporary file.
+
+    The file is replaced in one step, so a failed write never leaves it
+    half-written.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w") as f:
         f.write(text)
