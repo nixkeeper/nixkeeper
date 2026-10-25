@@ -1,18 +1,22 @@
-"""The PR check: for every outdated package, the update PR that's open (to
-review) and the one merged into master (waiting for the channel), hourly, so
-those badges don't wait for the sync. A merged PR shows "on master" as soon
-as it's found, before Hydra has built it. Changes rarely: only when an update
-PR opens, becomes ready or is merged. `nixkeeper pr-check`; from a checkout,
-`nix run .#pr-check`.
+"""Find the outdated packages' update PRs, hourly.
 
-From nixkeeper-prs' digest (prs_digest), made hourly: every outdated
-package's update PRs in one download, no token, no search. Its lists are up
-to an hour old, so the packages of the lists' maintainers (the "maintained"
-list) are still searched for directly, for the freshest "on master"; the
-other lists' and teams' (and, with every package, the rest of nixpkgs) only
-through the digest, so those lists can grow without the searches growing.
-Without a usable digest, as before: searched per package (with every
-package, the lists' own only)."""
+For every outdated package, the PR check finds the update PR that's open
+(to review) and the one merged into master (waiting for the channel), so
+those badges don't wait for the sync. A merged PR shows "on master" as soon
+as it's found, before Hydra has built it. It changes rarely: only when an
+update PR opens, becomes ready or is merged. Run it with `nixkeeper
+pr-check`, or `nix run .#pr-check` from a checkout.
+
+It reads nixkeeper-prs' digest (prs_digest), made hourly: every outdated
+package's update PRs in one download, with no token and no search. The
+digest's lists are up to an hour old, so the packages of the lists'
+maintainers (the "maintained" list) are still searched for directly, for
+the freshest "on master". The other lists' and teams' packages (and, with
+every package, the rest of nixpkgs) only go through the digest, so those
+lists can grow without the searches growing. Without a usable digest,
+they're searched per package, as before (with every package, the lists'
+own only).
+"""
 
 import sys
 from datetime import UTC, datetime
@@ -24,15 +28,23 @@ from .tracking import MAINTAINED
 
 
 def searched_directly(row):
-    """Whether row's update PRs are searched for directly, beside the digest:
-    a package of the lists' maintainers."""
+    """Return whether row's update PRs are also searched for directly.
+
+    That's for the packages of the lists' maintainers, beside the digest.
+    """
     return MAINTAINED in (row.get("lists") or [])
 
 
 def from_digest(rows, digest, revision, now):
-    """Give rows their open update PR ("openPR") from the digest's open PRs,
-    and their update PR merged into master ("masterPR") from its merged ones
-    when it has them (else they keep theirs). Returns whether it did."""
+    """Give rows their update PRs from the digest.
+
+    Each row gets its open update PR ("openPR") from the digest's open PRs,
+    and its update PR merged into master ("masterPR") from its merged ones
+    when it has them; otherwise the rows keep theirs.
+
+    Returns:
+        Whether the digest had open PRs to use.
+    """
     if not digest or not digest.get("open"):
         return False
     listing = github_bulk.Listing(*digest["open"])
@@ -46,6 +58,7 @@ def from_digest(rows, digest, revision, now):
 
 
 def main():
+    """Run the PR check, and publish what changed."""
     now = datetime.now(UTC).isoformat()
     previous, packages = partial.load()
     outdated = [row for row in packages if is_outdated(row)]

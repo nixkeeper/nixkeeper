@@ -1,13 +1,16 @@
-"""Mistakes in the package lists that would otherwise go unnoticed: a
-maintainer handle no package lists (a typo tracks nothing, silently), an
-extra package nixpkgs doesn't have, an update check or ignore rule for a
-package that isn't tracked, a page theme the page doesn't have. Checked at
-every sync, against the channel's package index it has loaded anyway; the
-repository's `nix flake check` does the same before anything runs
-(nix/package-lists.nix).
+"""Find mistakes in the package lists that would otherwise go unnoticed.
+
+They are: a maintainer handle no package lists (a typo tracks nothing,
+silently), an extra package nixpkgs doesn't have, an update check or
+ignore rule for a package that isn't tracked, a page theme the page
+doesn't have, a setting with a value the sync can't use, and lists that
+track too many packages. They're checked at every sync, against the
+channel's package index it has loaded anyway; the repository's `nix flake
+check` does the same before anything runs (nix/package-lists.nix).
 
 The sync prints them and writes them to the data ("listProblems"), and the
-page shows them above the table."""
+page shows them above the table.
+"""
 
 import sys
 
@@ -19,16 +22,26 @@ THEMES = ("classic", "catppuccin")
 
 
 def page_settings(lists):
-    """What the lists set for the page, for the data: {"theme": ...}, with
-    only known values (problems() reports the others)."""
+    """Return what the lists set for the page, for the data.
+
+    Returns:
+        {"theme": ...}, with only known values (problems reports the
+        others).
+    """
     theme = (lists.get("page") or {}).get("theme")
     return {"theme": theme} if theme in THEMES else {}
 
 
 def problems(lists, nixpkgs, tracked, listed=None):
-    """What's wrong with lists, as sentences. tracked: the rows' names;
-    listed: how many of them the lists track (all of them unless every
-    package is tracked), what their size is checked against."""
+    """Return what's wrong with the lists, as sentences.
+
+    Args:
+        lists: The package lists.
+        nixpkgs: The package index, by attribute.
+        tracked: The rows' names.
+        listed: How many of them the lists track (all of them unless every
+            package is tracked): what the lists' size is checked against.
+    """
     found = []
     handles = {
         (m.get("github") or "").lower()
@@ -82,9 +95,12 @@ def problems(lists, nixpkgs, tracked, listed=None):
 
 
 def follows_problems(checks, tracked):
-    """Update checks that follow a package (follows.py) that isn't tracked
-    (where its versions and PRs would come from), themselves, or a package
-    that follows another (no chains)."""
+    """Return the update checks whose follows can't work, as sentences.
+
+    That's a check that follows (follows.py) a package that isn't tracked
+    (where its versions and PRs would come from), itself, or a package that
+    follows another (there are no chains).
+    """
     found = []
     for name, target in sorted(follows.of(checks).items()):
         if name not in tracked:
@@ -105,5 +121,6 @@ def follows_problems(checks, tracked):
 
 
 def report(found):
+    """Print each problem as a ::warning:: line."""
     for problem in found:
         print(f"::warning::package lists: {problem}", file=sys.stderr)

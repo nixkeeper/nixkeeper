@@ -1,16 +1,18 @@
-"""Why things fail, across packages: failed builds grouped by the same error
-(the line of their log that says it, nixkeeper-hydra's excerpt, with what
-differs from one package to the next taken out: store paths, file paths
-and line numbers, numbers, quoted names), and the update bot's failures by
-cause. A group is one cause with one fix pattern ("the abseil-cpp update
-broke 7 packages"), which neither the blockers (those are failing, not
-blocked) nor the reason filters (330 "compile") show. Automatic: a new
-compiler or library breaking many packages the same way is a new group on
-the next sync, under any reason, "other" included; a big one there is the
-next reason for nixkeeper-hydra's classifier.
+"""Group failed builds by their error, and the update bot's failures by cause.
+
+Failed builds are grouped by the same error: the line of their log that
+says it (nixkeeper-hydra's excerpt), with what differs from one package to
+the next taken out (store paths, file paths and line numbers, numbers,
+quoted names). A group is one cause with one fix pattern ("the abseil-cpp
+update broke 7 packages"), which neither the blockers (those are failing,
+not blocked) nor the reason filters (330 "compile") show. It's automatic: a
+new compiler or library breaking many packages the same way is a new group
+on the next sync, under any reason, "other" included; a big one there is
+the next reason for nixkeeper-hydra's classifier to learn.
 
 Groups get a friendly title where a pattern is known (TITLES), else the
-error line itself, as read."""
+error line itself, as read.
+"""
 
 import hashlib
 import re
@@ -18,9 +20,9 @@ from collections import Counter
 
 # Groups of fewer packages than this aren't shown: one-offs.
 MIN_PACKAGES = 3
-# The overview's card: so many groups (the rest a click away).
+# How many groups the overview's card shows; the rest are a click away.
 SHOWN = 8
-# The groups kept (each a view of its packages).
+# How many groups are kept, each a view of its packages.
 KEPT = 40
 # A line that says what failed, before others.
 ERROR = re.compile(
@@ -43,6 +45,8 @@ GENERIC = re.compile(
     r"^TIP pass --env-dir|the following build command failed|^# ERROR: \d+$",
     re.IGNORECASE,
 )
+# What signature takes out of an error line, in order, and what it puts
+# instead.
 NORMALIZE = (
     (re.compile(r"/nix/store/[a-z0-9]{32}-[^/\s:'\"]*"), "<store>"),
     # A source file and line, wherever it is ("foo.c:12:3" and
@@ -126,14 +130,22 @@ KERNEL_MEANS_API = {
     "Implicit function declarations (C23 by default)",
     "Incompatible pointer types (newer compiler)",
 }
+# A kernel module's attribute: one per kernel.
 KERNEL_MODULE = re.compile(r"^(?:linuxKernel\.packages\.[\w]+|linuxPackages\w*)\.")
 
 
 def error_line(excerpt):
-    """The line of a failed build's excerpt (a list of lines, or one string)
-    that says why it failed: the first that looks like an error and isn't
-    a generic one (GENERIC), else the first specific line naming a known
-    cause (TITLES); "" when only generic lines say it."""
+    """Return the line of a failed build's excerpt that says why it failed.
+
+    That's the first line that looks like an error and isn't a generic one
+    (GENERIC), else the first specific line naming a known cause (TITLES).
+
+    Args:
+        excerpt: The excerpt, as a list of lines or one string.
+
+    Returns:
+        The line, or "" when only generic lines say it.
+    """
     lines = excerpt if isinstance(excerpt, list) else str(excerpt or "").splitlines()
     lines = [
         line for line in lines if not CHATTER.match(line) and not GENERIC.search(line)
@@ -145,16 +157,22 @@ def error_line(excerpt):
 
 
 def signature(line):
-    """line with what differs between packages taken out: the same error in
-    two packages gives the same signature."""
+    """Return line with what differs between packages taken out.
+
+    The same error in two packages then gives the same signature.
+    """
     for pattern, said in NORMALIZE:
         line = pattern.sub(said, line)
     return line.strip()[:160]
 
 
 def title_of(line):
-    """(friendly title, what it concerns) for an error line we know (raw or
-    normalized), else (None, None)."""
+    """Return the friendly title for an error line, and what it concerns.
+
+    Returns:
+        (title, what it concerns) for a line we know, raw or normalized;
+        else (None, None).
+    """
     for pattern, title, about in TITLES:
         if m := pattern.search(line):
             return (title.format(m.group(1)) if "{}" in title else title), about
@@ -162,24 +180,32 @@ def title_of(line):
 
 
 def is_kernel_module(row):
-    """A package built against a kernel (linuxPackages.foo, one per
-    kernel)."""
+    """Return whether a package is built against a kernel.
+
+    That's linuxPackages.foo and the like, one per kernel.
+    """
     return any(KERNEL_MODULE.match(a) for a in [row["name"], *(row.get("attrs") or [])])
 
 
 def key_of(sig):
-    """A group's key, for its view and the page's address (?cause=)."""
+    """Return a group's key, for its view and the page's address (?cause=)."""
     return hashlib.sha256(sig.encode()).hexdigest()[:10]
 
 
 def build_groups(rows):
-    """[{"key", "signature", "line", "reason", "count", "title"?, "about"?,
-    "rows"}] of failed builds sharing an error, MIN_PACKAGES or more
-    packages each, the biggest first (KEPT at most): rows not in a set
-    updated in bulk (they count on their set's line), one per package
-    however many of its builds fail the same way. line: one package's own
-    line, as an example; reason: the commonest of the group's (nixkeeper-
-    hydra's failedBecause)."""
+    """Group the failed builds that share an error.
+
+    Only rows not in a set updated in bulk count (those count on their
+    set's line), each package once however many of its builds fail the
+    same way. Groups of fewer than MIN_PACKAGES packages are left out, and
+    the biggest KEPT are kept.
+
+    Returns:
+        [{"key", "signature", "line", "reason", "count", "title"?,
+        "about"?, "rows"}], the biggest first. line is one package's own
+        line, as an example; reason is the commonest of the group's
+        (nixkeeper-hydra's failedBecause).
+    """
     groups = {}
     for row in rows:
         if row.get("set"):
@@ -234,9 +260,14 @@ def build_groups(rows):
 
 
 def bot_causes(rows):
-    """{cause: packages} of the update bot's failures (nixkeeper's reading of
-    its logs: failedBecause, "other" without one), the commonest first: rows
-    not in a set updated in bulk."""
+    """Count the update bot's failures by cause.
+
+    The cause is nixkeeper's reading of the bot's logs (failedBecause),
+    "other" without one. Rows in a set updated in bulk are left out.
+
+    Returns:
+        {cause: packages}, the commonest first.
+    """
     found = Counter(
         (row.get("update") or {}).get("failedBecause") or "other"
         for row in rows

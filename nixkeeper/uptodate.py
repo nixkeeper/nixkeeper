@@ -1,7 +1,9 @@
-"""Up-to-date rules (package-lists/up-to-date.nix, and the community's
-community/up-to-date.nix): a version nixpkgs has that Repology gets wrong
-(calls it untrusted, incorrect or ignored, or compares it with a version
-that isn't really newer), so the row should count as up to date:
+"""Apply the up-to-date rules: versions Repology gets wrong.
+
+The rules (package-lists/up-to-date.nix, and the community's
+community/up-to-date.nix) each name a version nixpkgs has that Repology
+gets wrong (calls it untrusted, incorrect or ignored, or compares it with a
+version that isn't really newer), so the row should count as up to date:
 
     pacvim = {
       version = "2018-05-16";  # nixpkgs' version the rule is about
@@ -9,27 +11,33 @@ that isn't really newer), so the row should count as up to date:
       reason = "A snapshot from after the 1.1.1 release.";
     };
 
-A rule applies while nixpkgs has that version and Repology knows of nothing
-newer than `newest` elsewhere (leave `newest` out when it shows none): a real
-new release, or nixpkgs moving on, ends it, and the sync (or, for the
-community's, community-check) says it can go. While it applies, the row has
-nixStatus "newest", no refVersion, and `upToDate` with what Repology said.
+A rule applies while nixpkgs has that version and Repology knows of
+nothing newer than `newest` elsewhere (leave `newest` out when it shows
+none). A real new release, or nixpkgs moving on, ends it, and the sync (or,
+for the community's, community-check) says it can go. While it applies, the
+row has nixStatus "newest", no refVersion, and `upToDate` with what
+Repology said.
+
 Only Repology's verdict is overridden: nixkeeper's update checks and master
-still count, as they come after, except a worked-out check (one nobody
-wrote) that finds the very version `newest` names: it isn't a real release
-there either. So a wrong worked-out result is silenced with a rule naming
-it, as a wrong Repology verdict is."""
+still count, as they come after. The exception is a worked-out check (one
+nobody wrote) that finds the very version `newest` names: it isn't a real
+release there either. So a wrong worked-out result is silenced with a rule
+naming it, as a wrong Repology verdict is.
+"""
 
 import sys
 
 from .versions import is_newer
 
+# The fields an up-to-date rule can have.
 FIELDS = {"version", "newest", "reason"}
 
 
 def why_not(row, rule):
-    """Why rule doesn't apply to row (as Repology has it), or None if it
-    does."""
+    """Return why rule no longer applies to row, or None if it still does.
+
+    The row is taken as Repology has it, before any rule.
+    """
     version = row.get("nixVersion")
     if version != rule.get("version"):
         return f"nixpkgs is now at {version or '?'}"
@@ -40,11 +48,19 @@ def why_not(row, rule):
 
 
 def apply(rows, rules, community=frozenset()):
-    """Mark the rows the rules apply to as up to date. rules: {name: rule},
-    your own and the community's (community: the names of those); a rule of
-    your own that no longer applies gets a notice saying it can go (the
-    community's are community-check's to report). Returns the names of the
-    rows it marked."""
+    """Mark the rows the rules apply to as up to date.
+
+    A rule of your own that no longer applies gets a notice saying it can
+    go; the community's are community-check's to report.
+
+    Args:
+        rows: The rows, changed in place.
+        rules: {name: rule}, your own and the community's.
+        community: The names of the community's rules.
+
+    Returns:
+        The names of the rows it marked.
+    """
     by_name = {row["name"]: row for row in rows}
     marked = []
     for name, rule in sorted(rules.items()):
