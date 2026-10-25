@@ -88,13 +88,12 @@ def load(now):
         meta = digests.read_meta(base, FORMAT)
         why = current(meta, now)
         if not why:
-            about.note(
-                "hydra", False, "too old", at=meta["fetchedAt"], eval=meta["eval"]
-            )
-            print(
-                f"::warning::Hydra digest: not used, it's from {meta['fetchedAt']} "
-                f"(evaluation {meta['eval']}); asking Hydra about each job",
-                file=sys.stderr,
+            digests.too_old(
+                "hydra",
+                "Hydra digest",
+                meta["fetchedAt"],
+                f" (evaluation {meta['eval']}); asking Hydra about each job",
+                eval=meta["eval"],
             )
             return None
         text = gzip.decompress(digests.download(base, "builds.csv.gz")).decode()

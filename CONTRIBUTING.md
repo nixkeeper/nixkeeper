@@ -182,8 +182,9 @@ Around that:
 - `versions.py`: comparing version strings
 - `sources/http.py`: GET with retries, for the sources that need no more
 - `sources/digests.py`: what every digest reader shares: reading a digest's
-  `meta.json` or a file that describes itself, checking its format and
-  age, and giving up on it (the note for the sources panel, the warning)
+  `meta.json`, its other files or a file that describes itself, checking
+  its format and age, and giving up on it when it can't be read or is too
+  old (the note for the sources panel, the warning)
 - `frequent.py`, `prcheck.py`: the hourly checks, which start from the last
   published data and publish through `partial.py` only when a row changed
 

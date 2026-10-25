@@ -34,6 +34,28 @@ class Download(unittest.TestCase):
             digests.download("https://d/", "builds.csv.gz")
 
 
+class ReadJson(unittest.TestCase):
+    def test_in_this_format(self):
+        answer = '{"format": 1, "prs": [1]}'
+        with mock.patch.object(http, "get", return_value=answer) as get:
+            self.assertEqual(digests.read_json("https://d/", "prs.json", 1)["prs"], [1])
+        get.assert_called_once_with("https://d/prs.json", compressed=True)
+
+    def test_empty_or_another_format(self):
+        for answer in (None, '{"format": 2}'):
+            with (
+                mock.patch.object(http, "get", return_value=answer),
+                self.assertRaisesRegex(ValueError, "no prs.json in a format"),
+            ):
+                digests.read_json("https://d/", "prs.json", 1)
+
+
+class DownloadMissingOk(unittest.TestCase):
+    def test_none_rather_than_raise(self):
+        with mock.patch.object(http, "get_bytes", return_value=None):
+            self.assertIsNone(digests.download("https://d/", "q.gz", missing_ok=True))
+
+
 class ReadJsonGz(unittest.TestCase):
     def serve(self, data):
         return mock.patch.object(http, "get_bytes", return_value=data)
@@ -84,6 +106,24 @@ class GiveUp(unittest.TestCase):
         )
         self.assertEqual(
             about.taken(), {"hydra": {"used": False, "why": "couldn't be read (gone)"}}
+        )
+
+
+class TooOld(unittest.TestCase):
+    def test_noted_and_warned(self):
+        about.taken()
+        out = io.StringIO()
+        with mock.patch("sys.stderr", out):
+            digests.too_old(
+                "hydra", "Hydra digest", "2026-10-25", " (evaluation 7)", eval=7
+            )
+        self.assertEqual(
+            out.getvalue(),
+            "::warning::Hydra digest: not used, read 2026-10-25 (evaluation 7)\n",
+        )
+        self.assertEqual(
+            about.taken(),
+            {"hydra": {"used": False, "why": "too old", "at": "2026-10-25", "eval": 7}},
         )
 
 

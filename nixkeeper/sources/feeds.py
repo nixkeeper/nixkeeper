@@ -10,11 +10,9 @@ with its set's rows by its own rules. Each such row then says what it was
 compared with ("feed", set by compare).
 """
 
-import sys
-
 from .. import config
 from ..versions import version_key
-from . import about, digests
+from . import digests
 
 # The files' format this nixkeeper reads.
 FORMAT = 1
@@ -41,11 +39,7 @@ def load(file, source, label, now):
         found = digests.read_json_gz(base, file, FORMAT)
         at = found["fetchedAt"]
         if digests.hours_since(at, now) > config.VERSIONS_DIGEST_MAX_AGE_HOURS:
-            about.note(source, False, "too old", at=at)
-            print(
-                f"::warning::{label}: not used, read {at}; Repology's stay",
-                file=sys.stderr,
-            )
+            digests.too_old(source, label, at, "; Repology's stay")
             return None
     except digests.FAILURES as e:
         digests.give_up(source, label, e, "; Repology's stay")

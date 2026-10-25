@@ -86,6 +86,8 @@ def load(now):
         meta = digests.read_meta(base, FORMAT)
         why = current(meta, now)
         if not why:
+            # Not too_old: the tracker may not be read through yet, and
+            # there's no one time to give.
             about.note("tracker", False, "not read through yet, or too old")
             print(
                 "::warning::Vulnerabilities digest: not used (the tracker not read "

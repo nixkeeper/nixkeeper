@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timedelta
 
 from .. import config
-from . import about, digests, http
+from . import about, digests
 
 # The digest's format this nixkeeper reads.
 FORMAT = 1
@@ -48,11 +48,11 @@ def load(now):
     try:
         meta = digests.read_meta(base, FORMAT)
         if not current(meta, now):
-            about.note("updates", False, "too old", at=meta["fetchedAt"])
-            print(
-                f"::warning::Updates digest: not used, it's from {meta['fetchedAt']}; "
-                "reading the logs per package",
-                file=sys.stderr,
+            digests.too_old(
+                "updates",
+                "Updates digest",
+                meta["fetchedAt"],
+                "; reading the logs per package",
             )
             return None
         body = digests.download(base, "attempts.jsonl.gz")
@@ -94,7 +94,8 @@ def load_queue(now):
     if not base:
         return None
     try:
-        body = http.get_bytes(base + "queue.json.gz")
+        body = digests.download(base, "queue.json.gz", missing_ok=True)
+        # No queue yet is no failure: the queue is only an extra.
         if body is None:
             about.note("queue", False, "the digest has no queue yet")
             return None
@@ -103,6 +104,8 @@ def load_queue(now):
         if digests.hours_since(queue["updatedAt"], now) > (
             config.UPDATES_QUEUE_MAX_AGE_HOURS
         ):
+            # Noted, not warned of (not too_old): an old queue is just left
+            # out of the page.
             about.note("queue", False, "too old", at=queue["updatedAt"])
             return None
         cycle, positions = queue["cycleDays"], queue["positions"]

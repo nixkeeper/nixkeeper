@@ -56,8 +56,7 @@ def load(branch, now):
         found = digests.read_json_gz(base, f"{branch}.json.gz", FORMAT)
         at = found["fetchedAt"]
         if digests.hours_since(at, now) > MAX_AGE_HOURS:
-            about.note(source, False, "too old", at=at)
-            print(f"::warning::{branch}: not used, read {at}", file=sys.stderr)
+            digests.too_old(source, branch, at)
             return None
         columns = found["columns"]
         jobs = {}
@@ -109,8 +108,7 @@ def load_staging_next(now):
         found = digests.read_json_gz(base, f"{STAGING_NEXT}.json.gz", FORMAT)
         at = found["fetchedAt"]
         if digests.hours_since(at, now) > MAX_AGE_HOURS:
-            about.note(source, False, "too old", at=at)
-            print(f"::warning::{STAGING_NEXT}: not used, read {at}", file=sys.stderr)
+            digests.too_old(source, STAGING_NEXT, at)
             return None
         columns = found["columns"]
         jobs = {}
