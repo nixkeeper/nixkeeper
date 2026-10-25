@@ -46,7 +46,7 @@ SUBSCRIBER_PAUSE = 1.0
 
 
 def days_text(since, now):
-    """Say how long ago since was: "today", "1 day" or "N days"."""
+    """Say how long ago `since` was: "today", "1 day" or "N days"."""
     days = (datetime.fromisoformat(now) - datetime.fromisoformat(since)).days
     return "today" if days < 1 else "1 day" if days == 1 else f"{days} days"
 
