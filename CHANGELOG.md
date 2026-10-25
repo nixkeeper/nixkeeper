@@ -143,6 +143,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   rows and log lines for 20,000 generated runs, and two syncs with every
   package, before and after, wrote the same 5,401 files.
 
+- A test keeps the steps that decide whether a package is outdated in the
+  order the sync runs them (`tests/test_phase_order.py`): it reads them
+  from `sync.py` itself, so moving one (from the channel's versions and
+  the up-to-date rules to master, the follows and the update PRs) fails
+  it, and for each pair whose order matters, it shows on a few packages
+  the other verdict the other order would give.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

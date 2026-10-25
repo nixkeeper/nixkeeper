@@ -127,8 +127,12 @@ catches `Problem` instead. `nixkeeper/sync.py` runs one sync, top to bottom:
 its `main()` calls one function per phase, in the order its module
 docstring lists them (the names its log times them by), each given the
 `Run` (what the sync works from, made once by `start`) and, once the rows
-exist, the `Scope` (which rows each phase covers). The steps, and the
-modules they use:
+exist, the `Scope` (which rows each phase covers). Several phases change
+a row's verdict, each reading what the ones before it left, so their order
+matters: `tests/test_phase_order.py` lists those steps in the order
+`sync.py` calls them, and fails when one moves. Moving one on purpose means
+updating that list, and the test showing what the pair's order changes.
+The steps, and the modules they use:
 
 | Step | Module |
 |---|---|
