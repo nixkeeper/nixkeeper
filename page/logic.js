@@ -898,15 +898,34 @@ export function html(strings, ...values) {
 // Markup the page writes itself, as is. Never for text from the data.
 export const raw = (text) => new Markup(String(text));
 
+// A value as markup: an html template's kept as it is, anything else
+// escaped as html would.
+const asMarkup = (value) => (value instanceof Markup ? value : html`${value}`);
+
+// What capitalized passes over before the first letter: tags (a quoted
+// attribute value may hold a ">"). Any lowercase letter, not only a to z.
+// Whitespace isn't passed over: a text starting with a space is a tail of
+// a sentence ("... nixkeeper's update check found"), not its start.
+const BEFORE_FIRST_LETTER = /^((?:<(?:[^>"]|"[^"]*")*>)*)(\p{Ll})/u;
+
 // Text with its first letter capitalized, as markup that's safe to show.
-// An html template's markup is kept as it is; any other value is escaped
-// first, as html would. Tags at the start are passed over, so
-// "<span>failed</span>" becomes "<span>Failed</span>".
+// Tags at the start are passed over, so "<span>failed</span>" becomes
+// "<span>Failed</span>". "nixkeeper" stays lowercase, as its brand guide
+// says (assets/brand/BRAND.md), even at a sentence's start.
 export function capitalized(value) {
-  const markup = value instanceof Markup ? value.text : escapeHtml(String(value ?? ''));
+  const markup = asMarkup(value).text;
   return new Markup(
-    markup.replace(/^((?:<[^>]*>)*)([a-z])/, (_, tags, letter) => tags + letter.toUpperCase()),
+    markup.replace(BEFORE_FIRST_LETTER, (match, before, letter) =>
+      markup.startsWith('nixkeeper', before.length) ? match : before + letter.toUpperCase(),
+    ),
   );
+}
+
+// Text with what pattern matches at its start taken off, as markup that's
+// safe to show: escaped first, so pattern must match only text (joining
+// punctuation, spaces), never the start of a tag.
+export function withoutLeading(value, pattern) {
+  return new Markup(asMarkup(value).text.replace(pattern, ''));
 }
 
 // Whether url's host is host or one of its subdomains (github.com, or

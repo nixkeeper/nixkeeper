@@ -25,6 +25,7 @@ import {
   shortAge,
   targetVersion,
   waitingForChannel,
+  withoutLeading,
 } from './logic.js';
 import {
   backportNote,
@@ -186,6 +187,10 @@ export const prLink = (n, text) =>
 
 // Each outcome: its colour, its pill in the panel (`label`), and what it
 // means (`text`).
+// The joining punctuation ("— ", ", ") a sentence's tail starts with,
+// taken off when the tail stands as a sentence of its own.
+const LEADING_JOINER = /^\s*(—|,|;)\s*/;
+
 export const UPDATE_OUTCOME = {
   failed: {
     dot: 'missing',
@@ -452,8 +457,7 @@ export function fillDetail(pkg, el, entries, page) {
       : '';
   // The sentence after the verdict, without "nixpkgs unstable has 1.3.5"
   // (the row says the version): what came after it, as a sentence of its own.
-  // tail is escaped (html) before the joining punctuation is taken off.
-  const opening = (tail) => capitalized(raw(String(html`${tail}`).replace(/^\s*(—|,|;)\s*/, '')));
+  const opening = (tail) => capitalized(withoutLeading(tail, LEADING_JOINER));
   const homepage = safeUrl(pkg.homepage);
 
   const st = computeStatus(pkg);

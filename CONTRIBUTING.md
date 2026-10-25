@@ -42,10 +42,7 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
   from the `data` branch. `logic.js` holds its rules (statuses, versions,
   ages, safe links, the tab icon's signals) without the page, so they can be
-  tested, and the page's HTML helpers: `html`, a template tag that escapes
-  every value but markup made with `html` itself; `raw`, for markup the
-  page writes, never data; and `capitalized`, to capitalize a text without
-  taking it out of `html`'s escaping; `overview.js` the overview (the cards, trends, causes, sets,
+  tested; `overview.js` the overview (the cards, trends, causes, sets,
   fixes, nixpkgs in numbers); `maintainer-view.js` a maintainer's or team's
   page (You can merge these, Can be closed) and the maintainers page;
   `package-view.js` a package's panel (Details, Updates, Builds), given what
@@ -76,7 +73,14 @@ happen. For what nixkeeper does and how to set up your own, see the
   no build step: `index.html` preloads each (`modulepreload`), so a new
   module goes there too. `favicon*.svg` (the mark, and the live status icons
   the page switches between), `nixkeeper-lockup-tight*.svg` (the header) and
-  `tokens.css` are copies from `assets/brand/`, written by `nix run .#brand`
+  `tokens.css` are copies from `assets/brand/`, written by `nix run .#brand`.
+  `logic.js` also holds the page's HTML helpers:
+  - `html`: a template tag that escapes every value except markup made
+    with `html` itself
+  - `raw`: markup the page writes itself, never text from the data
+  - `capitalized`: capitalizes a text's first letter, keeping it escaped
+  - `withoutLeading`: takes punctuation off a text's start, keeping it
+    escaped
 - `assets/`:
   - `brand/`: nixkeeper's identity: the guide (`BRAND.md`), the mark and
     its variants, status versions and lockups as SVGs, the colour tokens

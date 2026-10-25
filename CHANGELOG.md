@@ -72,8 +72,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   attempt, the line after its verdict) through one helper that escapes
   plain text and keeps the page's own markup, rather than by hand around
   `raw()`: a text taken from the data there can no longer reach the page
-  unescaped. What the page shows is the same (1,974 packages' panels
-  rendered identically before and after).
+  unescaped. It also keeps "nixkeeper" lowercase at a sentence's start, as
+  the brand guide has it. What the page shows is the same (1,974 packages'
+  panels rendered identically before and after).
 
 - The sync's code reads as its phases: `sync.main` calls one function per
   phase, named as the log times them, each from what the run works from

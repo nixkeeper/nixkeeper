@@ -82,6 +82,7 @@ import {
   vulnSummary,
   waitingForChannel,
   weekChange,
+  withoutLeading,
   withRunStamps,
   withSlash,
 } from '../../page/logic.js';
@@ -681,6 +682,33 @@ describe('links and markup from data', () => {
     assert.equal(String(capitalized('1.2 is out')), '1.2 is out');
     assert.equal(String(capitalized('Already')), 'Already');
     assert.equal(String(capitalized(null)), '');
+  });
+  test('capitalized passes over quoted ">", knows any letter, and leaves what it must', () => {
+    // A tag whose attribute holds a ">": the letter after the tag.
+    assert.equal(
+      String(capitalized(html`<span title="${'a>b'}">x</span>`)),
+      '<span title="a&gt;b">X</span>',
+    );
+    assert.equal(
+      String(capitalized(raw('<span title="a>b">x</span>'))),
+      '<span title="a>b">X</span>',
+    );
+    // Text starting with a space is a sentence's tail: left as it is.
+    assert.equal(String(capitalized(' then failed')), ' then failed');
+    // The project's name stays lowercase, as its brand guide says.
+    assert.equal(String(capitalized('nixkeeper found it')), 'nixkeeper found it');
+    assert.equal(String(capitalized(html`<b>nixkeeper</b> found`)), '<b>nixkeeper</b> found');
+    // Letters beyond a to z.
+    assert.equal(String(capitalized('über')), 'Über');
+  });
+  test('withoutLeading takes text off the start, still escaped', () => {
+    const joiner = /^\s*(—|,|;)\s*/;
+    assert.equal(String(withoutLeading(' — <b>x</b>', joiner)), '&lt;b&gt;x&lt;/b&gt;');
+    assert.equal(
+      String(withoutLeading(html`, but <i>${'<y>'}</i>`, joiner)),
+      'but <i>&lt;y&gt;</i>',
+    );
+    assert.equal(String(withoutLeading('no joiner', joiner)), 'no joiner');
   });
 });
 
