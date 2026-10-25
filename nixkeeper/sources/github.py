@@ -1,6 +1,10 @@
-"""GitHub: open nixpkgs PR / issue counts and the update PRs among them, via
-batched GraphQL searches; the status issue; tags and branch commits for the
-update checks."""
+"""Talk to GitHub: PR and issue counts, update PRs, status issues and tags.
+
+The per-package searches count nixpkgs' open PRs and issues, and find the
+update PRs among them, in batched GraphQL searches (github_bulk lists them
+in bulk instead, when it can). This module also keeps the status issues
+(notify.py), and reads the tags and branch commits the update checks need.
+"""
 
 import json
 import os
@@ -17,10 +21,12 @@ from ..versions import is_newer, version_key
 
 
 def token(use_gh=True):
-    """A GitHub token, or None: from the file NIXKEEPER_GITHUB_TOKEN_FILE names
-    (how a service gets its secrets, e.g. systemd credentials), else
-    GITHUB_TOKEN (set by the workflows), else the local gh login unless
-    use_gh is false."""
+    """Return a GitHub token, or None.
+
+    It's read from the file NIXKEEPER_GITHUB_TOKEN_FILE names (how a service
+    gets its secrets, such as systemd credentials), else GITHUB_TOKEN (set
+    by the workflows), else the local gh login, unless use_gh is false.
+    """
     path = os.environ.get("NIXKEEPER_GITHUB_TOKEN_FILE")
     if path:
         try:
@@ -44,9 +50,18 @@ def token(use_gh=True):
 
 
 def graphql(token, query, variables):
-    """One GitHub GraphQL request. Returns its data, printing any errors
-    (parts GitHub couldn't answer are then missing or null); raises if the
-    request itself fails."""
+    """Send one GitHub GraphQL request.
+
+    Errors GitHub reports for parts of the query are printed; those parts
+    are then missing or null in the data.
+
+    Returns:
+        The answer's data.
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: The request itself
+            failed.
+    """
     req = urllib.request.Request(
         "https://api.github.com/graphql",
         data=json.dumps({"query": query, "variables": variables}).encode(),
@@ -63,9 +78,15 @@ def graphql(token, query, variables):
 
 
 def rate_limit_wait(err, now=None):
-    """The seconds GitHub asked to wait, when err is its rate limit (403 or
-    429): Retry-After (its secondary limits), or until x-ratelimit-reset once
-    x-ratelimit-remaining is 0 (the hourly one). None if it's another error."""
+    """Return the seconds GitHub asked to wait, when err is its rate limit.
+
+    That's a 403 or 429 with Retry-After (its secondary limits), or, once
+    x-ratelimit-remaining is 0, the time until x-ratelimit-reset (the
+    hourly limit).
+
+    Returns:
+        The seconds, or None when err is another error.
+    """
     if not isinstance(err, urllib.error.HTTPError) or err.code not in (403, 429):
         return None
     headers = err.headers or {}
@@ -79,14 +100,18 @@ def rate_limit_wait(err, now=None):
 
 
 def _open_json(req, timeout):
+    """Send req and return its JSON answer."""
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 
 def _send(req, timeout):
-    """GitHub's JSON answer to req. When GitHub says to slow down (its rate
-    limits), waits as long as it asks and tries once more, if that's at most
-    MAX_RETRY_AFTER seconds; otherwise raises, like any failure."""
+    """Send req and return GitHub's JSON answer.
+
+    When GitHub says to slow down (its rate limits), this waits as long as
+    it asks and tries once more, if that's at most MAX_RETRY_AFTER seconds;
+    otherwise it raises, like any failure.
+    """
     try:
         return _open_json(req, timeout)
     except urllib.error.HTTPError as e:
@@ -99,15 +124,23 @@ def _send(req, timeout):
     return _open_json(req, timeout)
 
 
+# The fields asked for each pull request a search returns.
 PR_FIELDS = "nodes { ... on PullRequest { number title url isDraft baseRefName } }"
 
 
 def search_batch(token, searches):
-    """Run several GitHub issue/PR searches in one GraphQL request.
-    searches: [(query, first)], first being how many matching pull requests
-    to return besides the count (0: just count). Returns [(count, [pull
-    requests])] in order; a search GitHub couldn't answer gives (None, []), a
-    failed request all of them."""
+    """Run several GitHub issue and PR searches in one GraphQL request.
+
+    Args:
+        token: The GitHub token.
+        searches: [(query, first)], first being how many matching pull
+            requests to return besides the count (0 to only count).
+
+    Returns:
+        [(count, [pull requests])], in order. A search GitHub couldn't
+        answer gives (None, []); a failed request gives that for all of
+        them.
+    """
     params = ", ".join(f"$q{i}: String!" for i in range(len(searches)))
     fields = "\n".join(
         f"  s{i}: search(type: ISSUE, first: {first}, query: $q{i}) "
@@ -134,18 +167,24 @@ def search_batch(token, searches):
 
 
 def search_counts(token, queries):
-    """Result counts of several searches, in order (None where GitHub couldn't
-    answer)."""
+    """Return the result counts of several searches, in order.
+
+    A search GitHub couldn't answer counts None.
+    """
     return [count for count, _ in search_batch(token, [(q, 0) for q in queries])]
 
 
 def pr_names(row):
-    """The names a row's update PR can be titled with: its search term and
-    each of its attributes, all at its one version (heroic's update is
-    titled "heroic-unwrapped: 2.22.3 -> 2.22.4")."""
+    """Return the names a row's update PR can be titled with.
+
+    That's its search term and each of its attributes, all at its one
+    version (heroic's update is titled "heroic-unwrapped: 2.22.3 ->
+    2.22.4").
+    """
     return list(dict.fromkeys([row["searchTerm"], *(row.get("attrs") or [])]))
 
 
+# Punctuation that can follow a title's version when the title goes on.
 TITLE_PUNCTUATION = ",;:."
 
 
@@ -157,7 +196,7 @@ TITLE_UPDATE = re.compile(r"^\s*([\w.+-]+(?:\s*,\s*[\w.+-]+)*): (\S+) -> (\S+)")
 
 
 def title_updates(title):
-    """[(names, from, to)] of each update a PR's title makes, in its order."""
+    """Return each update a PR's title makes, in order, as [(names, from, to)]."""
     found = []
     for part in (title or "").split(";"):
         if m := TITLE_UPDATE.match(part):
@@ -172,18 +211,32 @@ TITLE_TAGS = re.compile(r"^\s*(?:(?:\[[^\]]*\]|\([^)]*\))\s*)+")
 
 
 def title_packages(title):
-    """The names a PR's title is about, to find it by: each update's, and
-    what comes before its first ":" (an update or not), after any tags
-    ("[26.05] libsidplayfp: Apply fix for CVE-2026-111148")."""
+    """Return the names a PR's title is about, to find it by.
+
+    That's each update's names, and what comes before the title's first ":"
+    (an update or not), after any tags ("[26.05] libsidplayfp: Apply fix
+    for CVE-2026-111148").
+    """
     names = {n for found, _, _ in title_updates(title) for n in found}
     return names | {TITLE_TAGS.sub("", title or "").split(":", 1)[0]}
 
 
 def update_prs(nodes, names):
-    """The pull requests that update a package named one of names (a name
-    alone, or several), by nixpkgs' title convention "wesnoth-devel: 1.19.24
-    -> 1.19.28" (exactly that attribute: not wesnoth-devel-extra, which
-    search would also find), wherever in the title (title_updates)."""
+    """Return the pull requests that update a package named one of names.
+
+    A PR counts when its title follows nixpkgs' convention,
+    "wesnoth-devel: 1.19.24 -> 1.19.28", for exactly one of names (not
+    wesnoth-devel-extra, which a search would also find), anywhere in the
+    title (title_updates).
+
+    Args:
+        nodes: The pull requests, as GraphQL nodes.
+        names: A name, or several.
+
+    Returns:
+        [{"number", "title", "url", "draft", "base", "from", "to",
+        "author"?, "mergedBy"?}].
+    """
     names = {names} if isinstance(names, str) else set(names)
     prs = []
     for node in nodes:
@@ -211,8 +264,11 @@ def update_prs(nodes, names):
 
 
 def open_update_pr(row, nodes):
-    """The open PR updating row to a version newer than nixpkgs has, if any:
-    the one aiming highest, a ready one before a draft."""
+    """Return the open PR updating row past nixpkgs' version, or None.
+
+    Of several, it's the one going to the highest version, a ready one
+    before a draft.
+    """
     prs = [
         pr
         for pr in update_prs(nodes, pr_names(row))
@@ -222,9 +278,12 @@ def open_update_pr(row, nodes):
 
 
 def merged_update_pr(row, nodes):
-    """The PR merged into master that updates row past nixpkgs' version (the
-    channel's), if any: the one aiming highest. Only master counts: updates
-    merged into staging reach master weeks later, through staging-next."""
+    """Return row's update PR merged into master past the channel's version.
+
+    Of several, it's the one going to the highest version; None when
+    there's none. Only master counts: updates merged into staging reach
+    master weeks later, through staging-next.
+    """
     prs = [
         pr
         for pr in update_prs(nodes, pr_names(row))
@@ -235,9 +294,20 @@ def merged_update_pr(row, nodes):
 
 
 def latest_tags(token, repos):
-    """The 100 most recent tags (by commit date) of each "owner/repo", in one
-    request: {repo: [tag names]}. A repository GitHub couldn't answer is
-    missing; raises if the request fails."""
+    """Read the 100 most recent tags of each repository, in one request.
+
+    The tags are ordered by their commit's date.
+
+    Args:
+        token: The GitHub token.
+        repos: The repositories, as "owner/repo".
+
+    Returns:
+        {repo: [tag names]}; a repository GitHub couldn't answer is missing.
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: The request failed.
+    """
     params = ", ".join(f"$o{i}: String!, $n{i}: String!" for i in range(len(repos)))
     fields = "\n".join(
         f"  r{i}: repository(owner: $o{i}, name: $n{i}) {{ refs(refPrefix: "
@@ -257,12 +327,22 @@ def latest_tags(token, repos):
 
 
 def branch_commits(token, branches):
-    """For each (owner/repo, branch, since, until) in branches: the branch's
-    newest commit and how many commits it has since `since`, and since
-    `since` up to `until` (ISO times; until may be None), in one request.
-    Returns [{"oid", "committedDate", "since", "until"} or None where GitHub
-    couldn't answer (no such repository or branch)], in order; raises if the
-    request fails."""
+    """Read each branch's newest commit and its commit counts, in one request.
+
+    Args:
+        token: The GitHub token.
+        branches: [(owner/repo, branch, since, until)], since and until as
+            ISO times; until may be None.
+
+    Returns:
+        For each branch, in order: {"oid", "committedDate", "since",
+        "until"}, its newest commit, and how many commits it has since
+        `since`, and between `since` and `until`. None where GitHub
+        couldn't answer (no such repository or branch).
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: The request failed.
+    """
     params, fields, variables = [], [], {}
     for i, (repo, branch, since, until) in enumerate(branches):
         params.append(f"$o{i}: String!, $n{i}: String!, $b{i}: String!")
@@ -306,10 +386,16 @@ PR_CANDIDATES = 20
 
 
 def query(row, state):
-    """The GitHub search for row's PRs or issues: state is "pr state:open",
-    "pr is:merged" or "issue state:open". Title-only because nixpkgs titles
-    name the package, while bodies of big rebuild PRs list hundreds of
-    unrelated ones."""
+    """Return the GitHub search for row's PRs or issues.
+
+    The search is in titles only, as nixpkgs' titles name the package,
+    while the bodies of big rebuild PRs list hundreds of unrelated ones.
+
+    Args:
+        row: The row.
+        state: "pr state:open", "pr is:merged" or "issue state:open", and
+            any further qualifiers.
+    """
     return (
         f"repo:{config.GITHUB_REPO} is:{state} in:title {row['searchTerm']} "
         "sort:updated-desc"
@@ -317,8 +403,13 @@ def query(row, state):
 
 
 def run_searches(tok, searches, handle):
-    """Run searches [(row, what, query, first)] in batches, calling
-    handle(row, what, count, pull requests) for each result."""
+    """Run searches in batches, calling handle for each result.
+
+    Args:
+        tok: The GitHub token.
+        searches: [(row, what, query, first)].
+        handle: Called as handle(row, what, count, pull requests).
+    """
     for start in range(0, len(searches), config.GITHUB_SEARCH_BATCH):
         batch = searches[start : start + config.GITHUB_SEARCH_BATCH]
         results = search_batch(tok, [(q, first) for _, _, q, first in batch])
@@ -327,10 +418,12 @@ def run_searches(tok, searches, handle):
 
 
 def quiet(row, before):
-    """Whether row's counts have nothing going on: none open at the last
-    sync (no PRs, no issues) and the package isn't outdated. Those are
-    searched every QUIET_DAYS (schedule.due), the rest daily
-    (schedule.daily)."""
+    """Return whether row's counts have nothing going on.
+
+    That's when nothing was open at the last sync (no PRs, no issues), and
+    the package isn't outdated. Those are searched every QUIET_DAYS
+    (schedule.due), the rest daily (schedule.daily).
+    """
     return (
         before is not None
         and before.get("openPRs") == 0
@@ -340,12 +433,22 @@ def quiet(row, before):
 
 
 def add_counts(rows, previous=None, now=None):
-    """Open nixpkgs PRs and issues with each row's attribute name in the title
-    (the same searches the page links to), and "openPR": the open update PR
-    among them, if any (their titles come with the same search). With the
-    last run's data (previous) and the time (now), a package with none of
-    either and nothing pending keeps them until it's due (quiet); counted
-    ones are dated ("countedAt")."""
+    """Count each row's open PRs and issues with GitHub's searches.
+
+    The searches look for its attribute name in the title, as the ones the
+    page links to do. Each row gets "openPRs" and "openIssues", and
+    "openPR", the open update PR among them, if any (their titles come with
+    the same search). Counted ones are dated ("countedAt").
+
+    With the last run's data (previous) and the time (now), a package with
+    nothing open and nothing pending keeps its counts until it's due
+    (quiet), and one counted less than a day ago keeps them too.
+
+    Args:
+        rows: The rows, changed in place.
+        previous: The last run's data, or None.
+        now: The run's time, or None.
+    """
     tok = token()
     if not tok:
         print(
@@ -388,6 +491,7 @@ def add_counts(rows, previous=None, now=None):
         searches.append((row, "openIssues", query(row, "issue state:open"), 0))
 
     def handle(row, what, count, nodes):
+        """Record one search's result on row."""
         row[what] = count
         if what == "openPRs" and (pr := open_update_pr(row, nodes)):
             row["openPR"] = pr
@@ -413,14 +517,22 @@ def add_counts(rows, previous=None, now=None):
 
 
 def add_update_prs(rows, open_prs=True, merged_since=None):
-    """The update PRs of rows (outdated ones, typically): "masterPR", the one
-    merged into master that the channel doesn't have yet, and with open_prs,
-    "openPR" as in add_counts (skip it when add_counts just ran). A search
-    that fails leaves that field as it was. merged_since: when the channel's
-    commit was made (ISO); only PRs merged since then can be what the
-    channel lacks (a PR merged before is in it, whatever its version says:
-    xmage's 1.4.60 sorts above nixpkgs' later 1.4.60-dev_2026-06-28
-    snapshot). Without it, masterPR is left as it was."""
+    """Find the rows' update PRs with GitHub's searches.
+
+    That's for outdated rows, typically. Each gets "masterPR", the update
+    PR merged into master that the channel doesn't have yet, and, with
+    open_prs, "openPR" as add_counts finds it (skip it when add_counts just
+    ran). A search that fails leaves that field as it was.
+
+    Args:
+        rows: The rows, changed in place.
+        open_prs: Whether to search for the open update PRs too.
+        merged_since: When the channel's commit was made (ISO). Only PRs
+            merged since can be what the channel lacks: a PR merged before
+            is in it, whatever its version says (xmage's 1.4.60 sorts above
+            nixpkgs' later 1.4.60-dev_2026-06-28 snapshot). Without it,
+            masterPR is left as it was.
+    """
     tok = token()
     if not tok:
         print("No GITHUB_TOKEN or gh login: skipping update PRs.", file=sys.stderr)
@@ -439,6 +551,7 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
             searches.append((row, "masterPR", merged, PR_CANDIDATES))
 
     def handle(row, what, count, nodes):
+        """Record one search's result on row, unless the search failed."""
         if count is None:
             return  # the search failed: keep what the row had
         find = open_update_pr if what == "openPR" else merged_update_pr
@@ -451,8 +564,14 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
 
 
 def count_warnings(rows):
-    """Counts that are probably wrong without any error saying so. ::warning::
-    lines show up as annotations on the workflow run."""
+    """Warn of counts that are probably wrong, though no error says so.
+
+    The sync prints them as ::warning:: lines, which show up as annotations
+    on the workflow run.
+
+    Returns:
+        The warnings.
+    """
     warnings = []
     fields = ("openPRs", "openIssues")
     missing = sum(1 for row in rows for f in fields if row.get(f) is None)
@@ -489,10 +608,13 @@ STAGING_NEXT = (
 
 
 def staging_next_merges(token, since):
-    """[{"day", "kind": "staging-next", "pr", "title"}] for each merge of
-    staging-next into nixpkgs master since the day since (YYYY-MM-DD), by
-    the day it was merged (UTC); None without a token or when GitHub
-    couldn't answer."""
+    """List the merges of staging-next into nixpkgs master since a day.
+
+    Returns:
+        [{"day": the day it was merged (UTC), "kind": "staging-next", "pr",
+        "title"}] for each merge since since (YYYY-MM-DD), or None without a
+        token or when GitHub couldn't answer.
+    """
     if not token:
         return None
     try:
@@ -520,11 +642,16 @@ def staging_next_merges(token, since):
     ]
 
 
+# The label of nixkeeper's own status issue.
 STATUS_LABEL = "nixkeeper-status"
 
 
 def api(method, path, token, body=None):
-    """Call the GitHub REST API; returns the decoded JSON (None if empty)."""
+    """Call the GitHub REST API.
+
+    Returns:
+        The decoded JSON, or None when the answer is empty.
+    """
     req = urllib.request.Request(
         f"https://api.github.com{path}",
         method=method,
@@ -542,7 +669,7 @@ def api(method, path, token, body=None):
 
 
 def status_issue_body(repo, token, label=STATUS_LABEL):
-    """The body of the open issue labelled label, or None if there's none."""
+    """Return the body of the open issue labelled label, or None if there's none."""
     issues = api(
         "GET", f"/repos/{repo}/issues?labels={label}&state=open&per_page=1", token
     )
@@ -558,8 +685,14 @@ def update_status_issue(
     label=STATUS_LABEL,
     about="The issue nixkeeper keeps up to date",
 ):
-    """Rewrite the open issue labelled label (opening it if there's none),
-    then post comment if given. Returns the issue number."""
+    """Rewrite the open issue labelled label, opening it if there's none.
+
+    The label is created first, if needed, with about as its description.
+    comment is then posted, when given.
+
+    Returns:
+        The issue's number.
+    """
     try:
         api(
             "POST",
@@ -610,7 +743,7 @@ def ensure_label(repo, token, label, about, color="5319e7"):
 
 
 def open_issues(repo, token, label):
-    """{title: number} of the open issues labelled label (all pages)."""
+    """Return the open issues labelled label, all pages, as {title: number}."""
     found, page = {}, 1
     while True:
         issues = api(
@@ -627,8 +760,13 @@ def open_issues(repo, token, label):
 
 
 def write_issue(repo, token, number, title, body, label, comment=None):
-    """Rewrite issue number's body (or open one, when number is None), then
-    post comment if given. Returns the issue number."""
+    """Rewrite issue number's body, or open the issue when number is None.
+
+    comment is then posted, when given.
+
+    Returns:
+        The issue's number.
+    """
     if number:
         api("PATCH", f"/repos/{repo}/issues/{number}", token, {"body": body})
     else:
