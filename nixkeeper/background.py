@@ -40,7 +40,9 @@ class Background:
             What the function returned.
 
         Raises:
-            Whatever the function raised, raised again here.
+            Whatever the function raised, raised again here. It's the same
+            exception object, so its traceback still points into the thread
+            (where a Hydra failure happened, say).
         """
         self._thread.join()
         if self._error is not None:

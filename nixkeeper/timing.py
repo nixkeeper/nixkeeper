@@ -44,7 +44,7 @@ class Phases:
 
 
 def _took(seconds):
-    """Say a duration in seconds briefly: "1.2 s", "47 s", "3 min 05 s"."""
+    """Format a duration in seconds briefly: "1.2 s", "47 s", "3 min 05 s"."""
     if seconds < 10:
         return f"{seconds:.1f} s"
     if seconds < 60:

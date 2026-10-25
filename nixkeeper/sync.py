@@ -270,7 +270,7 @@ def start():
     """Read what the sync works from, and decide which packages it tracks.
 
     Returns:
-        The run's Run.
+        The Run every later phase reads from.
 
     Raises:
         SystemExit: The lists track more packages than the limit
@@ -586,8 +586,8 @@ def vulnerabilities_and_fixes(run, scope, index_rows, prs):
     """Add the CVEs, what was fixed since the last sync, and the families.
 
     Also works out since when each row's builds and update attempts have
-    been failing, the PRs that likely fix a build or patch a CVE, and the
-    update PRs that are behind or out of date.
+    been failing, the PRs that likely fix a build or patch a CVE, and marks
+    the update PRs behind upstream and those for a vulnerable package.
 
     Args:
         run: The run's Run.

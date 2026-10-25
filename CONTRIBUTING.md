@@ -118,15 +118,11 @@ happen. For what nixkeeper does and how to set up your own, see the
 
 `nixkeeper/cli.py` is the `nixkeeper` command: it reads the flags and runs
 the subcommand's module. `nixkeeper/sync.py` runs one sync, top to bottom:
-its `main()` calls a function per phase (`start`, `repology`,
-`own_sources_and_lists`, `update_checks`, `builds`, `update_bot`,
-`github_and_staging`, `vulnerabilities_and_fixes`, `write`,
-`notify_changes`: the names its log times them by), each given the `Run`
-(made once by `start`: the time, the channel's index and revision, the
-lists, the last run, what's tracked) and, once the rows exist, the `Scope`
-(which rows each step covers: the lists' apart from the rest with every
-package). What only an instance of every package writes is
-`every_package_outputs`'. The steps, and their modules:
+its `main()` calls one function per phase, in the order its module
+docstring lists them (the names its log times them by), each given the
+`Run` (what the sync works from, made once by `start`) and, once the rows
+exist, the `Scope` (which rows each phase covers). The steps, and the
+modules they use:
 
 | Step | Module |
 |---|---|

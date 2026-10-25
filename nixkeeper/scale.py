@@ -62,7 +62,7 @@ def estimate(count, new=0):
 
 
 def duration(seconds):
-    """Say a duration as an estimate: "about 7 min", "about 1 h 30 min".
+    """Format a duration as an estimate: "about 7 min", "about 1 h 30 min".
 
     Long durations are rounded to 10 minutes, so they don't look precise.
     """
@@ -74,7 +74,7 @@ def duration(seconds):
 
 
 def about(requests):
-    """Say a number of requests as an estimate: 2,400, not 2,397."""
+    """Format a number of requests as an estimate: 2,400, not 2,397."""
     return f"{round(requests, -2 if requests >= 1000 else -1):,}"
 
 
