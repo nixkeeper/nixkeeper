@@ -478,3 +478,87 @@ class Numbers(unittest.TestCase):
                 "unmaintained": 1,
             },
         )
+
+
+def build(status, system="x86_64-linux", **more):
+    """A Hydra build of a row, as the collectors read it."""
+    return {"attr": "a", "system": system, "status": status, **more}
+
+
+class Collectors(unittest.TestCase):
+    """views()' collectors on their own: what each counts, sets included or not."""
+
+    FAILING = {"name": "f", "builds": [build("failed")], "maintainers": ["Ann"]}
+    IN_SET = {**FAILING, "name": "s", "set": "rPackages"}
+
+    def test_views_leave_a_sets_rows_out_of_most(self):
+        views = datastore._Views()
+        for row in (self.FAILING, self.IN_SET):
+            views.add(row, "f")
+        self.assertEqual(views.size("attention"), 1)
+        self.assertEqual(
+            [r["name"] for r in views.found["views/maintainer/ann.json"]], ["f", "s"]
+        )
+        self.assertEqual(
+            [r["name"] for r in views.found["views/set/rPackages.json"]], ["s"]
+        )
+
+    def test_counts_count_a_sets_rows_apart(self):
+        counts = datastore._Counts()
+        for row in (self.FAILING, self.IN_SET):
+            counts.add(row, "f")
+        found = counts.result()
+        self.assertEqual(
+            (found["tracked"], found["failed"], found["inSets"]), (1, 1, 1)
+        )
+        self.assertEqual(found["failingBuilds"], 2)  # sets included, as zh.fail
+        self.assertEqual(found["buildFailuresOn"], {"linux": 1, "x86_64-linux": 1})
+
+    def test_maintainers_count_a_sets_rows_as_packages_only(self):
+        maintainers = datastore._Maintainers()
+        for row in (self.FAILING, self.IN_SET):
+            maintainers.add(row, "f")
+        self.assertEqual(maintainers.result(), {"maintainers": [["Ann", 2, 0, 1]]})
+
+    def test_blockers_count_a_stopped_package_with_its_blockers_unknown(self):
+        blockers = datastore._Blockers()
+        blocker = {"name": "zlib", "row": True}
+        blockers.add(
+            {"name": "a", "builds": [build("dependency", blockedBy=[blocker])]}, "n"
+        )
+        blockers.add({"name": "b", "builds": [build("dependency")]}, "n")
+        self.assertEqual(
+            blockers.result(),
+            {"count": 1, "packages": 2, "top": [["zlib", True, 1, 1]]},
+        )
+
+    def test_staging_next_blockers_say_which_evaluation(self):
+        staging = datastore._StagingNextBlockers()
+        found = {
+            "eval": 7,
+            "evaluatedAt": "2026-10-25",
+            "builds": [{"by": [{"name": "glib"}]}],
+        }
+        staging.add({"name": "a", "stagingNextBlockedBy": found}, "u")
+        staging.add({"name": "b"}, "u")
+        self.assertEqual(
+            staging.result(),
+            {
+                "eval": 7,
+                "evaluatedAt": "2026-10-25",
+                "count": 1,
+                "packages": 1,
+                "top": [["glib", False, 1, 1]],
+            },
+        )
+
+    def test_a_sets_bar_counts_each_package_at_its_worst(self):
+        sets = datastore._Sets()
+        sets.add({**self.IN_SET, "markedBroken": True}, "f")  # failing and broken
+        sets.add({"name": "t", "set": "rPackages", "markedBroken": True}, "u")
+        sets.add(self.FAILING, "f")  # not in a set: not counted
+        found = sets.result()["rPackages"]
+        self.assertEqual(
+            (found["packages"], found["failed"], found["broken"]), (2, 1, 2)
+        )
+        self.assertEqual(found["bar"], {"failed": 1, "broken": 1, "outdated": 0})

@@ -938,197 +938,28 @@ def views(rows, out):
         teams' and lists' sizes ({name: count}), and each set's counts
         ({name: {"packages", "outdated", "failed", "broken", ...}}).
     """
-    found = {}
-
-    def put(path, row):
-        """Add row to the view at path."""
-        found.setdefault(path, []).append(row)
-
-    counts = dict.fromkeys(
-        (
-            "broken",
-            "failingBuilds",
-            "tracked",
-            "outdated",
-            "failed",
-            "vulnerable",
-            "backport",
-            "updateFailures",
-            "buildFailures",
-            "waiting",
-            "inSets",
-        ),
-        0,
+    found, counts, names, facets = _Views(), _Counts(), _Names(), _Facets()
+    maintainers, ages, sets = _Maintainers(), _Ages(), _Sets()
+    blockers, staging = _Blockers(), _StagingNextBlockers()
+    collectors = (
+        found,
+        counts,
+        names,
+        facets,
+        maintainers,
+        ages,
+        blockers,
+        staging,
+        sets,
     )
-    teams, lists, sets = {}, {}, {}
-    failing_on = {}  # {"linux", "darwin" or a system: packages failing there}
-    names = []
-    # facets.json's rows, in the same order as names (facet_entry).
-    facet_rows, facet_handles, facet_teams = [], {}, {}
-    maintainers = {}  # {lowercase handle: [handle, packages, outdated, failing]}
-    # Since when each fully checked row has been failing, outdated, or
-    # failing its update attempts: the overview's newest and oldest of each.
-    ages = {"failing": [], "outdated": [], "updateFailing": []}
-    # The dependencies that stop other packages' builds, counted over every
-    # row (sets included, as zh.fail counts them): {name: [whether it has a
-    # row, {packages}, builds]}.
-    blockers = {}
-    # The same on staging-next (branches.apply_staging_next_blocked): what
-    # its failing dependencies stop, of the packages that build on master.
-    staging_blockers, staging_blocked, staging_info = {}, 0, {}
     for row in rows:
         letter = status(row)
-        if sn := row.get("stagingNextBlockedBy"):
-            staging_blocked += 1
-            staging_info = {k: sn[k] for k in ("eval", "evaluatedAt") if k in sn}
-            for b in sn["builds"]:
-                for blocker in b["by"]:
-                    stops = staging_blockers.setdefault(
-                        blocker["name"], [bool(blocker.get("row")), set(), 0]
-                    )
-                    stops[1].add(row["name"])
-                    stops[2] += 1
-        for b in row.get("builds") or []:
-            if b["status"] != "dependency":
-                continue
-            if found.get("views/blocked.json", [None])[-1] is not row:
-                put("views/blocked.json", row)
-            for blocker in b.get("blockedBy") or []:
-                stops = blockers.setdefault(
-                    blocker["name"], [bool(blocker.get("row")), set(), 0]
-                )
-                stops[1].add(row["name"])
-                stops[2] += 1
-        # Hydra jobs that didn't succeed, on every platform and of every row
-        # (sets included): failing builds as zh.fail counts them.
-        counts["failingBuilds"] += sum(
-            b["status"] in FAILING_BUILDS for b in row.get("builds") or []
-        )
-        names.append(
-            [row["name"], letter, row["set"]]
-            if row.get("set")
-            else [row["name"], letter]
-        )
-        facet_rows.append(facet_entry(row, facet_handles, facet_teams))
-        for handle in row.get("maintainers") or []:
-            put(f"views/maintainer/{handle.lower()}.json", row)
-            mine = maintainers.setdefault(handle.lower(), [handle, 0, 0, 0])
-            mine[1] += 1
-            if not row.get("set"):
-                mine[2] += is_outdated(row)
-                mine[3] += letter.startswith("f")
-        for team in row.get("teams") or []:
-            put(f"views/team/{slug(team)}.json", row)
-            teams[team] = teams.get(team, 0) + 1
-        for name in row.get("lists") or []:
-            put(f"views/list/{slug(name)}.json", row)
-            lists[name] = lists.get(name, 0) + 1
-        # An open update PR that nixpkgs is already past
-        # (prs_digest.mark_superseded): every such row, sets included, up
-        # to date or not.
-        if row.get("supersededPRs"):
-            put("views/superseded.json", row)
-        if row.get("set"):
-            put(f"views/set/{row['set']}.json", row)
-            found_set = sets.setdefault(
-                row["set"],
-                {
-                    "packages": 0,
-                    "outdated": 0,
-                    "failed": 0,
-                    "broken": 0,
-                    "bar": {"failed": 0, "broken": 0, "outdated": 0},
-                },
-            )
-            if row.get("archived"):
-                # No longer on CRAN or in Bioconductor (sources/cran_digest.py).
-                # nixpkgs already marks most of them broken; the others are
-                # counted apart.
-                found_set["archived"] = found_set.get("archived", 0) + 1
-                if not (row.get("markedBroken") or broken_builds(row)):
-                    found_set["archivedUnmarked"] = (
-                        found_set.get("archivedUnmarked", 0) + 1
-                    )
-            found_set["packages"] += 1
-            found_set["outdated"] += is_outdated(row)
-            if on_branch(row):
-                # Already updated on the set's branch (haskell-updates).
-                found_set["onBranch"] = found_set.get("onBranch", 0) + 1
-            failed = letter.startswith("f")
-            broken = bool(row.get("markedBroken") or broken_builds(row))
-            found_set["failed"] += failed
-            found_set["broken"] += broken
-            # The overview's bar counts each package once, at its worst
-            # (failing, then broken, then outdated), so its parts never
-            # overlap.
-            if failed:
-                found_set["bar"]["failed"] += 1
-            elif broken:
-                found_set["bar"]["broken"] += 1
-            elif is_outdated(row):
-                found_set["bar"]["outdated"] += 1
-            counts["inSets"] += 1
-            continue
-        if row.get("maintainers") == []:
-            put("views/maintainer/none.json", row)
-        counts["tracked"] += 1
-        counts["failed"] += letter.startswith("f")
-        counts["waiting"] += letter.startswith("m")
-        counts["outdated"] += is_outdated(row)
-        counts["vulnerable"] += letter.endswith("v")
-        if row.get("backport"):
-            counts["backport"] += 1
-            put("views/backport.json", row)
-        counts["updateFailures"] += bool(row.get("updateFailure"))
-        counts["buildFailures"] += bool(failed_builds(row))
-        # The same by where the builds fail: each Hydra system, and Linux
-        # and Darwin (a package failing on both Linux systems is counted
-        # once for Linux), as the page's platform filter counts them. Only
-        # where the package is available counts: ete's failing
-        # aarch64-darwin build doesn't, as ete isn't available there.
-        systems = {
-            b["system"]
-            for b in failed_builds(row)
-            if available_on(row.get("platforms"), b["system"])
-        }
-        for where in systems | {s.rsplit("-", 1)[-1] for s in systems}:
-            failing_on[where] = failing_on.get(where, 0) + 1
-        # Only rows that count now are listed. The hourly checks recount,
-        # but only the daily sync sets and clears these dates, so after a
-        # change in how nixkeeper counts, the lists would otherwise disagree
-        # with the cards for a day.
-        now_counts = {
-            "failing": bool(failed_builds(row)),
-            "outdated": is_outdated(row),
-            "updateFailing": bool(row.get("updateFailure")),
-        }
-        for kind, field in AGES.items():
-            # An update already merged and waiting for the channel needs no
-            # action, so it's left out of the list (but not the card's count).
-            if kind == "outdated" and waiting_for_channel(row):
-                continue
-            if row.get(field) and now_counts[kind]:
-                ages[kind].append((row[field], row["name"], letter, row.get("family")))
-        if row.get("markedBroken") or broken_builds(row):
-            counts["broken"] += 1
-            put("views/broken.json", row)
-        if unbuilt_where(row):
-            put("views/unbuilt.json", row)
-        # A fix to backport is for the maintainer to do too, even when
-        # nixos-unstable is fine (the list's tile: Fixes to backport).
-        if letter[0] in "fmo" or letter.endswith("v") or row.get("backport"):
-            put("views/attention.json", row)
-    for path, members in found.items():
-        out[path] = {"packages": [summary_entry(row) for row in members]}
-    out["names.json"] = {"names": names}
-    out["facets.json"] = {
-        "handles": list(facet_handles),
-        "teams": list(facet_teams),
-        "rows": facet_rows,
-    }
-    out["maintainers.json"] = {
-        "maintainers": [maintainers[key] for key in sorted(maintainers)]
-    }
+        for collector in collectors:
+            collector.add(row, letter)
+    found.write(out)
+    out["names.json"] = names.result()
+    out["facets.json"] = facets.result()
+    out["maintainers.json"] = maintainers.result()
     # Why things fail across packages (causes.py): failed builds grouped by
     # their error, each group a view of its packages.
     groups = causes.build_groups(rows)
@@ -1143,50 +974,14 @@ def views(rows, out):
         out["views/causes.json"] = {
             "groups": [{k: v for k, v in g.items() if k != "rows"} for g in groups]
         }
-    top = sorted(blockers.items(), key=lambda kv: (-len(kv[1][1]), -kv[1][2], kv[0]))
-    staging_top = sorted(
-        staging_blockers.items(), key=lambda kv: (-len(kv[1][1]), -kv[1][2], kv[0])
-    )
     return {
-        "counts": {**counts, "buildFailuresOn": dict(sorted(failing_on.items()))},
-        # The lists' counts are the cards'. A row counted before the daily
-        # sync gives it a date is in the count, but not in the lists.
-        "highlights": {
-            kind: {**highlights(found), "count": counts[HIGHLIGHT_COUNTS[kind]]}
-            for kind, found in ages.items()
-        },
-        # The overview's "Blocking the most": how many dependencies stop
-        # other packages' builds, how many packages have a build stopped
-        # (the blocked view's size, whether its blockers are known yet or
-        # not), and the HIGHLIGHTS that stop the most, each [name, whether
-        # it has a row, packages, builds].
+        "counts": counts.result(),
+        "highlights": ages.result(counts.counts),
+        # The overview's "Blocking the most", on master and, before it's
+        # merged into master, on staging-next.
         "blockers": {
-            "count": len(blockers),
-            "packages": len(found.get("views/blocked.json", [])),
-            "top": [
-                [name, is_row, len(names), builds]
-                for name, (is_row, names, builds) in top[:HIGHLIGHTS]
-            ],
-            # The same on staging-next, before it's merged into master: how
-            # many packages its failing dependencies stop there, the ones
-            # that stop the most, and which evaluation this is.
-            **(
-                {
-                    "stagingNext": {
-                        **staging_info,
-                        "count": len(staging_blockers),
-                        "packages": staging_blocked,
-                        "top": [
-                            [name, is_row, len(names), builds]
-                            for name, (is_row, names, builds) in staging_top[
-                                :HIGHLIGHTS
-                            ]
-                        ],
-                    }
-                }
-                if staging_blockers
-                else {}
-            ),
+            **blockers.result(),
+            **({"stagingNext": staging.result()} if staging.stops else {}),
         },
         # The overview's "Why things fail": the biggest groups of failed
         # builds sharing an error (causes.SHOWN of them, each {"key",
@@ -1203,19 +998,396 @@ def views(rows, out):
             "bot": causes.bot_causes(rows),
         },
         "views": {
-            "attention": len(found.get("views/attention.json", [])),
-            "broken": len(found.get("views/broken.json", [])),
-            "blocked": len(found.get("views/blocked.json", [])),
-            "backport": len(found.get("views/backport.json", [])),
-            "unbuilt": len(found.get("views/unbuilt.json", [])),
-            "superseded": len(found.get("views/superseded.json", [])),
+            **{
+                name: found.size(name)
+                for name in (
+                    "attention",
+                    "broken",
+                    "blocked",
+                    "backport",
+                    "unbuilt",
+                    "superseded",
+                )
+            },
             # Sorted with capitals first, as Python sorts strings; the page
             # sorts them its own way.
-            "teams": dict(sorted(teams.items())),
-            "lists": dict(sorted(lists.items())),
-            "sets": dict(sorted(sets.items())),
+            "teams": dict(sorted(found.teams.items())),
+            "lists": dict(sorted(found.lists.items())),
+            "sets": sets.result(),
         },
     }
+
+
+# The collectors views() fills in one pass over the rows: each one output,
+# with add(row, letter) for each row (letter: status(row)) and what it
+# makes once every row is added. A row in a set updated in bulk reaches
+# every collector; each decides for itself whether that row counts.
+
+
+class _Views:
+    """Collect the views (views/*.json) each row is in.
+
+    Also counts the teams' and lists' packages, for the manifest.
+    """
+
+    def __init__(self):
+        """Start with no views."""
+        self.found = {}  # {path: [rows]}, each in the order rows come
+        self.teams, self.lists = {}, {}
+
+    def put(self, path, row):
+        """Add row to the view at path."""
+        self.found.setdefault(path, []).append(row)
+
+    def add(self, row, letter):
+        """Add row to every view it's in."""
+        if any(b["status"] == "dependency" for b in row.get("builds") or []):
+            self.put("views/blocked.json", row)
+        for handle in row.get("maintainers") or []:
+            self.put(f"views/maintainer/{handle.lower()}.json", row)
+        for team in row.get("teams") or []:
+            self.put(f"views/team/{slug(team)}.json", row)
+            self.teams[team] = self.teams.get(team, 0) + 1
+        for name in row.get("lists") or []:
+            self.put(f"views/list/{slug(name)}.json", row)
+            self.lists[name] = self.lists.get(name, 0) + 1
+        # An open update PR that nixpkgs is already past
+        # (prs_digest.mark_superseded): every such row, sets included, up
+        # to date or not.
+        if row.get("supersededPRs"):
+            self.put("views/superseded.json", row)
+        if row.get("set"):
+            # A set's packages are counted on its set's line: none of the
+            # views below.
+            self.put(f"views/set/{row['set']}.json", row)
+            return
+        if row.get("maintainers") == []:
+            self.put("views/maintainer/none.json", row)
+        if row.get("backport"):
+            self.put("views/backport.json", row)
+        if row.get("markedBroken") or broken_builds(row):
+            self.put("views/broken.json", row)
+        if unbuilt_where(row):
+            self.put("views/unbuilt.json", row)
+        # A fix to backport is for the maintainer to do too, even when
+        # nixos-unstable is fine (the list's tile: Fixes to backport).
+        if letter[0] in "fmo" or letter.endswith("v") or row.get("backport"):
+            self.put("views/attention.json", row)
+
+    def size(self, name):
+        """Return how many rows the view views/<name>.json has."""
+        return len(self.found.get(f"views/{name}.json", []))
+
+    def write(self, out):
+        """Add every view to out, each as {"packages": [summary entries]}."""
+        for path, members in self.found.items():
+            out[path] = {"packages": [summary_entry(row) for row in members]}
+
+
+class _Counts:
+    """Collect the manifest's counts.
+
+    Most count the fully checked rows only; failingBuilds and inSets count
+    the rows in sets too.
+    """
+
+    def __init__(self):
+        """Start every count at 0."""
+        self.counts = dict.fromkeys(
+            (
+                "broken",
+                "failingBuilds",
+                "tracked",
+                "outdated",
+                "failed",
+                "vulnerable",
+                "backport",
+                "updateFailures",
+                "buildFailures",
+                "waiting",
+                "inSets",
+            ),
+            0,
+        )
+        self.failing_on = {}  # {"linux", "darwin" or a system: packages failing there}
+
+    def add(self, row, letter):
+        """Count row."""
+        counts = self.counts
+        # Hydra jobs that didn't succeed, on every platform and of every row
+        # (sets included): failing builds as zh.fail counts them.
+        counts["failingBuilds"] += sum(
+            b["status"] in FAILING_BUILDS for b in row.get("builds") or []
+        )
+        if row.get("set"):
+            counts["inSets"] += 1
+            return
+        counts["tracked"] += 1
+        counts["failed"] += letter.startswith("f")
+        counts["waiting"] += letter.startswith("m")
+        counts["outdated"] += is_outdated(row)
+        counts["vulnerable"] += letter.endswith("v")
+        counts["backport"] += bool(row.get("backport"))
+        counts["updateFailures"] += bool(row.get("updateFailure"))
+        counts["buildFailures"] += bool(failed_builds(row))
+        # The same by where the builds fail: each Hydra system, and Linux
+        # and Darwin (a package failing on both Linux systems is counted
+        # once for Linux), as the page's platform filter counts them. Only
+        # where the package is available counts: ete's failing
+        # aarch64-darwin build doesn't, as ete isn't available there.
+        systems = {
+            b["system"]
+            for b in failed_builds(row)
+            if available_on(row.get("platforms"), b["system"])
+        }
+        for where in systems | {s.rsplit("-", 1)[-1] for s in systems}:
+            self.failing_on[where] = self.failing_on.get(where, 0) + 1
+        counts["broken"] += bool(row.get("markedBroken") or broken_builds(row))
+
+    def result(self):
+        """Return the counts, with buildFailuresOn: the failures by platform."""
+        return {**self.counts, "buildFailuresOn": dict(sorted(self.failing_on.items()))}
+
+
+class _Names:
+    """Collect names.json: every row's name and status, and its set."""
+
+    def __init__(self):
+        """Start with no names."""
+        self.names = []
+
+    def add(self, row, letter):
+        """Add row's name, status and set, when it has one."""
+        self.names.append(
+            [row["name"], letter, row["set"]]
+            if row.get("set")
+            else [row["name"], letter]
+        )
+
+    def result(self):
+        """Return names.json."""
+        return {"names": self.names}
+
+
+class _Facets:
+    """Collect facets.json: each row's platforms, maintainers and teams.
+
+    The rows come in the same order as names.json's (facet_entry).
+    """
+
+    def __init__(self):
+        """Start with no rows."""
+        self.rows, self.handles, self.teams = [], {}, {}
+
+    def add(self, row, letter):
+        """Add row's entry."""
+        self.rows.append(facet_entry(row, self.handles, self.teams))
+
+    def result(self):
+        """Return facets.json."""
+        return {
+            "handles": list(self.handles),
+            "teams": list(self.teams),
+            "rows": self.rows,
+        }
+
+
+class _Maintainers:
+    """Collect maintainers.json: each maintainer's packages, outdated and failing.
+
+    packages counts the rows in sets too; outdated and failing count only the
+    fully checked rows.
+    """
+
+    def __init__(self):
+        """Start with no maintainers."""
+        self.found = {}  # {lowercase handle: [handle, packages, outdated, failing]}
+
+    def add(self, row, letter):
+        """Count row for each of its maintainers."""
+        for handle in row.get("maintainers") or []:
+            mine = self.found.setdefault(handle.lower(), [handle, 0, 0, 0])
+            mine[1] += 1
+            if not row.get("set"):
+                mine[2] += is_outdated(row)
+                mine[3] += letter.startswith("f")
+
+    def result(self):
+        """Return maintainers.json, sorted by lowercase handle."""
+        return {"maintainers": [self.found[key] for key in sorted(self.found)]}
+
+
+class _Ages:
+    """Collect since when each fully checked row has had each problem.
+
+    That's failing, outdated, or failing its update attempts: the overview's
+    newest and oldest of each (highlights).
+    """
+
+    def __init__(self):
+        """Start with no problems."""
+        self.ages = {"failing": [], "outdated": [], "updateFailing": []}
+
+    def add(self, row, letter):
+        """Add row's problems that count now, with since when it has had them."""
+        if row.get("set"):
+            return
+        # Only rows that count now are listed. The hourly checks recount,
+        # but only the daily sync sets and clears these dates, so after a
+        # change in how nixkeeper counts, the lists would otherwise disagree
+        # with the cards for a day.
+        now_counts = {
+            "failing": bool(failed_builds(row)),
+            "outdated": is_outdated(row),
+            "updateFailing": bool(row.get("updateFailure")),
+        }
+        for kind, field in AGES.items():
+            # An update already merged and waiting for the channel needs no
+            # action, so it's left out of the list (but not the card's count).
+            if kind == "outdated" and waiting_for_channel(row):
+                continue
+            if row.get(field) and now_counts[kind]:
+                self.ages[kind].append(
+                    (row[field], row["name"], letter, row.get("family"))
+                )
+
+    def result(self, counts):
+        """Return the overview's highlights of each kind.
+
+        Args:
+            counts: The manifest's counts. Each list's count is its card's:
+                a row counted before the daily sync gives it a date is in
+                the count, but not in the list.
+        """
+        return {
+            kind: {**highlights(found), "count": counts[HIGHLIGHT_COUNTS[kind]]}
+            for kind, found in self.ages.items()
+        }
+
+
+class _Blockers:
+    """Collect the dependencies that stop other packages' builds on master.
+
+    Every row counts, sets included, as zh.fail counts them.
+    """
+
+    def __init__(self):
+        """Start with no blockers."""
+        self.stops = {}  # {name: [whether it has a row, {packages}, builds]}
+        self.packages = 0  # the packages with a build stopped
+
+    def stop(self, blocker, package):
+        """Note that blocker stops one of package's builds."""
+        stops = self.stops.setdefault(
+            blocker["name"], [bool(blocker.get("row")), set(), 0]
+        )
+        stops[1].add(package)
+        stops[2] += 1
+
+    def add(self, row, letter):
+        """Note what stops row's builds that a dependency's failure stopped.
+
+        A row with such a build counts as stopped whether or not its
+        blockers are known yet (the blocked view's).
+        """
+        stopped = [b for b in row.get("builds") or [] if b["status"] == "dependency"]
+        self.packages += bool(stopped)
+        for build in stopped:
+            for blocker in build.get("blockedBy") or []:
+                self.stop(blocker, row["name"])
+
+    def top(self):
+        """Return the HIGHLIGHTS that stop the most, [name, row?, packages, builds]."""
+        ranked = sorted(
+            self.stops.items(), key=lambda kv: (-len(kv[1][1]), -kv[1][2], kv[0])
+        )
+        return [
+            [name, is_row, len(names), builds]
+            for name, (is_row, names, builds) in ranked[:HIGHLIGHTS]
+        ]
+
+    def result(self):
+        """Return how many dependencies stop builds, how many packages, and the top."""
+        return {"count": len(self.stops), "packages": self.packages, "top": self.top()}
+
+
+class _StagingNextBlockers(_Blockers):
+    """Collect what staging-next's failing dependencies stop there.
+
+    That's of the packages that build on master
+    (branches.apply_staging_next_blocked): a forecast for staging-next's
+    merge into master.
+    """
+
+    def __init__(self):
+        """Start with no blockers, and no evaluation."""
+        super().__init__()
+        self.info = {}  # which evaluation of staging-next, and when
+
+    def add(self, row, letter):
+        """Note what stops row's builds on staging-next."""
+        if not (found := row.get("stagingNextBlockedBy")):
+            return
+        self.packages += 1
+        self.info = {k: found[k] for k in ("eval", "evaluatedAt") if k in found}
+        for build in found["builds"]:
+            for blocker in build["by"]:
+                self.stop(blocker, row["name"])
+
+    def result(self):
+        """Return the same as _Blockers, with which evaluation this is."""
+        return {**self.info, **super().result()}
+
+
+class _Sets:
+    """Collect each set's counts, for the overview's line on it."""
+
+    def __init__(self):
+        """Start with no sets."""
+        self.sets = {}
+
+    def add(self, row, letter):
+        """Count row on its set's line, when it's in a set."""
+        if not row.get("set"):
+            return
+        found_set = self.sets.setdefault(
+            row["set"],
+            {
+                "packages": 0,
+                "outdated": 0,
+                "failed": 0,
+                "broken": 0,
+                "bar": {"failed": 0, "broken": 0, "outdated": 0},
+            },
+        )
+        if row.get("archived"):
+            # No longer on CRAN or in Bioconductor (sources/cran_digest.py).
+            # nixpkgs already marks most of them broken; the others are
+            # counted apart.
+            found_set["archived"] = found_set.get("archived", 0) + 1
+            if not (row.get("markedBroken") or broken_builds(row)):
+                found_set["archivedUnmarked"] = found_set.get("archivedUnmarked", 0) + 1
+        found_set["packages"] += 1
+        found_set["outdated"] += is_outdated(row)
+        if on_branch(row):
+            # Already updated on the set's branch (haskell-updates).
+            found_set["onBranch"] = found_set.get("onBranch", 0) + 1
+        failed = letter.startswith("f")
+        broken = bool(row.get("markedBroken") or broken_builds(row))
+        found_set["failed"] += failed
+        found_set["broken"] += broken
+        # The overview's bar counts each package once, at its worst
+        # (failing, then broken, then outdated), so its parts never overlap.
+        if failed:
+            found_set["bar"]["failed"] += 1
+        elif broken:
+            found_set["bar"]["broken"] += 1
+        elif is_outdated(row):
+            found_set["bar"]["outdated"] += 1
+
+    def result(self):
+        """Return each set's counts, by set."""
+        return dict(sorted(self.sets.items()))
 
 
 def _write_file(path, text):

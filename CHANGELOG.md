@@ -120,6 +120,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   are at the top of the new module. The command's output is the same as
   before.
 
+- The views, counts and lists the overview reads (with every package) are
+  built by one small collector each, `_Views`, `_Counts`, `_Sets` and six
+  more in `datastore.py`, where one 326-line loop built them all; each is
+  tested on its own. Nothing they write changes: two syncs with every
+  package, before and after, wrote the same 5,401 files.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

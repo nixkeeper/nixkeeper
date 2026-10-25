@@ -167,7 +167,11 @@ Around that:
   longer write (`update`). A file the daily sync keeps there besides
   those (`sync.kept_files`, such as `views/merge.json`) must be listed in
   `SYNC_ONLY`, or the hourly checks would delete it: `write` refuses one
-  that isn't, and a test checks every file `sync.kept_files` keeps
+  that isn't, and a test checks every file `sync.kept_files` keeps. With
+  every package, `views` builds the views, `names.json`, `facets.json`,
+  `maintainers.json` and the manifest's counts in one pass, with one
+  collector per output (`_Views`, `_Counts`, `_Sets`, ...): each takes
+  every row and decides whether it counts. A new output is a new collector
 - `lock.py`: one run at a time on a data folder (`<data dir>.lock`), for
   every command that writes or copies the data. Holding it is also when a
   swap a run didn't finish is tidied up (`datastore.restore_interrupted_swap`):
