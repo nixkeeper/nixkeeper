@@ -1,6 +1,8 @@
-"""`nixkeeper init`: starter package lists, from the templates shipped with
-nixkeeper (nixkeeper/templates/package-lists/), with the maintainers given
-filled in."""
+"""Write starter package lists, for `nixkeeper init`.
+
+The lists come from the templates shipped with nixkeeper
+(nixkeeper/templates/package-lists/), with the given maintainers filled in.
+"""
 
 import os
 import re
@@ -10,12 +12,21 @@ from importlib import resources
 
 # What GitHub allows in a handle: also keeps anything else out of the Nix file.
 HANDLE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$")
+# The template's maintainers line, replaced with the given handles.
 EMPTY = "maintainers = [ ];"
 
 
 def write(folder, maintainers):
-    """Write the starter lists to folder (which mustn't exist yet), listing
-    maintainers. Exits with a message on anything it won't do."""
+    """Write the starter lists to folder, listing maintainers.
+
+    Args:
+        folder: Where to write them; it mustn't exist yet.
+        maintainers: The GitHub handles to list.
+
+    Raises:
+        SystemExit: folder is a JSON file's name or exists already, or one
+            of maintainers isn't a GitHub handle.
+    """
     if folder.endswith(".json"):
         sys.exit(f"{folder} is a JSON file: init writes a folder of Nix files.")
     if os.path.exists(folder):
