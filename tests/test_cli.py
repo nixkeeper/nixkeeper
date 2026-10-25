@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from nixkeeper import cli, config
+from nixkeeper.errors import Problem
 
 
 class Command(unittest.TestCase):
@@ -156,6 +157,17 @@ class Command(unittest.TestCase):
                 alias()
             main.assert_called_once_with([command, "--data-dir", "x"])
             self.assertIn(f"`nixkeeper {command}`", self.stderr.getvalue())
+
+
+class Exits(unittest.TestCase):
+    def test_a_problem_is_its_message_and_status_1(self):
+        # The one place nixkeeper exits (CONTRIBUTING: The code).
+        with (
+            mock.patch.object(cli, "_run_command", side_effect=Problem("fix this")),
+            self.assertRaises(SystemExit) as exit,
+        ):
+            cli.main(["sync"])
+        self.assertEqual(exit.exception.code, "fix this")
 
 
 class Init(unittest.TestCase):

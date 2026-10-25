@@ -229,12 +229,12 @@ def main(argv=None):
     is 1.
     """
     try:
-        run(argv)
+        _run_command(argv)
     except Problem as e:
         sys.exit(str(e))
 
 
-def run(argv=None):
+def _run_command(argv=None):
     """Run the command argv gives, raising a Problem for its user to fix."""
     args = parser().parse_args(argv)
     if not args.command:
@@ -290,7 +290,7 @@ def run(argv=None):
         if args.changed_from:
             failed += sum(map(len, stale.values())) + len(stale_up)
         if failed:
-            sys.exit(f"{failed} community rule(s) don't work.")
+            raise Problem(f"{failed} community rule(s) don't work.")
         return
     if args.command == "page":
         with lock.held():  # not mid-sync: the data is swapped in whole

@@ -39,8 +39,8 @@ def page_dir():
     )
 
 
-def _data_dir_or_exit():
-    """Return the data folder, or exit when no sync has written data there.
+def _existing_data_dir():
+    """Return the data folder, or raise a Problem when no sync has written data there.
 
     Raises:
         Problem: The data folder has no index.json yet.
@@ -79,7 +79,7 @@ def write(folder):
         Problem: There's no data yet, folder is neither empty nor an
             earlier page, or this nixkeeper was built without the page.
     """
-    data = _data_dir_or_exit()
+    data = _existing_data_dir()
     folder = os.path.abspath(folder)
     if os.path.exists(folder) and not (os.path.isdir(folder) and _is_page(folder)):
         raise Problem(

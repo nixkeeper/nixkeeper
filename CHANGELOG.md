@@ -110,7 +110,8 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   isn't one), the code raises one exception, `errors.Problem`, and
   `cli.main` prints its message and exits; before, six modules exited
   themselves, and three places caught that exit to carry on. The messages
-  and the exit status are the same as before.
+  and the exit status are the same as before. Besides that handler, only
+  the usage error (no command given) exits.
 
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
