@@ -907,6 +907,8 @@ def add_attempts(
         if not attrs:
             continue  # not in nixpkgs: nothing for the bot to update
         attempts = finder.find(row, attrs)
+        # None: the row is done with (kept or unread). An empty list still
+        # goes to judge: the bot never tried, so "update" is None.
         if attempts is not None:
             judge(row, attempts, ignored_updates.get(row["name"]), community)
     finder.report()
