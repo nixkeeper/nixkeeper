@@ -1294,12 +1294,11 @@ def write(
 def swap_in(new_dir, out_dir):
     """Replace a data folder with a new one.
 
-    That's the data folder a sync writes, or the copy of it `nixkeeper
-    page` writes beside the page (page.write). The old folder is moved
-    aside before the new one is moved in, rather than deleted first: the
-    data is then missing only between two renames, not while a whole folder
-    is deleted, and a run that dies between them leaves the old data in
-    <out_dir>.old, which restore_interrupted_swap puts back.
+    The old folder is moved aside before the new one is moved in, rather
+    than deleted first: the data is then missing only between two renames,
+    not while a whole folder is deleted, and a run that dies between them
+    leaves the old data in <out_dir>.old, which restore_interrupted_swap
+    puts back.
 
     Args:
         new_dir: The new data folder, complete.

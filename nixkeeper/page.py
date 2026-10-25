@@ -94,7 +94,8 @@ def write(folder):
     # The data is copied aside, then swapped in as the sync swaps its own
     # (datastore.swap_in): a host never serves half of it, and finds none
     # only between two renames. A write cut short between them is tidied
-    # first; only this command writes this copy.
+    # first: only this command writes this copy, under the data folder's
+    # lock (cli.py), so no other write can be under way.
     target = os.path.join(folder, "data")
     datastore.restore_interrupted_swap(target)
     staged = target + ".tmp"
