@@ -168,6 +168,7 @@ def problems(files):
     found = {}
 
     def say(kind, text):
+        """Note a problem under its kind: "manifest", "rows", "row fields", "views"."""
         found.setdefault(kind, []).append(text)
 
     manifest = files.get("index.json")

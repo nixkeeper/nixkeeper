@@ -19,11 +19,13 @@ class Background:
     """
 
     def __init__(self, fn, *args):
+        """Start calling fn(*args) in a thread of its own."""
         self._value = self._error = None
         self._thread = threading.Thread(target=self._run, args=(fn, args), daemon=True)
         self._thread.start()
 
     def _run(self, fn, args):
+        """Call fn in the thread, keeping its result or what it raised."""
         try:
             self._value = fn(*args)
         except BaseException as e:  # raised again in result()
@@ -42,7 +44,7 @@ class Background:
         Raises:
             Whatever the function raised, raised again here. It's the same
             exception object, so its traceback still points into the thread
-            (where a Hydra failure happened, say).
+            (to where a Hydra failure happened, for example).
         """
         self._thread.join()
         if self._error is not None:
