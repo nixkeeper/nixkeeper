@@ -494,7 +494,7 @@ class Collectors(unittest.TestCase):
     def test_each_collector_under_its_own_name(self):
         # views() reads each by name: a name holding another collector would
         # only show as wrong output.
-        made = datastore._Collectors.made()
+        made = datastore._Collectors.new()
         expected = {
             "view_files": datastore._Views,
             "counts": datastore._Counts,

@@ -941,7 +941,7 @@ def views(rows, out):
     """
     # Every collector sees every row. A new output is a new collector, in
     # _Collectors.
-    collectors = _Collectors.made()
+    collectors = _Collectors.new()
     for row in rows:
         letter = status(row)
         for collector in collectors:
@@ -1400,7 +1400,7 @@ class _Sets:
 class _Collectors(NamedTuple):
     """views()' collectors, one per output, each under its own name.
 
-    They're made by keyword (made), so a name can't end up holding another
+    They're made by keyword (new), so a name can't end up holding another
     collector; a test checks each against its annotation.
     """
 
@@ -1415,7 +1415,7 @@ class _Collectors(NamedTuple):
     sets: _Sets
 
     @classmethod
-    def made(cls):
+    def new(cls):
         """Make each collector afresh, under its name."""
         return cls(**{name: kind() for name, kind in cls.__annotations__.items()})
 

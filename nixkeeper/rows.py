@@ -586,7 +586,10 @@ class _Found:
         nix: nixpkgs unstable's Repology entry for the row.
         entries: The project's Repology entries, nixpkgs' included.
         others: Those from repositories other than nixpkgs unstable.
-        devel: Whether the row is a devel variant (project_rows).
+        devel: Whether project_rows split the row off as a devel variant.
+            row["devel"] also counts Repology's own devel status; the
+            corrections read each where the old code did, so don't
+            swap one for the other.
     """
 
     name: str
@@ -674,11 +677,11 @@ def _own_earlier_version(row, found):
     that's newer; otherwise newest (or unique, when nobody else packages
     it).
     """
-    if not (
-        not row["devel"]
-        and row["nixStatus"] == "outdated"
-        and row["refVersion"]
-        and own_version_only(row["refVersion"], found.version, found.others)
+    if (
+        row["devel"]
+        or row["nixStatus"] != "outdated"
+        or not row["refVersion"]
+        or not own_version_only(row["refVersion"], found.version, found.others)
     ):
         return
     old = ignored_channels(found.version, found.others)
