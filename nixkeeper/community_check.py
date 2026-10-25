@@ -195,11 +195,18 @@ def stale_ignores(names=None, file=None):
     return found
 
 
-def report(results, stale=None, stale_up=None):
+def report(results, stale_ignore_rules=None, stale_up_to_date_rules=None):
     """Print the community checks' results, and add them to the job summary.
 
-    That's run()'s, stale_ignores()' and stale_up_to_date()'s results, also
-    written as a GitHub Actions job summary when there is one.
+    The results are also written as a GitHub Actions job summary when
+    there is one.
+
+    Args:
+        results: run()'s results, {name: (version, why)}.
+        stale_ignore_rules: stale_ignores()' results: the ignore rules that
+            can go.
+        stale_up_to_date_rules: stale_up_to_date()'s results: the
+            up-to-date rules that can go.
 
     Returns:
         How many update checks failed.
@@ -211,12 +218,12 @@ def report(results, stale=None, stale_up=None):
         lines.append(f"| {name} | {version or '–'} | {why or ''} |")
         failed += why is not None
     stale_lines = []
-    for name, versions in sorted((stale or {}).items()):
+    for name, versions in sorted((stale_ignore_rules or {}).items()):
         for version, why in versions:
             print(f"  ignore rule {name} {version}: can go ({why})")
             stale_lines.append(f"| {name} | {version} | {why} |")
     stale_up_lines = []
-    for name, (version, why) in sorted((stale_up or {}).items()):
+    for name, (version, why) in sorted((stale_up_to_date_rules or {}).items()):
         print(f"  up-to-date rule {name} {version}: can go ({why})")
         stale_up_lines.append(f"| {name} | {version} | {why} |")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -290,12 +297,23 @@ def track(results, previous, now):
     return broken, newly, recovered
 
 
-def issue_body(results, broken, now, stale=None, stale_up=None):
+def issue_body(
+    results, broken, now, stale_ignore_rules=None, stale_up_to_date_rules=None
+):
     """Write the community rules' status issue's body.
 
     It lists the broken update checks and the ignore and up-to-date rules
     that can go, and ends with the record of broken rules, kept there for
     the next run.
+
+    Args:
+        results: run()'s results, {name: (version, why)}.
+        broken: The record of broken rules (track's).
+        now: The run's time.
+        stale_ignore_rules: stale_ignores()' results: the ignore rules that
+            can go.
+        stale_up_to_date_rules: stale_up_to_date()'s results: the
+            up-to-date rules that can go.
     """
     total = len(results)
     lines = [
@@ -324,7 +342,7 @@ def issue_body(results, broken, now, stale=None, stale_up=None):
     else:
         lines.append(f"**All {total} work.**")
     lines += ["", "### Ignore rules", ""]
-    if stale:
+    if stale_ignore_rules:
         lines += [
             "**These no longer do anything** (the bot's latest attempt isn't a "
             "failure at that version anymore), so they can go from "
@@ -335,14 +353,14 @@ def issue_body(results, broken, now, stale=None, stale_up=None):
         ]
         lines += [
             f"| `{name}` | {version} | {why} |"
-            for name, versions in sorted(stale.items())
+            for name, versions in sorted(stale_ignore_rules.items())
             for version, why in versions
         ]
     else:
         lines.append("**All still apply.**")
 
     lines += ["", "### Up-to-date rules", ""]
-    if stale_up:
+    if stale_up_to_date_rules:
         lines += [
             "**These no longer do anything** (nixpkgs has moved on, or Repology "
             "now shows a newer version elsewhere), so they can go from "
@@ -353,7 +371,7 @@ def issue_body(results, broken, now, stale=None, stale_up=None):
         ]
         lines += [
             f"| `{name}` | {version} | {why} |"
-            for name, (version, why) in sorted(stale_up.items())
+            for name, (version, why) in sorted(stale_up_to_date_rules.items())
         ]
     else:
         lines.append("**All still apply.**")
@@ -364,12 +382,20 @@ def issue_body(results, broken, now, stale=None, stale_up=None):
     return "\n".join(lines)
 
 
-def publish(results, stale=None, stale_up=None, now=None):
+def publish(results, stale_ignore_rules=None, stale_up_to_date_rules=None, now=None):
     """Update the community rules' status issue with a run's results.
 
     The issue is in NIXKEEPER_GITHUB_REPO, or the workflow's own
     repository; a comment is posted when a rule newly breaks or works
     again. It needs a token given explicitly, never the local gh login.
+
+    Args:
+        results: run()'s results, {name: (version, why)}.
+        stale_ignore_rules: stale_ignores()' results: the ignore rules that
+            can go.
+        stale_up_to_date_rules: stale_up_to_date()'s results: the
+            up-to-date rules that can go.
+        now: The run's time, or None for now.
 
     Raises:
         Problem: There's no repository or no token.
@@ -398,7 +424,7 @@ def publish(results, stale=None, stale_up=None, now=None):
         repo,
         token,
         ISSUE_TITLE,
-        issue_body(results, broken, now, stale, stale_up),
+        issue_body(results, broken, now, stale_ignore_rules, stale_up_to_date_rules),
         comment,
         label=ISSUE_LABEL,
         about="The community rules' status, kept up to date by nixkeeper",

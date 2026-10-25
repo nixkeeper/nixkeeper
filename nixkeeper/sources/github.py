@@ -553,9 +553,11 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
 
 
 def count_warnings(rows):
-    """Return warnings about counts that are probably wrong, though no error says so.
+    """Return warnings about counts that look wrong.
 
-    add_counts (here and in github_bulk) says them as warnings (log.warn),
+    That's the searches that failed (those counts are blank), and every
+    PR count equal to its issue count (a token that can't see pull
+    requests). add_counts (here and in github_bulk) says them as warnings (log.warn),
     which show up as annotations on the workflow run.
 
     Returns:

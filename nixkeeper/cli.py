@@ -216,7 +216,8 @@ def settings(args):
 def paths(found):
     """Print where the lists, the data and the page are, and the notification method.
 
-    Each line also says where it comes from.
+    Each line also says where it comes from: a flag, a NIXKEEPER_* variable,
+    or the default.
     """
     for flag, label in (("lists", "lists"), ("data_dir", "data"), ("notify", "notify")):
         value, source = found[flag]
