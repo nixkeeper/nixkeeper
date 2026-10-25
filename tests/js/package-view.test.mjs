@@ -91,4 +91,28 @@ describe('fillUpdate', () => {
     assert.ok(!el.innerHTML.includes('<script>'));
     assert.equal(el.innerHTML.split('&lt;script&gt;alert(1)&lt;/script&gt;').length - 1, 3);
   });
+
+  test("an ignored attempt's reason, from the rule, written escaped", () => {
+    const bad = '<script>alert(1)</script>';
+    const el = {};
+    fillUpdate(
+      {
+        name: 'p',
+        nixVersion: '1.0',
+        update: {
+          outcome: 'superseded',
+          supersededOutcome: 'failed',
+          supersededOn: 'ignored',
+          date: '2026-10-01',
+          from: '1.0',
+          to: '2.0',
+          reason: bad,
+          log: 'https://nixpkgs-update-logs.nix-community.org/p/2026-10-01.log',
+        },
+      },
+      el,
+    );
+    assert.ok(!el.innerHTML.includes('<script>'));
+    assert.equal(el.innerHTML.split('&lt;script&gt;alert(1)&lt;/script&gt;').length - 1, 1);
+  });
 });

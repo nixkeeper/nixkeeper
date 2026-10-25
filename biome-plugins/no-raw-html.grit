@@ -12,7 +12,7 @@ or {
   `$el.outerHTML += $value`,
   `$el.insertAdjacentHTML($where, $value)`
 } as $write where {
-  $filename <: r".*/page/[^/]*\.js",
+  $filename <: r".*/page/.*\.m?js",
   not $filename <: r".*/page/logic\.js",
   register_diagnostic(span=$write, message="Write markup with setHtml or appendHtml (page/logic.js), which take only html`` or raw(): text from the data is escaped.")
 }
