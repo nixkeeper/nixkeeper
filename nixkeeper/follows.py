@@ -43,7 +43,7 @@ def recorded(rows):
 
 
 def pairs(rows, follows):
-    """Yield (follower's row, followed row) for each rule with both tracked.
+    """Yield the (follower, followed) rows for each rule with both tracked.
 
     A package that follows another follower is skipped: there are no chains.
     """

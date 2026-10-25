@@ -119,14 +119,18 @@ def add_lists(rows, names):
 def add_list_teams(rows, nixpkgs):
     """Add a nixpkgs team to the rows of a list named after it.
 
-    A named list with a team's name (compared as file names, as
-    naming.slug makes them: gaming for Gaming) joins that team. Its
-    packages count as the team's too: on the team's page (?team=Gaming), in
-    its counts and in the team filter, beside those nixpkgs lists under the
-    team (meta.teams). That's for packages a team looks after that nixpkgs
-    doesn't list it on. Teams a list adds are also in "teamsByList", so the
-    page can say where the team came from; a package on the team both ways
-    counts as nixpkgs'.
+    This is for packages a team looks after that nixpkgs doesn't list it
+    on:
+
+    - A named list with a team's name joins that team; the names are
+      compared as file names, as naming.slug makes them (gaming for
+      Gaming).
+    - Its packages count as the team's too, beside those nixpkgs lists
+      under the team (meta.teams): on the team's page (?team=Gaming), in
+      its counts and in the team filter.
+    - The teams a list adds also go in "teamsByList", so the page can say
+      where the team came from; a package on the team both ways counts as
+      nixpkgs'.
     """
     teams = {}
     for pkg in nixpkgs.values():
@@ -167,7 +171,7 @@ def every_package(nixpkgs, listed):
 
 
 def in_set(attrs, names):
-    """Return the set, of names, that all of attrs are in, or None.
+    """Return the set from names that every one of attrs belongs to, or None.
 
     An attribute's set is its first part, such as rPackages.
     """
