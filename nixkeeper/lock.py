@@ -16,6 +16,7 @@ from . import config, datastore
 
 
 def path(out_dir=None):
+    """Return the path of the data folder's lock file, beside the folder."""
     return os.path.abspath(config.data_dir(out_dir)) + ".lock"
 
 
