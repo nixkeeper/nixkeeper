@@ -134,6 +134,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   new code gave the same rows for 100,000 generated projects, and two
   syncs with every package, before and after, wrote the same 5,401 files.
 
+- The update bot's attempts are found and judged in two parts of
+  `sources/nixpkgs_update.py`, where one 166-line `add_attempts` did both:
+  `_Finder` finds each row's attempts (from the digest, the logs, or the
+  last sync when they aren't read), and `judge` decides what the latest
+  one means (superseded, ignored by a rule). Each is tested on its own,
+  without the logs. Nothing changes: the old and new code gave the same
+  rows and log lines for 20,000 generated runs, and two syncs with every
+  package, before and after, wrote the same 5,401 files.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

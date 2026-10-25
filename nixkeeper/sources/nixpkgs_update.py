@@ -877,6 +877,9 @@ def add_attempts(
     failed attempt is marked superseded when nixpkgs has moved past it, or
     when a manual rule ignores it.
 
+    Each row's attempts are found first (_Finder.find), then the latest is
+    judged (judge).
+
     Args:
         rows: The rows, changed in place.
         nixpkgs: The package index, by attribute.
@@ -898,129 +901,209 @@ def add_attempts(
     """
     ignored_updates = ignored_updates or {}
     print("Checking nixpkgs-update logs...", file=sys.stderr)
-    before = {row["name"]: row for row in previous["packages"]}
-    # When each package's logs last changed, in one request: those that
-    # haven't since the last sync listed them aren't listed again.
-    dates = directory_dates()
-    since = previous.get("checkedAt")
-    turns = (
-        bulk_turns(rows, nixpkgs, before, dates, since, bulk)
-        if bulk and digest is None
-        else set()
-    )
-    failed = consecutive = waited = from_digest = 0
+    finder = _Finder(rows, nixpkgs, previous, now, bulk, digest)
     for row in rows:
         attrs = [a for a in row["attrs"] if a in nixpkgs]
         if not attrs:
             continue  # not in nixpkgs: nothing for the bot to update
-        attempts = None
-        if row["name"] in bulk:
-            if row.get("set") and digest is None:
-                continue  # sets updated in bulk: the digest's attempts only
-            old = before.get(row["name"])
-            if digest is not None:
-                # The digest's last read attempts, even where it hasn't read
-                # the newest yet.
-                entries = [(a, digest.get(search_term(a))) for a in attrs]
-                attempts = [
-                    found
-                    for a, entry in entries
-                    if entry and (found := updates_digest.known(entry, a))
-                ]
-                from_digest += bool(attempts)
-                if not attempts and any(entry for _, entry in entries):
-                    waited += 1
-                    row["unread"] = ["update"]
-            elif row["name"] not in turns and (
-                dates is None or to_read(row, attrs, old, dates, since)
+        attempts = finder.find(row, attrs)
+        if attempts is not None:
+            judge(row, attempts, ignored_updates.get(row["name"]), community)
+    finder.report()
+
+
+class _Finder:
+    """Finds each row's attempts, from the digest, the logs or the last sync.
+
+    It holds what's read once for every row (the logs' dates, the bulk
+    rows' turns), and counts what it found, for report().
+    """
+
+    def __init__(self, rows, nixpkgs, previous, now, bulk, digest):
+        """Read what every row's search shares.
+
+        Args:
+            rows: The rows.
+            nixpkgs: The package index, by attribute.
+            previous: The last run's data.
+            now: The run's time.
+            bulk: The names of the rows not on the lists (add_attempts).
+            digest: The updates digest, or None.
+        """
+        self.now, self.bulk, self.digest = now, bulk, digest
+        self.before = {row["name"]: row for row in previous["packages"]}
+        # When each package's logs last changed, in one request: those that
+        # haven't since the last sync listed them aren't listed again.
+        self.dates = directory_dates()
+        self.since = previous.get("checkedAt")
+        self.turns = (
+            bulk_turns(rows, nixpkgs, self.before, self.dates, self.since, bulk)
+            if bulk and digest is None
+            else set()
+        )
+        self.failed = self.consecutive = self.waited = self.from_digest = 0
+
+    def find(self, row, attrs):
+        """Return the row's attempts, or None when the row is done with.
+
+        None when the row keeps the last sync's attempt (its turn hasn't
+        come, or its logs can't be read), or, in a set updated in bulk
+        without the digest, gets none.
+
+        Args:
+            row: The row; marked "unread" or not refreshed here when its
+                attempts aren't read.
+            attrs: The row's attributes in nixpkgs.
+        """
+        old = self.before.get(row["name"])
+        if row["name"] in self.bulk:
+            if self.digest is not None:
+                return self._known(row, attrs)
+            if row.get("set"):
+                return None  # sets updated in bulk: the digest's attempts only
+            if row["name"] not in self.turns and (
+                self.dates is None or to_read(row, attrs, old, self.dates, self.since)
             ):
-                waited += 1
-                row["update"] = with_bot_reason((old or {}).get("update"))
-                row["updateFailure"] = bool((old or {}).get("updateFailure"))
+                self.waited += 1
+                _keep(row, old)
                 row["unread"] = ["update"]
-                continue
-        if attempts is None:
-            down = consecutive >= config.UPDATE_LOGS_MAX_CONSECUTIVE_FAILURES
-            try:
-                if down:
-                    raise OSError("not asked: it didn't answer earlier lookups")
-                attempts, taken = read_attempts(
-                    attrs, before.get(row["name"]), dates, since, digest
-                )
-                from_digest += taken
-                consecutive = 0
-            except (urllib.error.URLError, OSError) as e:
-                failed += 1
-                consecutive += not down
-                if not down:
-                    print(f"  {row['name']}: {e}", file=sys.stderr)
-                old = before.get(row["name"], {})
-                row["update"] = with_bot_reason(old.get("update"))
-                row["updateFailure"] = bool(old.get("updateFailure"))
-                history.not_refreshed(
-                    row,
-                    "update",
-                    f"couldn't read the nixpkgs-update logs ({e})",
-                    old,
-                    now,
-                )
-                continue
-        attempt = with_bot_reason(max(attempts, key=lambda a: a["date"], default=None))
-        if (
-            attempt
-            and attempt.get("from") == UPDATE_SCRIPT
-            and "was" not in attempt
-            and row.get("nixVersion")
-        ):
-            attempt["was"] = row["nixVersion"]
-        # "master" comes from Hydra, read before this.
-        where = (
-            attempt
-            and attempt["outcome"] in SUPERSEDABLE
-            and superseded(attempt, row.get("nixVersion"), row.get("master"))
-        )
-        if where:
-            supersede(attempt, where)
-        elif attempt and (
-            reason := ignored(
-                attempt, ignored_updates.get(row["name"]), is_outdated(row)
+                return None
+        return self._read(row, attrs, old)
+
+    def _known(self, row, attrs):
+        """Return the digest's last read attempts at attrs.
+
+        Those are taken even where it hasn't read the newest yet; a row
+        with none read there is marked "unread".
+        """
+        entries = [(a, self.digest.get(search_term(a))) for a in attrs]
+        attempts = [
+            found
+            for a, entry in entries
+            if entry and (found := updates_digest.known(entry, a))
+        ]
+        self.from_digest += bool(attempts)
+        if not attempts and any(entry for _, entry in entries):
+            self.waited += 1
+            row["unread"] = ["update"]
+        return attempts
+
+    def _read(self, row, attrs, old):
+        """Return the attempts from the digest or the logs (read_attempts).
+
+        After UPDATE_LOGS_MAX_CONSECUTIVE_FAILURES failed lookups in a row,
+        the logs aren't asked again this sync. A row whose attempts can't
+        be read keeps the last sync's, marked not refreshed, and gets None.
+        """
+        down = self.consecutive >= config.UPDATE_LOGS_MAX_CONSECUTIVE_FAILURES
+        try:
+            if down:
+                raise OSError("not asked: it didn't answer earlier lookups")
+            attempts, taken = read_attempts(
+                attrs, old, self.dates, self.since, self.digest
             )
-        ):
-            supersede(attempt, "ignored")
-            attempt["reason"] = reason
-            if any(
-                (row["name"], v) in community and at_version(attempt, v)
-                for v in ignored_updates.get(row["name"]) or {}
-            ):
-                attempt["community"] = True
-        for version in ignored_updates.get(row["name"]) or {}:
-            # Community rules are listed by the community's own tidy-up
-            # (community-check), not here.
-            if (row["name"], version) in community:
-                continue
-            if not at_version(attempt, version):
-                print(
-                    f"::notice::ignoredUpdates.{row['name']}: the bot's latest "
-                    f"attempt isn't at {version} anymore; the rule can go",
-                    file=sys.stderr,
-                )
-        row["update"] = attempt
-        row["updateFailure"] = bool(attempt and attempt["outcome"] == "failed")
-    if failed:
-        print(
-            f"::warning::{failed} nixpkgs-update log lookups failed; those show "
-            "the previous run's result",
-            file=sys.stderr,
-        )
-    if digest is not None:
-        print(
-            f"  {from_digest:,} attempts from the updates digest"
-            + (f"; {waited:,} packages not read yet there" if waited else ""),
-            file=sys.stderr,
-        )
-    elif bulk:
-        print(
-            f"  {len(turns):,} packages not on the lists read (at most "
-            f"{config.UPDATE_LOGS_BUDGET:,} a sync); {waited:,} not read",
-            file=sys.stderr,
-        )
+        except (urllib.error.URLError, OSError) as e:
+            self.failed += 1
+            self.consecutive += not down
+            if not down:
+                print(f"  {row['name']}: {e}", file=sys.stderr)
+            _keep(row, old or {})
+            history.not_refreshed(
+                row,
+                "update",
+                f"couldn't read the nixpkgs-update logs ({e})",
+                old or {},
+                self.now,
+            )
+            return None
+        self.from_digest += taken
+        self.consecutive = 0
+        return attempts
+
+    def report(self):
+        """Say in the log what couldn't be read, and where attempts came from."""
+        if self.failed:
+            print(
+                f"::warning::{self.failed} nixpkgs-update log lookups failed; "
+                "those show the previous run's result",
+                file=sys.stderr,
+            )
+        if self.digest is not None:
+            print(
+                f"  {self.from_digest:,} attempts from the updates digest"
+                + (
+                    f"; {self.waited:,} packages not read yet there"
+                    if self.waited
+                    else ""
+                ),
+                file=sys.stderr,
+            )
+        elif self.bulk:
+            print(
+                f"  {len(self.turns):,} packages not on the lists read (at most "
+                f"{config.UPDATE_LOGS_BUDGET:,} a sync); {self.waited:,} not read",
+                file=sys.stderr,
+            )
+
+
+def _keep(row, old):
+    """Give row the last sync's attempt, as it isn't read this time.
+
+    Args:
+        row: The row, changed in place.
+        old: The row in the last sync's data, or None.
+    """
+    row["update"] = with_bot_reason((old or {}).get("update"))
+    row["updateFailure"] = bool((old or {}).get("updateFailure"))
+
+
+def judge(row, attempts, rules=None, community=()):
+    """Give row the latest of attempts, judged by nixpkgs' state and the rules.
+
+    A failed attempt is superseded where nixpkgs has moved past it
+    (superseded: "master" comes from Hydra, read before this), or else when
+    one of rules ignores it (ignored). A rule that no longer matches the
+    latest attempt is said in the log, as it can go, unless it's a
+    community rule (community-check lists those).
+
+    Args:
+        row: The row, changed in place: "update" and "updateFailure".
+        attempts: The row's attempts, one per attribute the bot tried.
+        rules: {version: reason}, the row's ignored updates, or None.
+        community: The (row name, version) pairs of rules that are
+            community rules.
+    """
+    rules = rules or {}
+    attempt = with_bot_reason(max(attempts, key=lambda a: a["date"], default=None))
+    if (
+        attempt
+        and attempt.get("from") == UPDATE_SCRIPT
+        and "was" not in attempt
+        and row.get("nixVersion")
+    ):
+        attempt["was"] = row["nixVersion"]
+    where = (
+        attempt
+        and attempt["outcome"] in SUPERSEDABLE
+        and superseded(attempt, row.get("nixVersion"), row.get("master"))
+    )
+    if where:
+        supersede(attempt, where)
+    elif attempt and (reason := ignored(attempt, rules, is_outdated(row))):
+        supersede(attempt, "ignored")
+        attempt["reason"] = reason
+        if any((row["name"], v) in community and at_version(attempt, v) for v in rules):
+            attempt["community"] = True
+    for version in rules:
+        # Community rules are listed by the community's own tidy-up
+        # (community-check), not here.
+        if (row["name"], version) in community:
+            continue
+        if not at_version(attempt, version):
+            print(
+                f"::notice::ignoredUpdates.{row['name']}: the bot's latest "
+                f"attempt isn't at {version} anymore; the rule can go",
+                file=sys.stderr,
+            )
+    row["update"] = attempt
+    row["updateFailure"] = bool(attempt and attempt["outcome"] == "failed")

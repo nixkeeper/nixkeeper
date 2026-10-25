@@ -842,6 +842,171 @@ class AddAttempts(unittest.TestCase):
         self.assertIn("down", rows[0]["notRefreshed"]["update"]["reason"])
 
 
+class Judge(unittest.TestCase):
+    """Judging a row's attempts, once they're found (no logs read)."""
+
+    def setUp(self):
+        self.stderr = io.StringIO()
+        patcher = mock.patch("sys.stderr", self.stderr)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def judge(self, attempts, rules=None, community=(), **row):
+        row = {"name": "egoboo", "nixVersion": "2.7.3", **row}
+        nixpkgs_update.judge(row, attempts, rules, community)
+        return row
+
+    def failed(self, date="2026-09-15", **extra):
+        return {
+            "attr": "egoboo",
+            "date": date,
+            "outcome": "failed",
+            "was": "2.7.3",
+            "to": "2.8.1",
+            **extra,
+        }
+
+    def test_the_latest_attempt_counts(self):
+        older = {**self.failed("2026-09-01"), "outcome": "prOpened"}
+        row = self.judge([older, self.failed()])
+        self.assertEqual(row["update"]["date"], "2026-09-15")
+        self.assertTrue(row["updateFailure"])
+
+    def test_none_tried(self):
+        row = self.judge([])
+        self.assertEqual((row["update"], row["updateFailure"]), (None, False))
+
+    def test_superseded_where_nixpkgs_moved_on(self):
+        row = self.judge([self.failed()], nixVersion="2.8.1")
+        self.assertEqual(row["update"]["supersededOn"], "nixos-unstable")
+        row = self.judge([self.failed()], master="2.8.1")
+        self.assertEqual(row["update"]["supersededOn"], "master")
+        self.assertFalse(row["updateFailure"])
+
+    def test_ignored_by_a_rule(self):
+        rules = {"2.8.1": "Never released."}
+        row = self.judge([self.failed()], rules)
+        update = row["update"]
+        self.assertEqual(
+            (update["supersededOn"], update["reason"]), ("ignored", "Never released.")
+        )
+        self.assertNotIn("community", update)
+        row = self.judge([self.failed()], rules, {("egoboo", "2.8.1")})
+        self.assertTrue(row["update"]["community"])
+        # Moved on counts first: no reason given.
+        row = self.judge([self.failed()], rules, nixVersion="2.8.1")
+        self.assertEqual(row["update"]["supersededOn"], "nixos-unstable")
+        self.assertNotIn("reason", row["update"])
+
+    def test_a_rule_that_no_longer_matches_can_go(self):
+        self.judge([self.failed()], {"2.8.0": "Never released."})
+        self.assertIn("ignoredUpdates.egoboo", self.stderr.getvalue())
+        # Unless it's a community rule: community-check lists those.
+        self.stderr.truncate(0)
+        self.judge([self.failed()], {"2.8.0": "x"}, {("egoboo", "2.8.0")})
+        self.assertEqual(self.stderr.getvalue(), "")
+
+    def test_the_bots_own_failure_says_so(self):
+        # Read before the "bot" reason was: its excerpt holds the error.
+        nixbld = "error: the build users group 'nixbld' has no members"
+        row = self.judge([self.failed(failedBecause="build", excerpt=[nixbld])])
+        self.assertEqual(row["update"]["failedBecause"], "bot")
+
+    def test_an_update_script_gets_what_nixpkgs_had(self):
+        script = {"attr": "egoboo", "date": "2026-09-15", "outcome": "noUpdate"}
+        script |= {"from": "0", "to": "1"}
+        row = self.judge([script])
+        self.assertEqual(row["update"]["was"], "2.7.3")
+
+
+class Finder(unittest.TestCase):
+    """Finding a row's attempts: where from, and what's kept when not read."""
+
+    def setUp(self):
+        self.stderr = io.StringIO()
+        for patcher in (
+            mock.patch("sys.stderr", self.stderr),
+            mock.patch.object(nixpkgs_update, "directory_dates", return_value={}),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.old = {
+            "name": "egoboo",
+            "update": {"attr": "egoboo", "date": "2026-09-01", "outcome": "failed"},
+            "updateFailure": True,
+        }
+        self.row = {"name": "egoboo", "attrs": ["egoboo"]}
+
+    def finder(self, bulk=frozenset(), digest=None):
+        previous = {"packages": [self.old], "checkedAt": NOW}
+        return nixpkgs_update._Finder(
+            [self.row], {"egoboo": {}}, previous, NOW, bulk, digest
+        )
+
+    def test_read_from_the_logs(self):
+        found = [{"attr": "egoboo", "date": "2026-09-15", "outcome": "failed"}]
+        with mock.patch.object(
+            nixpkgs_update, "read_attempts", return_value=(found, 0)
+        ):
+            self.assertEqual(self.finder().find(self.row, ["egoboo"]), found)
+
+    def test_unreadable_keeps_the_last_syncs(self):
+        with mock.patch.object(
+            nixpkgs_update, "read_attempts", side_effect=OSError("down")
+        ):
+            finder = self.finder()
+            self.assertIsNone(finder.find(self.row, ["egoboo"]))
+        self.assertEqual(self.row["update"], self.old["update"])
+        self.assertTrue(self.row["updateFailure"])
+        self.assertIn("update", self.row["notRefreshed"])
+        self.assertEqual(finder.failed, 1)
+        # Its reason too, as when judged.
+        nixbld = "error: the build users group 'nixbld' has no members"
+        self.old["update"] |= {"failedBecause": "build", "excerpt": [nixbld]}
+        with mock.patch.object(
+            nixpkgs_update, "read_attempts", side_effect=OSError("down")
+        ):
+            self.finder().find(self.row, ["egoboo"])
+        self.assertEqual(self.row["update"]["failedBecause"], "bot")
+
+    def test_stops_asking_after_failures_in_a_row(self):
+        rows = [{"name": f"p{i}", "attrs": [f"p{i}"]} for i in range(5)]
+        limit = config.UPDATE_LOGS_MAX_CONSECUTIVE_FAILURES
+        with mock.patch.object(
+            nixpkgs_update, "read_attempts", side_effect=OSError("down")
+        ) as read:
+            finder = self.finder()
+            for row in rows + [self.row] * limit:
+                finder.find(row, row["attrs"])
+        self.assertEqual(read.call_count, limit)
+        self.assertIn("not asked", self.row["notRefreshed"]["update"]["reason"])
+
+    def test_in_bulk_from_the_digest(self):
+        attempt = {"date": "2026-09-15", "outcome": "failed", "started": "x"}
+        finder = self.finder({"egoboo"}, {"egoboo": {"attempt": attempt}})
+        (found,) = finder.find(self.row, ["egoboo"])
+        self.assertEqual(found["date"], "2026-09-15")
+        self.assertNotIn("unread", self.row)
+        # Listed there, but none read yet: unread.
+        finder = self.finder({"egoboo"}, {"egoboo": {"pending": True}})
+        self.assertEqual(finder.find(self.row, ["egoboo"]), [])
+        self.assertEqual(self.row["unread"], ["update"])
+
+    def test_in_bulk_waiting_its_turn_keeps_the_last_syncs(self):
+        finder = self.finder({"egoboo"})
+        finder.turns = set()
+        with mock.patch.object(nixpkgs_update, "to_read", return_value=True):
+            self.assertIsNone(finder.find(self.row, ["egoboo"]))
+        self.assertEqual(self.row["update"], self.old["update"])
+        self.assertEqual(self.row["unread"], ["update"])
+        self.assertEqual(finder.waited, 1)
+
+    def test_a_set_in_bulk_without_the_digest_gets_nothing(self):
+        self.row["set"] = "haskellPackages"
+        self.assertIsNone(self.finder({"egoboo"}).find(self.row, ["egoboo"]))
+        self.assertNotIn("update", self.row)
+
+
 class ReuseLogs(unittest.TestCase):
     """A sync reads a log once: next time, if the bot's latest attempt is the
     same (same attribute and date, read by the same rules), it takes the

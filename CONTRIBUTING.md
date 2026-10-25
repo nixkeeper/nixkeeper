@@ -204,6 +204,11 @@ Around that:
   `meta.json`, its other files or a file that describes itself, checking
   its format and age, and giving up on it when it can't be read or is too
   old (the note for the sources panel, the warning)
+- `sources/nixpkgs_update.py`: the update bot's attempts, in two parts.
+  `_Finder` finds each row's (from the updates digest, the logs, or the
+  last sync's when the row isn't read this time); `judge` then decides
+  what the latest means, from nixpkgs' state and the rules (superseded,
+  ignored), and needs no network to test
 - `frequent.py`, `prcheck.py`: the hourly checks, which start from the last
   published data and publish through `partial.py` only when a row changed
 
