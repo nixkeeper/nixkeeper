@@ -439,7 +439,10 @@ def add_facts(rows, digest):
         pr = row.get("openPR")
         if pr and (theirs := found["prs"].get(pr["number"])):
             pr["facts"] = dict(theirs)
-        keys = {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
+        # Sorted, so every loop over them goes in the same order in every run.
+        keys = sorted(
+            {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
+        )
         # The update PR is said once: as the update PR, which touches the
         # failing build too, not again among the fixes.
         if pr and any(
@@ -450,7 +453,7 @@ def add_facts(rows, digest):
             pr.setdefault("facts", {})["fixesBuild"] = True
         for field, source in (("fixPRs", "fixes"), ("issueChecks", "issues")):
             items, seen = [], {pr["number"]} if pr and field == "fixPRs" else set()
-            for key in sorted(keys):
+            for key in keys:
                 for item in found[source].get(key, []):
                     if item["number"] not in seen:
                         seen.add(item["number"])
@@ -488,27 +491,30 @@ def add_facts(rows, digest):
 def _other_prs(open_prs, keys, said):
     """Collect a row's other open PRs, once each, from its names' lists.
 
-    A PR touching several of the row's names is listed under each, and only
-    the copy under the package its title names carries "kind" and "proposed"
-    (facts). The fullest copy is kept, so the result doesn't depend on the
-    order of keys: a set's order changes from one process to the next, and
-    a row could otherwise lose its "being removed" PR at random
-    (segger-jlink, with segger-jlink-headless, 2026-10-25).
+    A PR touching several of the row's names is listed under each, and the
+    copies differ: facts gives "kind" and "proposed" only to the copy under
+    the package the PR's title names, so a removal isn't shown as removing
+    the other packages it touches. Every copy of a PR is merged, in the
+    names' sorted order, so a fact one copy has is kept and the result
+    doesn't depend on any order. It once kept the last copy met in a set,
+    whose order changes from one run to the next, and segger-jlink (with
+    segger-jlink-headless) lost and regained its "being removed" PR between
+    syncs (2026-10-25).
 
     Args:
         open_prs: The digest's open PRs by package (facts' "open").
-        keys: The row's names (package_key), in any order.
+        keys: The row's names (package_key).
         said: The numbers of the PRs already shown (the update PR, the fixes).
 
     Returns:
-        {number: PR}, one copy of each.
+        {number: PR}, each PR's copies merged into one.
     """
     others = {}
-    for key in keys:
+    for key in sorted(keys):
         for item in open_prs.get(key, []):
             number = item["number"]
-            if number not in said and len(item) >= len(others.get(number, {})):
-                others[number] = item
+            if number not in said:
+                others[number] = {**others.get(number, {}), **item}
     return others
 
 
@@ -767,7 +773,10 @@ def build_fix_prs(rows, merged, previous):
             and b["version"] != b["lastSuccessVersion"]
         }
         since = row.get("failingSince") or ""
-        keys = {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
+        # Sorted, so every loop over them goes in the same order in every run.
+        keys = sorted(
+            {package_key(a) for a in [row["name"], *(row.get("attrs") or [])]}
+        )
         found, causes = [], []
         for key in keys:
             for pr in touching.get(key, []):

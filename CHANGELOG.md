@@ -124,7 +124,8 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   PR at random from one sync to the next: the row kept whichever copy of
   the PR it met last, in an order that changes between runs, and only the
   copy under the package the PR's title names says it's a removal. The
-  fullest copy is kept now.
+  PR's copies are merged now, so its facts are kept from whichever copy
+  has them.
 
 - While a sync writes the data folder, the data is missing only for the
   moment between two renames, rather than while the old folder is
