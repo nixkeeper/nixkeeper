@@ -1,4 +1,12 @@
-"""Turning Repology projects into the page's rows."""
+"""Turn Repology projects into the page's rows.
+
+A row is one package as the page shows it: its version in nixpkgs, its
+status, the version it's compared with ("refVersion"), and what nixpkgs'
+package index says about it (platforms, maintainers, teams, ...). Most of
+this module decides that comparison, correcting Repology's verdict where it
+doesn't fit nixpkgs: older series kept beside newer ones, snapshots,
+commits, and nixpkgs' own release channels.
+"""
 
 import hashlib
 import os
@@ -17,8 +25,11 @@ from .versions import (
 
 
 def search_term(attr):
-    """What the GitHub PR/issue searches look for: the attribute name, with
-    versioned sets under the alias nixpkgs titles use."""
+    """Return what the GitHub PR and issue searches look for, for attr.
+
+    That's the attribute name, except that versioned sets are written with
+    the alias nixpkgs uses in PR titles (config.SEARCH_ALIASES).
+    """
     for pattern, alias in config.SEARCH_ALIASES:
         attr = pattern.sub(alias, attr)
     return attr
@@ -32,10 +43,17 @@ DEVEL_NAME = re.compile(
 
 
 def name_blockers(rows):
-    """Each dependency-failed build's blockedBy (the digest's: attributes,
-    or store names no job builds) as the page links them: [{"name": the
-    row named by that attribute, or the attribute or name as it is,
-    "row": true when it's a row}]."""
+    """Turn each dependency-failed build's blockedBy into the page's links.
+
+    The Hydra digest names the blocking dependencies by attribute, or by
+    store name when no job builds them. One that is a row's attribute
+    becomes {"name": the row's name, "row": True}; any other, {"name": the
+    attribute or store name as it is}. Builds already converted are left as
+    they are.
+
+    Args:
+        rows: Every row. Their builds are changed in place.
+    """
     by_attr = {a: row["name"] for row in rows for a in row.get("attrs") or []}
     for row in rows:
         for build in row.get("builds") or []:
@@ -47,28 +65,44 @@ def name_blockers(rows):
 
 
 def row_name(attrs):
-    """The attribute a row is named after: the first top-level one, else the
-    first (cmake, not azure-sdk-for-cpp.cmake, a set passing it on)."""
+    """Return the attribute a row is named after.
+
+    That's the first top-level attribute in sorted order, else the first
+    one: cmake, not azure-sdk-for-cpp.cmake (a set passing cmake on).
+    """
     return min(attrs, key=lambda a: ("." in a, a))
 
 
 def project_rows(proj, nixpkgs):
-    """Rows for one Repology project: normally one, but one per version when
-    the tracked nixpkgs variants differ (wesnoth / wesnoth-devel). Variants
-    sharing a version (heroic / heroic-unwrapped) stay one row."""
+    """Make the rows for one Repology project.
+
+    Usually there's one row. When the nixpkgs attributes the lists track
+    have different versions (wesnoth and wesnoth-devel), there's one row
+    per version; attributes sharing a version (heroic and heroic-unwrapped)
+    share a row.
+
+    Args:
+        proj: The project as looked up (by lookup), with "entries",
+            "attrs" and "name".
+        nixpkgs: The package index, by attribute.
+
+    Returns:
+        The rows.
+    """
     entries = proj["entries"]
     nix_all = [e for e in entries if e.get("repo") == config.NIX_REPO]
     others = [e for e in entries if e.get("repo") != config.NIX_REPO]
 
-    groups = {}  # version -> nix entries of tracked attrs
+    groups = {}  # {version: the nixpkgs entries of the tracked attributes}
     for e in nix_all:
         if e.get("srcname") in proj["attrs"]:
             groups.setdefault(e.get("version"), []).append(e)
     if len(groups) < 2:
         nix = next(iter(groups.values()), nix_all)[:1]
         attrs = sorted(proj["attrs"])
-        # Named after its nixpkgs attribute, like the lists and GitHub searches;
-        # the list entry itself when nixpkgs doesn't have it.
+        # Named after its nixpkgs attribute, as the lists and the GitHub
+        # searches name it, or after the list's entry when nixpkgs doesn't
+        # have it.
         name = row_name(attrs) if attrs else proj["name"]
         return [
             make_row(
@@ -76,14 +110,15 @@ def project_rows(proj, nixpkgs):
             )
         ]
 
-    # Stable first: the variant Repology calls newest, else the shortest
-    # attr (wesnoth before wesnoth-devel); in a project of kept series only
-    # (coq's, once its current one moved to rocq), the newest version
-    # (coq_8_20, not coq_8_7: else every newer series was a devel variant,
-    # behind). The rest are devel variants, compared
-    # against devel versions, when they're newer than it or named so
-    # (wesnoth-devel, _1password-gui-beta); otherwise older versions kept
-    # beside it (gnumake42, php82Extensions.zip).
+    # The stable variant comes first: the one Repology calls newest, else
+    # the one with the shortest attribute (wesnoth before wesnoth-devel). In
+    # a project whose versions are all kept series (coq's, once its current
+    # series moved to rocq), the newest version comes first instead
+    # (coq_8_20, not coq_8_7); otherwise every newer series would be a devel
+    # variant, behind. The other groups are devel variants, compared with
+    # devel versions, when they're newer than the stable one or named as one
+    # (wesnoth-devel, _1password-gui-beta); otherwise they're older versions
+    # kept beside it (gnumake42, php82Extensions.zip).
     ordered = sorted(
         groups.values(),
         key=lambda g: (
@@ -111,27 +146,42 @@ def project_rows(proj, nixpkgs):
     return rows
 
 
+# A version's parts: runs of letters or of digits.
 VERSION_PART = re.compile(r"[A-Za-z]+|[0-9]+")
-WORD = re.compile(r"[A-Za-z]+")
-# Build metadata, not a newer release (jdk 21.0.12+8.2 beside 21.0.12.1+1).
+# Build metadata, which doesn't make a release newer (jdk's 21.0.12+8.2
+# beside 21.0.12.1+1).
 BUILD = re.compile(r"\+.*")
-# Statuses a version counts by in its series: not one Repology distrusts,
-# can't order, or a rolling one (3.13.9999).
+# The Repology statuses a version needs to count in its series: not one
+# Repology distrusts or can't order, nor a rolling one (3.13.9999).
 SERIES_STATUSES = {"newest", "outdated", "legacy", "unique"}
-# Distributions that must have a version in a kept series for it to count,
-# as it makes the package outdated (repositories named alike are one:
-# debian_13 and debian_unstable): one alone is often its own packaging (eigen2 2.0.55,
-# firebird 4.0.7.3271 in EPEL).
+# How many distributions must have a version for it to count in a kept
+# series, as it would make the package outdated. Repositories named alike
+# are one distribution (debian_13 and debian_unstable). A version in one
+# alone is often its own packaging (eigen2 2.0.55, firebird 4.0.7.3271 in
+# EPEL).
 SERIES_REPOS = 2
-# In a series named by its first part alone, the next part more than doubled
-# and this: another numbering (zulu17 17.68.203 for 17.0.19) or the next
-# major's previews (gimp2 2.99.10 for 2.10.38), not 535.309 for 535.288.
+# In a series named by its first part alone, a second part more than twice
+# the version's plus this is another numbering (zulu17's 17.68.203 for
+# 17.0.19) or the next major version's previews (gimp2's 2.99.10 for
+# 2.10.38), not a release of the series. 535.309 for 535.288 still counts.
 SERIES_JUMP = 5
 
 
 def named_parts(name, parts):
-    """How many of a version's numeric parts the attribute's trailing digits
-    spell (python313: 2, glew_1_10: 2, icu60: 1, sbcl_2_4_6: 3), else 0."""
+    """Return how many of a version's numbers the attribute's name spells.
+
+    The trailing digits of the attribute's last part are matched against
+    the version's numbers: python313 spells 2 (3.13), glew_1_10 2, icu60 1,
+    sbcl_2_4_6 3.
+
+    Args:
+        name: The attribute.
+        parts: The version's parts (plain_version).
+
+    Returns:
+        How many numbers, or 0 when the digits don't spell the version's
+        start.
+    """
     m = re.search(r"[0-9][0-9_]*$", name.rsplit(".", 1)[-1])
     if not m:
         return 0
@@ -147,14 +197,17 @@ def named_parts(name, parts):
 
 
 def plain_version(version):
-    """version without release words or build metadata (4.5.1-stable: 4.5.1,
-    21.0.12.1+1: 21.0.12.1), as parts."""
+    """Split version into parts, without release words or build metadata.
+
+    4.5.1-stable gives ["4", "5", "1"], and 21.0.12.1+1 gives ["21", "0",
+    "12", "1"].
+    """
     return VERSION_PART.findall(BUILD.sub("", without_release_words(version)))
 
 
 # What a distribution's snapshot adds to the release it follows: a date,
-# maybe with a word and a commit (0.3.0.20240120, 1.2.0+20251126,
-# 1.04-20190106, 2.1-git20240301.abc1234).
+# maybe with a word before it and a commit after (0.3.0.20240120,
+# 1.2.0+20251126, 1.04-20190106, 2.1-git20240301.abc1234).
 SNAPSHOT_ADDED = re.compile(
     r"[-_.+~]?(?:git|svn|hg|snapshot|p|r)?[-_.+~]?"
     r"20[0-9]{2}(?:0[1-9]|1[0-2])(?:[0-2][0-9]|3[01])(?:[-_.+]?[0-9a-f]{4,12})?",
@@ -163,11 +216,14 @@ SNAPSHOT_ADDED = re.compile(
 
 
 def snapshot_only(version, newest, others):
-    """Whether newest is only a distribution's snapshot of version: version
-    with a date added, in one distribution and no upstream index (mintotp's
-    0.3.0.20240120, SlackBuilds' only). Not when PyPI or the like has it
-    (iso4217's 1.16.20260101 is a release), nor when several distributions
-    do (fcitx5-pinyin-zhwiki's 0.3.0.20260416: the dictionary's date)."""
+    """Return whether newest is only a distribution's snapshot of version.
+
+    That's version with a date added, in one distribution only and in no
+    upstream index (mintotp's 0.3.0.20240120, in SlackBuilds alone). Not
+    when PyPI or another upstream index has it (iso4217's 1.16.20260101 is
+    a release), nor when several distributions do (fcitx5-pinyin-zhwiki's
+    0.3.0.20260416: the date is the dictionary's).
+    """
     if not version or not newest.startswith(version):
         return False
     if not SNAPSHOT_ADDED.fullmatch(newest[len(version) :]):
@@ -180,25 +236,37 @@ def snapshot_only(version, newest, others):
     )
 
 
-# nixpkgs' spelling of a snapshot of a date, with nothing (or 0) before it:
-# unstable-2022-10-20, 0-unstable-2012-12-08.
+# nixpkgs' spelling of a snapshot version, with nothing (or 0) before the
+# date: unstable-2022-10-20, 0-unstable-2012-12-08.
 NIX_SNAPSHOT = re.compile(r"(?:0-)?unstable-([0-9]{4}-[0-9]{2}-[0-9]{2})")
 
 
 def same_snapshot(version, newest):
-    """Whether newest is only another spelling of nixpkgs' snapshot version:
-    the date alone (gawkextlib.csv's unstable-2022-10-20, which nixpkgs'
-    older channels spelled 2022-10-20, and Repology ranks above it)."""
+    """Return whether newest is another spelling of nixpkgs' snapshot version.
+
+    That's the date alone: gawkextlib.csv's unstable-2022-10-20, which
+    nixpkgs' older channels spelled 2022-10-20, and which Repology ranks
+    above it.
+    """
     match = NIX_SNAPSHOT.fullmatch(version or "")
     return bool(match) and match[1] == newest
 
 
 def old_channels(others):
-    """The nixpkgs release channels among others older than the newest one
-    there (nix_stable_25_11 beside nix_stable_26_05): they get no updates
-    anymore, so a version only they have isn't a release nixpkgs is behind.
-    The newest can be ahead of unstable for real, a backport landing there
-    first (msedgedriver)."""
+    """Return the nixpkgs release channels in others older than the newest.
+
+    The older channels (nix_stable_25_11 beside nix_stable_26_05) get no
+    more updates, so a version only they have isn't a release nixpkgs is
+    behind. The newest channel isn't among them: it can be ahead of
+    unstable for real, when a backport lands there first (msedgedriver).
+
+    Args:
+        others: The project's entries from repositories other than nixpkgs
+            unstable.
+
+    Returns:
+        The channels' repository names.
+    """
     channels = {
         e.get("repo", "") for e in others if e.get("repo", "").startswith("nix_stable_")
     }
@@ -211,10 +279,12 @@ COMMIT = re.compile(r"rev=[0-9a-f]{7,40}")
 
 
 def commit_only(version, newest):
-    """Whether version and newest differ only by the commit they name:
-    hashes have no order, so newest isn't newer (Repology ranks them as
-    letters: nvim-treesitter-parsers.liquid's rev=e45dbac below 26.05's
-    rev=9566ca7)."""
+    """Return whether version and newest differ only by the commit they name.
+
+    Commit hashes have no order, so newest isn't newer. Repology compares
+    them as letters: nvim-treesitter-parsers.liquid's rev=e45dbac ranks
+    below 26.05's rev=9566ca7.
+    """
     return (
         bool(version and newest)
         and version != newest
@@ -223,18 +293,29 @@ def commit_only(version, newest):
     )
 
 
-# nixpkgs' version for a package it doesn't build in its default
-# configuration (cudaPackages.cuda_compat, for the CUDA it defaults to).
+# The version nixpkgs gives a package it doesn't build in its default
+# configuration (cudaPackages.cuda_compat, for the CUDA version it defaults
+# to).
 UNSUPPORTED = "0-unsupported"
 
 
 def ignored_channels(nix_version, others):
-    """The nixpkgs release channels among others whose versions don't count
-    as releases: the old ones (old_channels); and all of them when an
-    upstream index (PyPI, CRAN, ...) has nixpkgs' own version, as it says
-    what's released (python3Packages.azure-ai-vision-imageanalysis: PyPI's
-    1.0.0, nixpkgs unstable's; 25.11 and 26.05 still have 39.0.0, a mistake
-    unstable reverted)."""
+    """Return the nixpkgs release channels whose versions don't count.
+
+    Usually that's the old ones (old_channels). When an upstream index
+    (PyPI, CRAN, ...) has nixpkgs' own version, it's all of them, as the
+    index says what's released: python3Packages.azure-ai-vision-
+    imageanalysis is 1.0.0 on PyPI and in nixpkgs unstable, while 25.11 and
+    26.05 still have 39.0.0, a mistake unstable reverted.
+
+    Args:
+        nix_version: nixpkgs unstable's version.
+        others: The project's entries from repositories other than nixpkgs
+            unstable.
+
+    Returns:
+        The channels' repository names.
+    """
     if any(
         e.get("repo") in config.UPSTREAM_INDEXES and e.get("version") == nix_version
         for e in others
@@ -248,21 +329,37 @@ def ignored_channels(nix_version, others):
 
 
 def own_version_only(version, nix_version, others):
-    """Whether only ignored nixpkgs channels (ignored_channels) have version
-    among others: nixpkgs' own earlier version, not a release. A numbering
+    """Return whether only ignored nixpkgs channels have version.
+
+    Such a version is nixpkgs' own earlier one, not a release: a numbering
     nixpkgs has changed since (yaziPlugins' 25.5.31-unstable-2025-06-18,
-    before 0-unstable-2026-09-30); a mistake, since reverted (azure's
-    39.0.0)."""
+    before 0-unstable-2026-09-30), or a mistake since reverted (azure's
+    39.0.0).
+
+    Args:
+        version: The version nixpkgs is compared with.
+        nix_version: nixpkgs unstable's version.
+        others: The project's entries from repositories other than nixpkgs
+            unstable.
+    """
     repos = {e.get("repo", "") for e in others if e.get("version") == version}
     return bool(repos) and repos <= ignored_channels(nix_version, others)
 
 
 def not_packaging(families):
-    """The versions of families ({version: the distributions that have
-    it}) that aren't only a packaging of another: one adding a part to
-    another in as many distributions or more (Chocolatey's ruby 3.4.11.1
-    beside 3.4.11, Baulk's curl 8.23.0.1 beside 8.23.0, AUR's rakudo
-    2026.09_01 beside 2026.09)."""
+    """Return the versions that aren't only a packaging of another version.
+
+    A version is a packaging when it adds a part (after ".", "_" or "-") to
+    another version that as many distributions or more have: Chocolatey's
+    ruby 3.4.11.1 beside 3.4.11, Baulk's curl 8.23.0.1 beside 8.23.0, AUR's
+    rakudo 2026.09_01 beside 2026.09.
+
+    Args:
+        families: {version: the distributions that have it}.
+
+    Returns:
+        The other versions.
+    """
     return [
         v
         for v, f in families.items()
@@ -277,18 +374,39 @@ def not_packaging(families):
 
 
 def series_ref(name, version, entries, others, kept=False):
-    """The newest release in version's own series, when nixpkgs has a newer
-    series of the same project (another attribute: python315 beside
-    python313) and it's newer than version; else None. The series: the
-    versions sharing version's parts up to the first where it differs from
-    the next newer series in nixpkgs (3.13 for 3.13.15 beside 3.15.0), or as
-    many as the attribute names (electron_40: 40); for a kept one (kept),
-    of three parts or more and not named, at least two (tcl 8.6.16 beside
-    9.0: 8.6, not 8.7). Not for a snapshot, nor an attribute naming the
-    whole version (sbcl_2_4_6). Counted: releases besides nixpkgs' (for a
-    kept one, in two distributions or more), in version's shape, not
-    pre-releases, nor ones adding words, a part (14.24.4 for 14.24, but
-    26.08.1 for 26.08) or a revision (1.91.0-1)."""
+    """Return the newest release in version's own series, or None.
+
+    This is for an older series nixpkgs keeps beside a newer series of the
+    same project, under another attribute (python313 beside python315). The
+    older one is compared within its series: python313's 3.13.15 with
+    3.13.16, not with Python's newest.
+
+    The series is the versions sharing version's parts up to the first part
+    where it differs from nixpkgs' next newer series (3.13 for 3.13.15
+    beside 3.15.0), or as many parts as the attribute's name spells
+    (electron_40: 40), whichever is more. For a kept series (kept) of three
+    numbers or more whose name spells none, it's at least two parts (tcl
+    8.6.16 beside 9.0: the series is 8.6, so 8.7 isn't in it). There's no
+    series for a snapshot, nor when the name spells the whole version
+    (sbcl_2_4_6).
+
+    The releases counted are those of repositories outside nixpkgs (for a
+    kept series, those two distributions or more have), in version's shape.
+    Pre-releases don't count, nor versions that add words, a revision
+    (1.91.0-1), or, to a version of three numbers or more, a further part
+    (for 26.08, 26.08.1 still counts).
+
+    Args:
+        name: The row's attribute.
+        version: nixpkgs' version.
+        entries: The project's Repology entries, nixpkgs' included.
+        others: The entries from repositories other than nixpkgs unstable.
+        kept: Whether version is a kept series (config.KEPT).
+
+    Returns:
+        The newest release counted, when it's newer than version; else
+        None.
+    """
     if not version or UNSTABLE.search(version):
         return None
     newer = [
@@ -302,11 +420,11 @@ def series_ref(name, version, entries, others, kept=False):
     if not newer:
         return None
     mine = plain_version(version)
-    # The next series: of nixpkgs' newer versions, preferably one whose first
-    # part differs, not a newer release of version's own series packaged
-    # another way (thunderbird-esr-bin's 153.5.0 beside thunderbird-153's
-    # 153.4.0 made its series 153.4, missing 153.5.1, 2026-10-23); else the
-    # nearest (python313 beside python314).
+    # The next series: of nixpkgs' newer versions, preferably one whose
+    # first part differs, rather than a newer release of version's own
+    # series packaged another way (thunderbird-esr-bin's 153.5.0 beside
+    # thunderbird-153's 153.4.0 made the series 153.4, missing 153.5.1,
+    # 2026-10-23). Otherwise the nearest (python314 beside python313).
     apart = [v for v in newer if VERSION_PART.findall(v)[:1] != mine[:1]]
     sibling = VERSION_PART.findall(min(apart or newer, key=version_key))
     at = next(
@@ -354,8 +472,8 @@ def series_ref(name, version, entries, others, kept=False):
         added = release[len(ours) : len(ours) + 1]
         if release.startswith(ours) and added and added in "-_" + "." * (numbers >= 3):
             continue
-        # A distribution: debian_13 and debian_unstable, manjaro_stable and
-        # manjaro_testing are one.
+        # Counted by distribution: debian_13 and debian_unstable are one, as
+        # are manjaro_stable and manjaro_testing.
         families.setdefault(v, set()).add(e.get("repo", "").split("_")[0])
     found = {
         v: f for v, f in families.items() if len(f) >= (SERIES_REPOS if kept else 1)
@@ -366,10 +484,38 @@ def series_ref(name, version, entries, others, kept=False):
 
 
 def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
+    """Make one row from a project's entries.
+
+    The row starts from Repology's verdict on nixpkgs' entry, then corrects
+    it where it doesn't fit nixpkgs: an older series compared within
+    itself; a version outdated only by a release word, a snapshot, a commit
+    or nixpkgs' own channels; an unsupported version; a kept series. Then
+    it adds what nixpkgs' package index says (platforms, homepage,
+    maintainers, teams, broken, insecure).
+
+    Args:
+        proj: The project (as looked up by lookup).
+        name: The row's name.
+        attrs: The row's attributes, sorted.
+        nix: nixpkgs unstable's Repology entry for the row, or None when
+            Repology doesn't list one.
+        others: The project's entries from repositories other than nixpkgs
+            unstable.
+        nixpkgs: The package index, by attribute.
+        devel: Whether the row is a devel variant (project_rows).
+
+    Returns:
+        The row.
+    """
+
     def newest(status):
-        """The highest version among the other repositories with status;
-        for an outdated package, the one to update to: not a packaging of
-        another (not_packaging: curl 8.23.0, not Baulk's 8.23.0.1)."""
+        """Return the highest version with status among the other repositories.
+
+        For an outdated package, that's the version to update to, so a
+        packaging of another version doesn't count (not_packaging: curl
+        8.23.0, not Baulk's 8.23.0.1), unless that leaves nothing newer than
+        nixpkgs' own.
+        """
         families = {}
         for e in others:
             if e.get("status") == status and e.get("version"):
@@ -388,7 +534,8 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
     row = {
         "name": name,
         # The attribute name, which unlike the pname tells variants apart
-        # (_1password-gui and _1password-gui-beta are both pname "1password").
+        # (_1password-gui and _1password-gui-beta both have pname
+        # "1password").
         "searchTerm": search_term(name) if attrs else name,
         "project": proj["project"],
         "dataFile": proj["dataFile"],
@@ -396,17 +543,17 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         "nixVersion": nix.get("version") if nix else None,
         "nixStatus": nix.get("status") if nix else "missing",
         "nixVulnerable": bool(nix.get("vulnerable")) if nix else False,
-        # When only Nix packages it (msedgedriver), Repology marks no
-        # repository newest, but the one ahead (a stable branch with a
-        # backport, say) unique: compared within the family, nixpkgs
-        # unstable can still be outdated against it.
+        # When only nixpkgs packages it (msedgedriver), Repology marks no
+        # repository newest, but marks the one ahead unique (a release
+        # channel with a backport, say): compared with it, nixpkgs unstable
+        # can still be outdated.
         "refVersion": (devel and newest("devel"))
         or newest("newest")
         or newest("unique"),
         # Repositories, not entries: one can list a package several times.
         "repoCount": len({e.get("repo") for e in others}),
         # No repository outside nixpkgs has it (nixpkgs' release channels
-        # aren't another): Repology's "unique" then compared it with
+        # don't count as another). Repology's "unique" then compared it with
         # nothing (datastore.nothing_compared).
         **(
             {"onlyNixpkgs": True}
@@ -418,8 +565,8 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         "devel": devel or (nix or {}).get("status") == "devel",
     }
     # An older series nixpkgs keeps beside a newer one, behind in its own
-    # series: compared within it (python313 3.13.15 → 3.13.16, not Python's
-    # newest, 3.15.0, which python315 has).
+    # series, is compared within it: python313's 3.13.15 with 3.13.16, not
+    # with Python's newest, 3.15.0, which python315 has.
     if (
         nix
         and not row["devel"]
@@ -436,9 +583,9 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         == version_key(row["refVersion"])
     ):
         # Outdated only by a word naming the release, which Repology ranks
-        # lower (godot 4.7.2-stable against 4.7.2): the newest. Not when
-        # ahead of it, which Repology's rules have reasons for (xcircuit
-        # 3.10.42 against 3.9.73).
+        # lower (godot's 4.7.2-stable against 4.7.2): it's the newest. Not
+        # when it's ahead, which Repology's rules have reasons for
+        # (xcircuit 3.10.42 against 3.9.73).
         row["nixStatus"] = "newest"
     if (
         nix
@@ -446,17 +593,18 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         and row["refVersion"]
         and snapshot_only(nix.get("version"), row["refVersion"], others)
     ):
-        # Outdated only by one distribution's snapshot of this very release
-        # (python3Packages.mintotp 0.3.0, SlackBuilds' 0.3.0.20240120): the
-        # newest.
+        # Outdated only by one distribution's snapshot of this same release
+        # (python3Packages.mintotp's 0.3.0, SlackBuilds' 0.3.0.20240120):
+        # it's the newest.
         row["nixStatus"] = "newest"
     if (
         nix
         and nix.get("status") == "outdated"
         and same_snapshot(nix.get("version"), row["refVersion"])
     ):
-        # Outdated only by another spelling of the same snapshot, mostly
-        # nixpkgs' own older channels' (104 rows on 2026-10-20): the newest.
+        # Outdated only by another spelling of the same snapshot, mostly in
+        # nixpkgs' own older channels (104 rows on 2026-10-20): it's the
+        # newest.
         row["nixStatus"] = "newest"
     if (
         nix
@@ -466,8 +614,9 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         and own_version_only(row["refVersion"], nix.get("version"), others)
     ):
         # Behind only nixpkgs' own earlier version (231 rows on 2026-10-20):
-        # compared with the rest. The newest of theirs when it's newer, else
-        # the newest (unique when nobody else packages it).
+        # compared with the other repositories instead. Outdated against
+        # their newest when that's newer; otherwise the newest (or unique,
+        # when nobody else packages it).
         old = ignored_channels(nix.get("version"), others)
         rest = [
             e["version"]
@@ -488,16 +637,19 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         <= {e.get("repo", "") for e in others if e.get("repo", "").startswith("nix_")}
     ):
         # Behind only another commit on a nixpkgs channel (75 rows on
-        # 2026-10-20, tree-sitter grammars against 26.05's): no order to
-        # say which is newer, and unstable is the one that moves on.
+        # 2026-10-20, tree-sitter grammars against 26.05's): commits have no
+        # order to say which is newer, and unstable is the one that moves
+        # on.
         row["nixStatus"] = "newest"
         row["refVersion"] = nix.get("version")
     if nix and nix.get("version") == UNSUPPORTED:
-        # Not a version: nothing to compare (10 outdated on 2026-10-20).
+        # Not a version, so there's nothing to compare (10 rows were
+        # outdated by it on 2026-10-20).
         row["nixStatus"] = "unsupported"
         row["refVersion"] = None
     if nix and nix.get("status") == config.KEPT:
-        # An older version kept beside a newer one: which, for the page.
+        # An older version kept beside a newer one: find which, for the
+        # page.
         newer = [
             e
             for e in proj["entries"]
@@ -507,8 +659,9 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         ]
         if newer and not devel and all(is_pre_release(e["version"]) for e in newer):
             # Newer only as a beta nixpkgs also has (firefox beside
-            # firefox-devedition 158.0b1): Repology calls it legacy, but it's
-            # the main line, compared with the newest release like any.
+            # firefox-devedition's 158.0b1): Repology calls it legacy, but
+            # it's the main line, compared with the newest release like any
+            # other.
             ref = row["refVersion"]
             behind = ref and is_newer(ref, nix.get("version") or "")
             row["nixStatus"] = "outdated" if behind else "newest"
@@ -518,20 +671,22 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
             # both (firefox-esr beside firefox 158.0, not firefox-devedition).
             newer = [e for e in newer if not is_pre_release(e["version"])] or newer
             best = max(version_key(e["version"]) for e in newer)
-            # Of those with that version, the plainest name (tracy, not tracy_0_14).
+            # Of those with that version, the one with the plainest name
+            # (tracy, not tracy_0_14).
             top = min(
                 (e for e in newer if version_key(e["version"]) == best),
                 key=lambda e: (len(e.get("srcname") or ""), e.get("srcname") or ""),
             )
             row["keptBeside"] = {"attr": top.get("srcname"), "version": top["version"]}
             # Repology's vulnerable flag judges it by the newer series' CVE
-            # ranges, which an older series kept on purpose gets fixes
-            # backported for (firefox-esr 153.5.1, flagged with nothing open
-            # in the tracker, 2026-10-23): the tracker's and OSV's verdicts,
-            # checked against its version, decide.
+            # ranges, but an older series kept on purpose gets its fixes
+            # backported (firefox-esr 153.5.1 was flagged with nothing open
+            # in the tracker, 2026-10-23). The security tracker's and OSV's
+            # verdicts, checked against its version, decide instead.
             row.pop("nixVulnerable", None)
-            # Kept, but behind in its own series (glibmm_2_4 2.66.8, 2.66.10
-            # out): outdated against that, still kept beside the newer one.
+            # Kept, but behind in its own series (glibmm_2_4 2.66.8, with
+            # 2.66.10 out): outdated against that, and still kept beside the
+            # newer one.
             if not devel and (
                 ref := series_ref(
                     name, nix.get("version"), proj["entries"], others, kept=True
@@ -541,15 +696,17 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
                 row["refVersion"] = ref
     pkgs = [nixpkgs[a] for a in attrs if a in nixpkgs]
     if pkgs and not nix:
-        # In nixpkgs, but Repology doesn't list nixpkgs' package: not on
-        # Repology at all (read in bulk, with every package), or found by
-        # its name in a project of other repositories only (Repology leaves
-        # out nixpkgs packages whose version it can't read: keeperrl's
-        # "alpha34", airstrike's "pre6a"). nixpkgs' version, and nothing
-        # to compare it with; not "missing", which says nixpkgs hasn't it.
+        # In nixpkgs, but Repology doesn't list nixpkgs' package: either
+        # it isn't on Repology at all (read in bulk, with every package), or
+        # it was found by name in a project of other repositories only
+        # (Repology leaves out nixpkgs packages whose version it can't read:
+        # keeperrl's "alpha34", airstrike's "pre6a"). The row gets nixpkgs'
+        # version and nothing to compare it with: "unlisted", not "missing",
+        # which says nixpkgs doesn't have it.
         row["nixVersion"] = pkgs[0].get("version")
         row["nixStatus"] = "unlisted"
-    if pkgs:  # not in nixpkgs: nothing to say about platforms or homepage
+    # A package not in nixpkgs has no platforms, homepage or maintainers.
+    if pkgs:
         row["platforms"] = platforms(pkgs)
         homepage = next(
             (p["meta"].get("homepage") for p in pkgs if p["meta"].get("homepage")), None
@@ -558,15 +715,17 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
         row["maintainers"] = maintainers(pkgs)
         if found := teams(pkgs):
             row["teams"] = found
-            # nixpkgs adds its teams' members to meta.maintainers; those it
-            # lists directly (meta.nonTeamMaintainers), when that's fewer: a
-            # maintainer's page can leave out what they have only via a team.
+            # nixpkgs adds its teams' members to meta.maintainers. When the
+            # maintainers it lists directly (meta.nonTeamMaintainers) differ,
+            # they're kept too, so a maintainer's page can leave out what
+            # they have only through a team.
             direct = non_team_maintainers(pkgs)
             if direct is not None and direct != row["maintainers"]:
                 row["nonTeamMaintainers"] = direct
-        # meta.broken, as the package index has it (x86_64-linux): Hydra's
-        # builds say where it's broken, but a broken package often has no
-        # Hydra job at all (hydraPlatforms = [], as hackage2nix sets it).
+        # meta.broken, as the package index has it (for x86_64-linux).
+        # Hydra's builds say where a package is broken, but a broken package
+        # often has no Hydra job at all (hydraPlatforms = [], as hackage2nix
+        # sets it).
         if any(p["meta"].get("broken") for p in pkgs):
             row["markedBroken"] = True
         # meta.knownVulnerabilities: nixpkgs itself marks it insecure (it
@@ -577,8 +736,12 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
 
 
 def insecure(pkgs):
-    """The reasons in pkgs' meta.knownVulnerabilities, each once, in order;
-    [] when nixpkgs doesn't mark any of them insecure."""
+    """Return why nixpkgs marks pkgs insecure (meta.knownVulnerabilities).
+
+    Returns:
+        The reasons, each once, in order; [] when none of pkgs is marked
+        insecure.
+    """
     found = []
     for p in pkgs:
         for reason in p["meta"].get("knownVulnerabilities") or []:
@@ -588,9 +751,16 @@ def insecure(pkgs):
 
 
 def maintainers(pkgs, field="maintainers"):
-    """The GitHub handles in pkgs' meta.maintainers (or another such field),
-    each once (whatever its case), in order; [] when none has any (a
-    maintainer without a GitHub handle can't be searched for)."""
+    """Return the GitHub handles in pkgs' meta.maintainers.
+
+    Args:
+        pkgs: The package index's entries.
+        field: The meta field to read, "maintainers" by default.
+
+    Returns:
+        The handles, each once whatever its case, in order. A maintainer
+        without a GitHub handle is left out, as they can't be searched for.
+    """
     found = {}
     for p in pkgs:
         for m in p["meta"].get(field) or []:
@@ -601,17 +771,24 @@ def maintainers(pkgs, field="maintainers"):
 
 
 def non_team_maintainers(pkgs):
-    """The handles pkgs list directly (meta.nonTeamMaintainers: not added as
-    their teams' members), or None when an index entry doesn't say (older
-    nixpkgs)."""
+    """Return the handles pkgs list directly, not as their teams' members.
+
+    Returns:
+        The handles in meta.nonTeamMaintainers, or None when an index entry
+        doesn't have that field (older nixpkgs).
+    """
     if any("nonTeamMaintainers" not in p["meta"] for p in pkgs):
         return None
     return maintainers(pkgs, "nonTeamMaintainers")
 
 
 def teams(pkgs):
-    """The nixpkgs teams in pkgs' meta.teams (maintainers/team-list.nix), by
-    their shortName ("Gaming", "Qt-KDE"), each once, in order."""
+    """Return the nixpkgs teams in pkgs' meta.teams, by short name.
+
+    Returns:
+        Each team's shortName ("Gaming", "Qt-KDE", as in
+        maintainers/team-list.nix), each once, in order.
+    """
     found = []
     for p in pkgs:
         for team in p["meta"].get("teams") or []:
@@ -621,30 +798,43 @@ def teams(pkgs):
     return found
 
 
-# Repology's statuses a version from the channel can replace: the ones
-# comparing it with the newest elsewhere, and a kept older series (its
-# status stays: firefox-esr 153.5.0esr in the channel, Repology's 153.4.0 a
-# day behind); not one Repology distrusts or can't order.
+# The Repology statuses whose version the channel's can replace: those
+# comparing it with the newest elsewhere, and a kept older series (whose
+# status stays: firefox-esr 153.5.0esr in the channel, with Repology's
+# 153.4.0 a day behind). Not one Repology distrusts or can't order.
 CHANNEL_STATUSES = {"newest", "outdated", "unique", "devel", config.KEPT}
+# A suffix of letters only (esr), which Repology's rules drop.
 LETTERS_ONLY = re.compile(r"[-_.+~]?[A-Za-z]+")
 
 
 def channel_versions(rows, nixpkgs):
-    """Make nixVersion the channel's, from the package index the sync reads,
-    when that's newer than Repology's: Repology reads nixos-unstable some
-    hours after it moves, and nixkeeper-versions' digest some hours after
-    that (microsoft-edge 154.0.4258.62, 2026-10-08). nixStatus is then
-    worked out again against refVersion, and repologyVersion keeps what
-    Repology had. Only when the row's attributes agree on one version, and
-    not when the channel's only adds letters to Repology's: Repology's rules
-    drop those (thunderbird-esr-bin 153.3.1esr, which it has as 153.3.1).
-    Repology's vulnerable flag, for its version, goes with it. A kept
-    series' keptBeside takes the channel's version too. Returns the names of
-    the rows changed."""
+    """Use the channel's versions where they're newer than Repology's.
+
+    Repology reads nixos-unstable some hours after it moves, and the
+    nixkeeper-versions digest some hours after that (microsoft-edge
+    154.0.4258.62, 2026-10-08). So nixVersion becomes the version in the
+    package index the sync reads, when that's newer; repologyVersion keeps
+    Repology's, and nixStatus is worked out again against refVersion.
+    Repology's vulnerable flag, which is for its version, is dropped.
+
+    This is only done when the row's attributes agree on one version, and
+    not when the channel's version only adds letters to Repology's, which
+    Repology's rules drop (thunderbird-esr-bin 153.3.1esr, which Repology
+    has as 153.3.1). A kept series' keptBeside takes the channel's version
+    too.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+
+    Returns:
+        The names of the rows whose nixVersion changed.
+    """
     changed = []
     for row in rows:
-        # The release a kept series is named beside, at the channel's version
-        # too (firefox-esr beside firefox 158.0, Repology still at 157.0.1).
+        # The release a kept series is shown beside takes the channel's
+        # version too (firefox-esr beside firefox 158.0, while Repology still
+        # had 157.0.1).
         beside = row.get("keptBeside") or {}
         channel = (nixpkgs.get(beside.get("attr")) or {}).get("version")
         if channel and is_newer(channel, beside.get("version")):
@@ -663,20 +853,30 @@ def channel_versions(rows, nixpkgs):
         row["repologyVersion"] = theirs
         row["nixVersion"] = ours
         # Repology's flag is for its version, not the channel's newer one
-        # (firefox-esr 153.4.0's, shown as 153.5.0esr's); the security
-        # tracker's and OSV's verdicts, checked against ours, stay.
+        # (it was firefox-esr 153.4.0's, shown as 153.5.0esr's). The security
+        # tracker's and OSV's verdicts, checked against the channel's
+        # version, stay.
         row.pop("nixVulnerable", None)
-        # Outdated against nothing Repology names (beads): left as it says.
+        # Outdated without a refVersion (beads): left as Repology says.
         ref = row.get("refVersion")
         if row["nixStatus"] == "outdated" and ref and not is_newer(ref, ours):
-            # A kept series caught up in its own series: kept again.
+            # A kept series that caught up within its own series is kept
+            # again.
             row["nixStatus"] = config.KEPT if row.get("keptBeside") else "newest"
         changed.append(row["name"])
     return changed
 
 
 def build_rows(projects, nixpkgs):
-    """All rows, sorted by name."""
+    """Make every row from the looked-up projects.
+
+    Args:
+        projects: The projects (lookup's), by key.
+        nixpkgs: The package index, by attribute.
+
+    Returns:
+        The rows, sorted by name, case aside.
+    """
     rows = []
     for proj in projects.values():
         for row in project_rows(proj, nixpkgs):
@@ -691,13 +891,19 @@ def build_rows(projects, nixpkgs):
 
 
 def add_families(rows):
-    """Mark rows one update moves together ("family": a short key shared by
-    two or more): the same package file in nixpkgs, the same version and the
-    same homepage, so one PR updates them all (the 187 huaweicloudsdk*
-    Python packages, indi-3rdparty's drivers, a kernel module once per
-    kernel). Not rows of a set updated in bulk, nor ones without a source.
-    The overview's lists show a family as one entry (datastore.highlights,
-    fixed_summary)."""
+    """Mark the rows that one update moves together.
+
+    Rows in the same package file in nixpkgs, with the same version and the
+    same homepage, are updated by one PR: the 187 huaweicloudsdk* Python
+    packages, indi-3rdparty's drivers, a kernel module once per kernel.
+    Each such group of two or more gets a "family", a short key they share.
+    Rows in a set updated in bulk, and rows without a source, are left out.
+    The overview's lists show a family as one entry (datastore.highlights
+    and datastore.fixed_summary).
+
+    Args:
+        rows: The rows, changed in place.
+    """
     members = {}
     for row in rows:
         row.pop("family", None)
@@ -714,11 +920,21 @@ def add_families(rows):
 
 
 def family_label(names):
-    """What a family's members are called together: the one name they all
-    end in, for one package in several sets (a kernel module once per
-    kernel: "mbp2018-bridge-drv"); else their names' common start and a "*"
+    """Return what a family's members are called together.
+
+    For one package in several sets (a kernel module once per kernel),
+    that's the one name they all end in ("mbp2018-bridge-drv"). Otherwise
+    it's their names' common start and a "*"
     ("python313Packages.huaweicloudsdk*", "indi-3rdparty.indi-*",
-    "freebsd.*"); None when they share fewer than 4 characters."""
+    "freebsd.*").
+
+    Args:
+        names: The members' names.
+
+    Returns:
+        The label, or None when the names share fewer than 4 characters at
+        the start.
+    """
     ends = {name.rsplit(".", 1)[-1] for name in names}
     if len(ends) == 1:
         return ends.pop()
@@ -727,8 +943,12 @@ def family_label(names):
 
 
 def source_url(position, revision):
-    """GitHub link for a meta.position, e.g.
-    "pkgs/by-name/we/wesnoth/package.nix:147"."""
+    """Return the GitHub link for a meta.position.
+
+    Args:
+        position: Such as "pkgs/by-name/we/wesnoth/package.nix:147".
+        revision: The nixpkgs revision to link to.
+    """
     path, _, line = position.rpartition(":")
     if not line.isdigit():
         path, line = position, ""
@@ -737,8 +957,16 @@ def source_url(position, revision):
 
 
 def add_source_links(rows, nixpkgs, revision):
-    """Link each row to where nixpkgs defines it: the first of its attrs that
-    has a position (packages not in nixpkgs get none)."""
+    """Link each row to where nixpkgs defines it.
+
+    The link is to the position of the first of the row's attributes that
+    has one; packages not in nixpkgs get none.
+
+    Args:
+        rows: The rows, changed in place.
+        nixpkgs: The package index, by attribute.
+        revision: The nixpkgs revision to link to.
+    """
     for row in rows:
         position = next(
             (
