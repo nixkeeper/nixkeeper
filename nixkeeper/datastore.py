@@ -1,16 +1,24 @@
-"""Reading and writing data/, the page's data. Everything that reads the
-previous run (history, schedules, notifications, the hourly checks) or
-writes a new one goes through here.
+"""Read and write data/, the page's data folder.
 
-The data's format (docs/data.md), format 2: index.json as a small manifest
-(format, counts), summary.json with a short entry per row (what the page's
-list needs), and the full rows in rows/<n>.json shards (n from a hash of the
-name), each row with its Repology entries ("repology").
+Everything that reads the last run's data (history, schedules,
+notifications, the hourly checks) or writes a new run's goes through this
+module.
+
+The data is in format 2, described in docs/data.md:
+
+- index.json: a small manifest (the format, the counts, ...).
+- summary.json: a short entry per row, what the page's list needs. With
+  every package there's no summary; views/ and names.json take its place
+  (views()).
+- rows/<n>.json: the full rows, split into shards by a hash of the
+  package's name. Each row carries its Repology entries in "repology".
 
 Format 1 (0.11.0 and before; written beside format 2 until 0.13.0) is still
-read, so a sync after upgrading from it keeps the last run's data: index.json
-with every row in full ("packages"), and each Repology project's entries in
-<dataFile>."""
+read, so the first sync after upgrading keeps the last run's data. In
+format 1, index.json held every row in full in "packages", and each
+Repology project's entries were in a file of their own, named by the row's
+"dataFile".
+"""
 
 import contextlib
 import copy
@@ -40,9 +48,11 @@ from .sources import vulnerabilities_digest
 from .sources.nixpkgs import available_on
 
 FORMAT = 2
-# Rows a shard holds, about: a shard is what a details panel loads.
+# About how many rows a shard holds. A shard is what the page loads to show
+# a package's details panel.
 SHARD_ROWS = 500
-# A row's fields only the details panels use, left out of its summary entry.
+# A row's fields that only the details panel uses: they're left out of the
+# row's summary entry.
 PANEL_ONLY = (
     "dataFile",
     "feed",
@@ -58,34 +68,58 @@ PANEL_ONLY = (
     "repologyCheckedAt",
     "source",
 )
-# Of a summary entry's update check, what the list shows (the version,
-# whether it's newer, whose check it is).
+# The fields of a row's update check ("upstream") that its summary entry
+# keeps: what the list shows (the version, whether it's newer, and whose
+# check it is).
 UPSTREAM_SHOWN = ("community", "inferred", "newer", "version")
 
 
 def data_file(key):
-    """File name for a project's Repology data: names like python:requests
-    contain characters that don't belong in file names or URLs."""
+    """Return the file name for a Repology project's data.
+
+    Project names such as python:requests contain characters that don't
+    belong in file names or URLs; each of them becomes an underscore.
+    """
     return re.sub(r"[^A-Za-z0-9._+-]", "_", key) + ".json"
 
 
 def dumps(data):
-    """data as compact JSON (no indentation), keys sorted: about a third
-    smaller than indented, and the same bytes whenever the data is the same."""
+    """Format data as compact JSON, with its keys sorted.
+
+    Without indentation the files are about a third smaller, and with the
+    keys sorted, the same data always gives the same bytes.
+    """
     return json.dumps(data, separators=(",", ":"), sort_keys=True)
 
 
 def shard_count(rows):
-    """How many shards for rows: about SHARD_ROWS a shard, rounded up to a
-    power of two (1 for a few hundred, 256 for all of nixpkgs)."""
+    """Return how many shards to split the rows into.
+
+    About SHARD_ROWS rows a shard, rounded up to a power of two: 1 for a few
+    hundred rows, 256 for all of nixpkgs.
+
+    Args:
+        rows: The number of rows.
+    """
     return 1 << max(0, math.ceil(math.log2(max(1, rows / SHARD_ROWS))))
 
 
 def elided(row, run):
-    """row as written: its stamps from this run (each build's and its update
-    check's "checkedAt", its "countedAt") left out when they're run, the
-    index's checkedAt, so a row nothing new happened to keeps its bytes from
-    run to run. restored() puts them back."""
+    """Return row without the timestamps that only repeat the run's time.
+
+    A row's "countedAt", and the "checkedAt" of its update check and of each
+    of its builds, are left out when they equal run. A row that nothing new
+    happened to then keeps the same bytes from one run to the next.
+    restored() puts the timestamps back when the data is read.
+
+    Args:
+        row: The row. It isn't changed.
+        run: The run's time, the index's "checkedAt". When it's empty, row
+            is returned as it is.
+
+    Returns:
+        The row as it's written.
+    """
     if not run:
         return row
     row = dict(row)
@@ -104,9 +138,19 @@ def elided(row, run):
 
 
 def restored(row, run):
-    """row as elided() wrote it, with its stamps back: each is always there
-    when what it dates is (every build and update check has one, and counts
-    have theirs), so a missing one was run's."""
+    """Put back the timestamps elided() left out of row.
+
+    Every build and update check has a "checkedAt", and a row with counts
+    ("openPRs") has a "countedAt", so a missing one must have been run.
+
+    Args:
+        row: The row as read from its shard. It's changed in place.
+        run: The time of the run that wrote it, the index's "checkedAt".
+            When it's empty, nothing is changed.
+
+    Returns:
+        row.
+    """
     if not run:
         return row
     for build in row.get("builds") or []:
@@ -118,15 +162,26 @@ def restored(row, run):
     return row
 
 
-# Repology statuses whose versions can't be compared: sorted after the rest
-# (comparedRepos in page/logic.js).
+# Repology statuses whose versions can't be compared with others. They sort
+# after the rest, as comparedRepos in page/logic.js does.
 UNCOMPARABLE = {"rolling", "ignored", "incorrect", "noscheme", "untrusted"}
 
 
 def newest_repos(entries, count):
-    """Of entries, nixpkgs' own and the newest entry of the newest count other
-    repositories, as the details panel orders them (comparedRepos in
-    page/logic.js): comparable versions first, newest first."""
+    """Pick the Repology entries a details panel shows.
+
+    nixpkgs' own entries are kept, and of the other repositories, the count
+    with the newest versions, one entry each (its newest). They're ranked as
+    the panel orders them (comparedRepos in page/logic.js): comparable
+    versions first, then the newest version first, then by repository.
+
+    Args:
+        entries: A project's Repology entries.
+        count: How many other repositories to keep.
+
+    Returns:
+        nixpkgs' entries, then the kept ones in that order.
+    """
     from .versions import version_key
 
     def order(e):
@@ -147,7 +202,7 @@ def newest_repos(entries, count):
 
 
 class _Reversed:
-    """A key that sorts in reverse (newest version first)."""
+    """A sort key that orders in reverse, so the newest version comes first."""
 
     def __init__(self, key):
         self.key = key
@@ -160,11 +215,22 @@ class _Reversed:
 
 
 def kept_entries(projects, rows):
-    """{dataFile: Repology entries} to write for projects (lookup's) and the
-    rows made from them: in full for a project with a row on the lists; for
-    the others (with every package, the rest of nixpkgs), only nixpkgs' own
-    and those of the newest REPOLOGY_ENTRIES_KEPT other repositories, what
-    their details show (the rest are on Repology)."""
+    """Choose the Repology entries to write for each project.
+
+    A project with a row on the package lists keeps all its entries. Every
+    other project (with every package, the rest of nixpkgs) keeps only
+    nixpkgs' own entries and those of the REPOLOGY_ENTRIES_KEPT other
+    repositories with the newest versions: what its details panel shows.
+    The rest can be seen on Repology.
+
+    Args:
+        projects: The Repology projects looked up (by lookup), each with
+            "dataFile" and "entries".
+        rows: The rows made from them.
+
+    Returns:
+        {dataFile: entries}.
+    """
     listed = {row["dataFile"] for row in rows if row.get("lists")}
     return {
         p["dataFile"]: p["entries"]
@@ -175,37 +241,52 @@ def kept_entries(projects, rows):
 
 
 def summary_entry(row):
-    """row's entry in summary.json: what the list, the counts, filters,
-    search and sorting need. Builds are reduced to their status and
-    platform, the update attempt to its outcome (and why it failed)."""
+    """Make row's entry in summary.json and in the views.
+
+    The entry keeps what the list, the counts, the filters, the search and
+    sorting need, and leaves out the fields only the details panel uses
+    (PANEL_ONLY). Builds are reduced to their status and system, the update
+    attempt to its outcome and why it failed, and the update check to
+    UPSTREAM_SHOWN.
+
+    Args:
+        row: The row, as written.
+
+    Returns:
+        The entry, a new dict.
+    """
     entry = {k: v for k, v in row.items() if k not in PANEL_ONLY}
     if (row.get("openPR") or {}).get("facts"):
-        # What nixkeeper-prs found of it: the panel's only.
+        # What nixkeeper-prs found about the PR is only shown in the panel.
         entry["openPR"] = {k: v for k, v in row["openPR"].items() if k != "facts"}
     if "vulnerabilities" in row:
-        # The verdict, worked out once (null: none counted, Repology's
-        # flag not used either).
+        # The vulnerability verdict, worked out once here rather than by
+        # the page. None means no vulnerability counted, and Repology's flag
+        # isn't used either.
         entry["vuln"] = vulnerabilities_digest.summary(row)
     if "builds" in row:
         entry["builds"] = [
             {"status": b["status"], "system": b["system"]}
             | ({"blockedBy": b["blockedBy"]} if b.get("blockedBy") else {})
-            # Why it failed (the list's filter); its lines, the panel's only.
+            # Why it failed, for the list's filter; the log lines are only
+            # in the panel.
             | ({"failedBecause": b["failedBecause"]} if b.get("failedBecause") else {})
             for b in row["builds"]
         ]
-    if row.get("update"):  # null (never tried) and missing (not in nixpkgs) kept
+    # null (never tried) and a missing "update" (not in nixpkgs) stay as they
+    # are.
+    if row.get("update"):
         entry["update"] = {"outcome": row["update"].get("outcome")}
         if because := row["update"].get("failedBecause"):
-            entry["update"]["failedBecause"] = because  # the list says why
+            entry["update"]["failedBecause"] = because  # the list shows why
     if "upstream" in row:
         entry["upstream"] = {
             k: v for k, v in row["upstream"].items() if k in UPSTREAM_SHOWN
         }
-    # The bot's queue, for the list's robot: the versions it would update to,
-    # whether it runs the package's updateScript, and the day it's expected
-    # to try ("by": the list's "auto update in 4 days"; the row has the
-    # candidates' sources too).
+    # The update bot's queue, for the list's robot icon: the versions it
+    # would update to, whether it runs the package's updateScript, and the
+    # day it's expected to try ("by", shown as "auto update in 4 days"). The
+    # row also has where each version was found; the entry leaves that out.
     queued = row.get("queued") or {}
     entry.pop("queued", None)
     to = list(dict.fromkeys(c[0] for c in queued.get("candidates", [])))
@@ -218,19 +299,32 @@ def summary_entry(row):
     return entry
 
 
-# Days of counts history.json keeps (with every package).
+# How many days of counts history.json keeps (with every package).
 HISTORY_DAYS = 365
 
 
 def files(index, entries, history=None, fixed=None, events=None):
-    """Every file of data/ for index (its rows in "packages") and entries
-    (Repology's, by dataFile, put in the rows' shards): {path in data/:
-    data}. history: with every
-    package, the last run's history.json points (read_history), to which
-    this run's counts are added; fixed, the fixes it keeps (read_fixed, with
-    this run's: with_fixed); events, what marks the trends (with_events);
-    None leaves history.json out (a partial run keeps the one on disk, and
-    the manifest its "fixed")."""
+    """Build every file of the data folder.
+
+    The rows go into the shards, each with its Repology entries. With every
+    package, the page starts from views (views()) rather than a summary of
+    every row, and history.json gets this run's counts; otherwise
+    summary.json lists every row.
+
+    Args:
+        index: The manifest, with every row in "packages".
+        entries: Repology's entries, by the rows' "dataFile".
+        history: With every package, the last run's history.json points
+            (read_history), to which this run's counts are added. None
+            leaves history.json out, for a partial run: the file on disk
+            stays, and the manifest keeps the "fixed" it already has.
+        fixed: The fixes to keep (read_fixed's, with this run's added by
+            with_fixed).
+        events: What marks the trends (with_events).
+
+    Returns:
+        {path in the data folder: data}.
+    """
     run = index.get("checkedAt")
     rows = sorted(
         (elided(row, run) for row in index["packages"]), key=lambda row: row["name"]
@@ -248,11 +342,12 @@ def files(index, entries, history=None, fixed=None, events=None):
         "packageCount": len(rows),
         "shardCount": count,
     }
-    del manifest["packages"]  # in the shards
+    del manifest["packages"]  # the rows are in the shards
     out = {}
     if index.get("allPackages"):
-        # Every package: no summary of them all (too big to load), but views
-        # of it, a name index and the counts (views).
+        # With every package, a summary of them all would be too big to
+        # load: the page starts from the views, the name index and the
+        # counts instead (views()).
         manifest.update(views(rows, out))
         if history is not None:
             out["history.json"] = {
@@ -270,11 +365,22 @@ def files(index, entries, history=None, fixed=None, events=None):
 
 
 def with_split(history, previous):
-    """history with the previous run's split counts (SPLIT_COUNTS) on its
-    day's point, where that point doesn't have them: the counts were
-    recorded combined before, and the previous manifest still has them
-    apart (buildFailures: its builds that failed, as the overview's
-    newest and longest-standing count them, in older manifests)."""
+    """Add the previous run's split failure counts to its day's point.
+
+    The failures were recorded as one count before 0.13.0, and as two
+    after (SPLIT_COUNTS). The previous manifest has them apart, so its
+    day's point gets them where it doesn't have them yet. Older manifests
+    have no buildFailures count; the count of the overview's failing
+    highlights stands for it.
+
+    Args:
+        history: The history points, oldest first.
+        previous: The previous run's manifest.
+
+    Returns:
+        history, with that day's point completed, or as it was when the
+        manifest lacks either count.
+    """
     run = previous.get("checkedAt") or ""
     counts = previous.get("counts") or {}
     found = {
@@ -289,20 +395,31 @@ def with_split(history, previous):
 
 
 def with_point(history, run, counts):
-    """history (a list of {"day", counts...}, oldest first) with this run's
-    counts of the fully checked rows as the day's point (a second sync the
-    same day replaces the first), the last HISTORY_DAYS days."""
+    """Record this run's counts as its day's point in the history.
+
+    A second sync on the same day replaces the first one's point. Only the
+    last HISTORY_DAYS days are kept.
+
+    Args:
+        history: The points, each {"day", counts...}, oldest first.
+        run: The run's time.
+        counts: The manifest's counts, of the fully checked rows. The ones
+            in HISTORY_COUNTS are recorded.
+
+    Returns:
+        The points, oldest first.
+    """
     day = (run or "")[:10]
     point = {"day": day, **{k: counts[k] for k in HISTORY_COUNTS}}
     kept = [p for p in history if p.get("day") != day]
     return sorted([*kept, point], key=lambda p: p["day"])[-HISTORY_DAYS:]
 
 
-# Hydra statuses of a build that didn't succeed: counted as failing builds
-# (the manifest's failingBuilds), as zh.fail does; only "failed" makes a
-# package fail on the page.
+# Hydra statuses of a build that didn't succeed. The manifest's failingBuilds
+# counts them all, as zh.fail does; only "failed" makes a package fail on
+# the page.
 FAILING_BUILDS = {"failed", "dependency", "unfinished"}
-# What history.json records each day: the fully checked rows' counts.
+# The counts history.json records each day, of the fully checked rows.
 HISTORY_COUNTS = (
     "tracked",
     "outdated",
@@ -312,19 +429,22 @@ HISTORY_COUNTS = (
     "vulnerable",
     "broken",
 )
-# Counts a point didn't have before (the failing ones split, 0.13.0): the
-# previous manifest's, for its own day's point (with_split).
+# The counts a history point didn't have before 0.13.0, when the failures
+# were split in two. with_split takes them from the previous manifest for
+# its own day's point.
 SPLIT_COUNTS = ("buildFailures", "updateFailures")
 
 
-# Days of fixes history.json keeps; days the overview counts them over.
+# How many days of fixes history.json keeps, and how many days the
+# overview counts them over.
 FIXED_DAYS = 30
 FIXED_RECENT_DAYS = 7
 
 
 def read_fixed(out_dir=None):
-    """The fixes the last run's history.json keeps, or []."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Return the fixes the last run's history.json keeps, or [] if it can't
+    be read."""
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("fixed") or []
     except (OSError, ValueError, AttributeError):
@@ -332,9 +452,19 @@ def read_fixed(out_dir=None):
 
 
 def with_fixed(fixed, new, run):
-    """fixed (oldest first) with this run's new ones, the last FIXED_DAYS
-    days: the same package's same kind of fix once a day (a second sync the
-    same day finds it again)."""
+    """Add this run's fixes to the kept ones.
+
+    A package's fix of one kind is kept once a day, as a second sync on the
+    same day finds it again. Only the last FIXED_DAYS days are kept.
+
+    Args:
+        fixed: The kept fixes, oldest first.
+        new: This run's fixes.
+        run: The run's time.
+
+    Returns:
+        The fixes, oldest first.
+    """
     cutoff = _day_before(run, FIXED_DAYS)
     seen, kept = set(), []
     for fix in [*fixed, *new]:
@@ -346,19 +476,30 @@ def with_fixed(fixed, new, run):
 
 
 def fixed_summary(fixed, run):
-    """The manifest's "fixed": per kind, how many in the last
-    FIXED_RECENT_DAYS days and HIGHLIGHTS of them ("newest", as it was
-    named when they were): the ones that had lasted longest first (the
-    newest are all the last sync's, with a hundred fixes a day), then those
-    that don't say since when, the newest first. Each [name, at, from, to]
-    (from and to for updates, else null); a fifth, its credit ({"pr",
-    "author"?, "mergedBy"?, "likely"?}: history.credit) or null, and a
-    sixth, since when it had been failing or outdated, when it has them."""
+    """Summarize the recent fixes, for the manifest's "fixed".
+
+    For each kind of fix (build, update, bot), count the fixes of the last
+    FIXED_RECENT_DAYS days and pick HIGHLIGHTS of them to show. The list is
+    called "newest" from when it held the newest ones; it now holds the
+    fixes whose problem had lasted longest first (with about a hundred
+    fixes a day, the newest are all the last sync's), then those that don't
+    say since when, newest first. A family is listed once, as its first
+    member.
+
+    Args:
+        fixed: The kept fixes.
+        run: The run's time.
+
+    Returns:
+        {"days": FIXED_RECENT_DAYS, and for each kind: {"count", "newest"}},
+        each fix in "newest" as _fixed_entry formats it.
+    """
     cutoff = _day_before(run, FIXED_RECENT_DAYS)
     out = {}
     for kind in ("build", "update", "bot"):
         mine = [f for f in fixed if f["kind"] == kind and f["at"][:10] > cutoff]
-        # Newest first, ties by name (a family's first by name stands for it).
+        # Newest first, ties by name. The sort by how long the problem
+        # lasted, below, keeps this order among equals.
         newest = sorted(
             sorted(mine, key=lambda f: f["name"]), key=lambda f: f["at"], reverse=True
         )
@@ -375,11 +516,11 @@ def fixed_summary(fixed, run):
 
 
 def _lasted(fix):
-    """How many seconds fix's problem had lasted when it was fixed; -1 when
-    it doesn't say since when."""
+    """Return how many seconds fix's problem had lasted when it was fixed,
+    or -1 when the fix doesn't say since when."""
     try:
         since = datetime.fromisoformat(fix["since"])
-        if since.tzinfo is None:  # a plain day
+        if since.tzinfo is None:  # a day without a time: midnight UTC
             since = since.replace(tzinfo=UTC)
         return max(0, (datetime.fromisoformat(fix["at"]) - since).total_seconds())
     except (KeyError, TypeError, ValueError):
@@ -387,9 +528,21 @@ def _lasted(fix):
 
 
 def _fixed_entry(fix, members=None):
-    """A fix as the manifest lists it (fixed_summary), without trailing
-    nulls; a seventh, its family's (family_entry), when its family's other
-    members were fixed with it."""
+    """Format a fix as the manifest lists it (see fixed_summary).
+
+    Args:
+        fix: The fix.
+        members: For a family's first fix, the names of the family's
+            members fixed with it; None otherwise.
+
+    Returns:
+        [name, at, from, to, credit, since, family], without trailing nulls
+        (but always the first four). from and to are an update's versions,
+        else null; credit is {"pr", "author"?, "mergedBy"?, "likely"?}
+        (history.credit) or null; since is when the problem began; family
+        is family_entry's, when other members of its family were fixed
+        with it.
+    """
     credit = {k: fix[k] for k in ("pr", "author", "mergedBy", "likely") if k in fix}
     entry = [
         fix["name"],
@@ -406,14 +559,15 @@ def _fixed_entry(fix, members=None):
 
 
 def _day_before(run, days):
-    """The day (YYYY-MM-DD) days before run's."""
+    """Return the day (YYYY-MM-DD) that is days before run's day."""
     day = datetime.fromisoformat((run or "1970-01-01")[:10])
     return (day - timedelta(days=days)).date().isoformat()
 
 
 def read_events(out_dir=None):
-    """The trend markers the last run's history.json keeps, or []."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Return the trend markers the last run's history.json keeps, or [] if
+    it can't be read."""
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("events") or []
     except (OSError, ValueError, AttributeError):
@@ -421,12 +575,22 @@ def read_events(out_dir=None):
 
 
 def with_events(events, new, run):
-    """events with this run's new ones, each once (a staging-next merge by its
-    PR, a nixkeeper update by its version, a counting change by its text),
-    the last HISTORY_DAYS days,
-    oldest first. What marks the trends: a staging-next merge (mass
-    rebuilds: failing builds jump for days after), nixkeeper's own updates,
-    and changes in how it counts (config.COUNTING_CHANGES)."""
+    """Add this run's trend markers to the kept ones.
+
+    The markers are what the trend charts mark: staging-next merges (mass
+    rebuilds, after which failing builds jump for days), nixkeeper's own
+    updates, and changes in how it counts (config.COUNTING_CHANGES). Each
+    is kept once: a merge by its PR, an update by its version, a counting
+    change by its text. Only the last HISTORY_DAYS days are kept.
+
+    Args:
+        events: The kept markers.
+        new: This run's markers.
+        run: The run's time.
+
+    Returns:
+        The markers, oldest first.
+    """
     cutoff = _day_before(run, HISTORY_DAYS)
     kept = {}
     for event in [*events, *new]:
@@ -435,40 +599,54 @@ def with_events(events, new, run):
             event.get("pr") or event.get("version") or event.get("text"),
         )
         if event["day"] > cutoff:
-            kept[key] = event  # the newest word on it
+            kept[key] = event  # a later copy replaces an earlier one
     return sorted(kept.values(), key=lambda e: (e["day"], e["kind"]))
 
 
 def read_history(out_dir=None):
-    """The last run's history.json points, or [] if there are none."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Return the last run's history.json points, or [] if there are none or
+    the file can't be read."""
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         return _load(os.path.join(out_dir, "history.json")).get("points") or []
     except (OSError, ValueError, AttributeError):
         return []
 
 
-# The overview's lists (views' highlights), from each row's date.
+# The overview's lists of the newest and oldest problems (the highlights in
+# views()), each with the row field that says since when.
 AGES = {
     "failing": "failingSince",
     "outdated": "outdatedSince",
     "updateFailing": "updateFailingSince",
 }
-# The card each highlight list goes with: its count is the card's.
+# The overview card each highlight list belongs to; the list's count is the
+# card's.
 HIGHLIGHT_COUNTS = {
     "failing": "buildFailures",
     "outdated": "outdated",
     "updateFailing": "updateFailures",
 }
-# How many of each the overview shows, newest and oldest.
+# How many entries each overview list shows.
 HIGHLIGHTS = 8
 
 
 def grouped(items, family, name):
-    """items (already in their order) with each family's members after its
-    first left out: [(item, members' names)], the names only for a family's
-    first (rows.add_families). One update that moves 187 packages is one
-    entry, not the whole list."""
+    """Collapse each family in a list to its first member.
+
+    A family (rows.add_families) is packages that move together: one update
+    that moves 187 packages should be one entry, not the whole list.
+
+    Args:
+        items: The items, already in their order.
+        family: Returns an item's family, or None.
+        name: Returns an item's name.
+
+    Returns:
+        [(item, members)], in the same order, without each family's later
+        members. members is the names of the family's members for a
+        family's first item, when it has more than one; otherwise None.
+    """
     names = {}
     for item in items:
         if family(item):
@@ -485,8 +663,16 @@ def grouped(items, family, name):
 
 
 def family_entry(members):
-    """What a list entry says of its family: {"more": the others' count,
-    "label": what they're called together, when they share a start}."""
+    """Describe the family a list entry stands for.
+
+    Args:
+        members: The names of the family's members, the entry's own
+            included.
+
+    Returns:
+        {"more": how many others there are}, and "label", what they're
+        called together (rows.family_label), when there is one.
+    """
     found = {"more": len(members) - 1}
     if label := rows_module.family_label(members):
         found["label"] = label
@@ -494,11 +680,18 @@ def family_entry(members):
 
 
 def highlights(found):
-    """{"count", "newest", "oldest"} of (since, name, status, family) found:
-    how many there are, and the HIGHLIGHTS most recent and longest-standing,
-    each [name, since, status] (ties by name), and a fourth when its family
-    moves with it ({"more", "label"?}: family_entry), the family's other
-    members left out of the list."""
+    """Pick the overview's newest and longest-standing problems of one kind.
+
+    Args:
+        found: (since, name, status, family) for each row with the problem.
+
+    Returns:
+        {"count", "newest", "oldest"}: how many there are, and the
+        HIGHLIGHTS most recent and longest-standing, ties by name. Each is
+        [name, since, status], with family_entry's as a fourth item when
+        the entry stands for its family; the family's other members are
+        left out of the list.
+    """
 
     def since(f):
         return datetime.fromisoformat(f[0]).timestamp()
@@ -518,11 +711,16 @@ def highlights(found):
 
 
 def nothing_compared(row):
-    """Whether row's "newest" was compared with nothing: Repology's unique
-    (no other repository has a newer version) when no repository outside
-    nixpkgs has it at all, and no update check or feed of nixkeeper's own
-    knows its releases (python313Packages.pbar2, ~21,300 rows on
-    2026-10-23). Not up to date then: not compared (computeStatus)."""
+    """Return whether row's version was compared with nothing.
+
+    Repology calls a version "unique" when no other repository has a newer
+    one, which includes when no repository outside nixpkgs has the package
+    at all. When no update check or release feed of nixkeeper's own knows
+    its releases either, the version was compared with nothing
+    (python313Packages.pbar2, one of about 21,300 such rows on 2026-10-23).
+    The page then shows it as not compared rather than up to date
+    (computeStatus).
+    """
     return (
         row.get("nixStatus") == "unique"
         and bool(row.get("onlyNixpkgs"))
@@ -532,11 +730,14 @@ def nothing_compared(row):
 
 
 def status(row):
-    """A row's status as the page's dot shows it (computeStatus and
-    hasFailure in page/logic.js), in a letter: f failed, m outdated but
-    waiting for the channel, o outdated, u up to date, n not comparable
-    (Repology can't say, or doesn't know the package); then v when
-    vulnerable (flagged by Repology, or marked insecure by nixpkgs)."""
+    """Return a row's status as the page's dot shows it, in letters.
+
+    The first letter is worked out as computeStatus and hasFailure in
+    page/logic.js do: f failing, m outdated but the update is waiting for
+    the channel, o outdated, u up to date, n not comparable (Repology can't
+    say, or doesn't know the package). A v follows when the package is
+    vulnerable (flagged by Repology, or marked insecure by nixpkgs).
+    """
     if failures(row):
         letter = "f"
     elif waiting_for_channel(row):
@@ -552,13 +753,15 @@ def status(row):
     return letter + ("v" if is_vulnerable(row) else "")
 
 
-# The systems unbuilt_where looks at: each Linux system apart, Darwin as one.
+# The platforms unbuilt_where looks at: each Linux system on its own, and
+# Darwin as one.
 UNBUILT_KEYS = ("x86_64-linux", "aarch64-linux", "darwin")
 
 
 def _on_platform(row, key):
-    """Whether row is listed for key, a family or a system (the page's
-    onPlatform): no restriction ("platforms": null) counts as every one."""
+    """Return whether row is listed for key, a family ("linux") or a system
+    ("x86_64-linux"), as the page's onPlatform does. A row without a
+    restriction ("platforms": null) is listed for every one."""
     platforms = row.get("platforms", {})
     if platforms is None:
         return True
@@ -570,15 +773,24 @@ def _on_platform(row, key):
 
 
 def _on_system(system, key):
+    """Return whether a build's system is key, a system, or is in key, a
+    family."""
     return system == key if "-" in key else system.endswith("-" + key)
 
 
 def unbuilt_where(row):
-    """The systems row is listed for but Hydra doesn't build it on (the
-    page's unbuiltWhere, the struck platform tags): none of its builds there
-    exists ("notBuilt", usually as a dependency isn't available there), while
-    Hydra builds it elsewhere. [] when Hydra builds it everywhere listed, or
-    nowhere (unfree, kept off it)."""
+    """Return the platforms row is listed for but Hydra doesn't build it on.
+
+    These are the page's struck platform tags (unbuiltWhere in
+    page/logic.js). A platform counts when every build of the row there is
+    "notBuilt", usually because a dependency isn't available there, while
+    Hydra builds the row elsewhere.
+
+    Returns:
+        The platforms (of UNBUILT_KEYS). [] when Hydra builds the row
+        everywhere it's listed, or nowhere (an unfree package, kept off
+        Hydra).
+    """
     builds = row.get("builds") or []
     found = []
     for key in UNBUILT_KEYS:
@@ -597,17 +809,27 @@ def unbuilt_where(row):
     return found
 
 
-# A row's platforms in facets.json, as bits: where it's available
-# (sources.nixpkgs.available_on), all three when nixpkgs doesn't restrict it.
+# The bits for a row's platforms in facets.json: where it's available
+# (sources.nixpkgs.available_on). All three are set when nixpkgs doesn't
+# restrict it.
 FACET_SYSTEMS = (("x86_64-linux", 1), ("aarch64-linux", 2), ("aarch64-darwin", 4))
 
 
 def facet_entry(row, handles, teams):
-    """row's entry in facets.json: its platforms' bits (FACET_SYSTEMS), and
-    when it has maintainers or teams, [bits, [maintainers], [teams]?] by
-    their place in handles and teams (dicts filled as it goes: {name:
-    index}). Most rows have neither, so most entries are one number: all of
-    nixpkgs in about 120 KB compressed (2026-10-22)."""
+    """Make row's entry in facets.json.
+
+    Args:
+        row: The row.
+        handles: {maintainer handle: index}, filled in as rows are added.
+        teams: {team: index}, filled in the same way.
+
+    Returns:
+        The bits of the platforms the row is available on (FACET_SYSTEMS),
+        when it has no maintainers or teams. Otherwise [bits, [maintainers'
+        indexes]], with [teams' indexes] third when it has teams. Most rows
+        have neither, so most entries are one number: all of nixpkgs takes
+        about 120 KB compressed (2026-10-22).
+    """
     bits = sum(
         bit
         for system, bit in FACET_SYSTEMS
@@ -621,15 +843,20 @@ def facet_entry(row, handles, teams):
 
 
 def numbers(rows):
-    """The overview's "nixpkgs in numbers" (with every package), of what the
-    sync has: Hydra's builds of every row ("builds") and of those not built,
-    the counts' failingBuilds, each kind: its own failure ("failing"), a
-    dependency's ("blocked"), timed out or aborted ("unfinished"); update
-    PRs behind upstream ("behind": prs_digest's
-    cross_check) and packages outside the sets with no maintainer
-    ("unmaintained"). Not how long packages have been outdated:
-    outdatedSince only goes back to when nixkeeper began watching every
-    package (2026-10-04), so a median of it says nixkeeper's age."""
+    """Count the overview's "nixpkgs in numbers" (with every package).
+
+    How long packages have been outdated isn't among them: outdatedSince
+    only goes back to when nixkeeper began watching every package
+    (2026-10-04), so a median of it would measure nixkeeper's age.
+
+    Returns:
+        "builds": Hydra's builds of every row, those not built left out.
+        "failing", "blocked", "unfinished": of those, the builds that
+        failed themselves, whose dependency failed, and that timed out or
+        were aborted (the counts' failingBuilds, by kind).
+        "behind": update PRs behind upstream (prs_digest.cross_check).
+        "unmaintained": packages outside the sets with no maintainer.
+    """
     builds = failing = blocked = unfinished = behind = unmaintained = 0
     for row in rows:
         for b in row.get("builds") or []:
@@ -653,35 +880,53 @@ def numbers(rows):
 
 
 def views(rows, out):
-    """With every package: the views the page starts from instead of a
-    summary of every row (each {"packages": [summary entries]}, sorted by
-    name), added to out, and what the manifest says of them:
-      views/attention.json: failing, outdated, flagged vulnerable or with a
-        fix to backport (not in a set updated in bulk: those count on their
-        set's line)
-      views/broken.json: marked broken in nixpkgs (not in such a set)
-      views/backport.json: a CVE fixed on nixpkgs master, still affected on
-        the newest release branch (backport; not in such a set)
-      views/blocked.json: a build of it not tried, as a dependency failed
-        (in such sets too, as the overview's blockers count them)
-      views/unbuilt.json: listed for a platform Hydra doesn't build it on
-        (unbuilt_where; not in such a set)
-      views/superseded.json: an open update PR nixpkgs is already past
-        (supersededPRs: prs_digest.mark_superseded), in such sets too
-      views/maintainer/<handle>.json: a maintainer's (lowercase handle),
-        and none.json those with no maintainer (not in such a set)
-      views/team/<slug>.json, views/list/<slug>.json, views/set/<name>.json
-      names.json: every row's name and status (status), and its set when
-        it has one: what a search looks through
-      facets.json: the same rows' maintainers, teams and platforms, in the
-        same order (facet_entry), for the search's filters
-      maintainers.json: every maintainer, as nixpkgs writes the handle,
-        with how many packages they have (in such sets too) and how many
-        of the fully checked are outdated and failing: [handle, packages,
-        outdated, failing], by handle (any case)
-    Returns {"counts": {...}, "views": {"attention", "teams", "lists":
-    {name: count}, "sets": {name: {"packages", "outdated", "failed",
-    "broken"}}}}."""
+    """Build the files the page starts from with every package.
+
+    With every package, the page loads these instead of a summary of every
+    row. Each view is {"packages": [summary entries]}, sorted by name.
+    Packages in a set updated in bulk (such as the Haskell or R sets) are
+    counted on their set's line, so most views leave them out; the views
+    that include them say so.
+
+    - views/attention.json: failing, outdated, flagged vulnerable, or with
+      a fix to backport.
+    - views/broken.json: marked broken in nixpkgs.
+    - views/backport.json: a CVE fixed on nixpkgs master that still
+      affects the newest release branch.
+    - views/blocked.json: a build not tried because a dependency failed.
+      Sets included, as the overview's blockers count them.
+    - views/unbuilt.json: listed for a platform Hydra doesn't build it on
+      (unbuilt_where).
+    - views/superseded.json: an open update PR that nixpkgs is already past
+      (supersededPRs, from prs_digest.mark_superseded). Sets included.
+    - views/maintainer/<handle>.json: a maintainer's packages, by lowercase
+      handle, sets included; views/maintainer/none.json: those with no
+      maintainer, sets left out.
+    - views/team/<slug>.json, views/list/<slug>.json: a team's and a
+      package list's packages, sets included.
+    - views/set/<name>.json: a set's packages.
+    - views/cause/<key>.json: failed builds that share an error
+      (causes.build_groups), with views/causes.json listing every group.
+    - names.json: every row's name and status (status()), and its set when
+      it has one: what a search looks through.
+    - facets.json: the same rows' maintainers, teams and platforms, in the
+      same order (facet_entry), for the search's filters.
+    - maintainers.json: every maintainer, with the handle as nixpkgs writes
+      it, as [handle, packages, outdated, failing], sorted by lowercase
+      handle. packages counts sets too; outdated and failing count only
+      the fully checked rows.
+
+    Args:
+        rows: Every row, as written, sorted by name.
+        out: The files being built, {path: data}; the files above are
+            added to it.
+
+    Returns:
+        What the manifest says of them: {"counts", "highlights",
+        "blockers", "causes", "views"}. "views" has each view's size, the
+        teams' and lists' sizes ({name: count}), and each set's counts
+        ({name: {"packages", "outdated", "failed", "broken", ...}}).
+    """
     found = {}
 
     def put(path, row):
@@ -704,19 +949,20 @@ def views(rows, out):
         0,
     )
     teams, lists, sets = {}, {}, {}
-    failing_on = {}  # "linux", "darwin", each system -> packages failing there
+    failing_on = {}  # {"linux", "darwin" or a system: packages failing there}
     names = []
-    # facets.json: beside names, in its order (facet_entry).
+    # facets.json's rows, in the same order as names (facet_entry).
     facet_rows, facet_handles, facet_teams = [], {}, {}
-    maintainers = {}  # lowercase handle -> [handle, packages, outdated, failing]
-    # Since when each fully checked row has been failing, outdated, failing
-    # its update attempts: the overview's newest and oldest of each.
+    maintainers = {}  # {lowercase handle: [handle, packages, outdated, failing]}
+    # Since when each fully checked row has been failing, outdated, or
+    # failing its update attempts: the overview's newest and oldest of each.
     ages = {"failing": [], "outdated": [], "updateFailing": []}
-    # Which dependencies stop the most packages' builds (of every row, those
-    # in sets too, as zh.fail counts them): {name: [row?, {packages}, builds]}.
+    # The dependencies that stop other packages' builds, counted over every
+    # row (sets included, as zh.fail counts them): {name: [whether it has a
+    # row, {packages}, builds]}.
     blockers = {}
     # The same on staging-next (branches.apply_staging_next_blocked): what
-    # its failing dependencies stop, of packages that build on master.
+    # its failing dependencies stop, of the packages that build on master.
     staging_blockers, staging_blocked, staging_info = {}, 0, {}
     for row in rows:
         letter = status(row)
@@ -741,8 +987,8 @@ def views(rows, out):
                 )
                 stops[1].add(row["name"])
                 stops[2] += 1
-        # Hydra jobs that didn't build, on every platform, of every row
-        # (in sets too): failing builds as zh.fail counts them.
+        # Hydra jobs that didn't succeed, on every platform and of every row
+        # (sets included): failing builds as zh.fail counts them.
         counts["failingBuilds"] += sum(
             b["status"] in FAILING_BUILDS for b in row.get("builds") or []
         )
@@ -765,8 +1011,9 @@ def views(rows, out):
         for name in row.get("lists") or []:
             put(f"views/list/{slug(name)}.json", row)
             lists[name] = lists.get(name, 0) + 1
-        # An open update PR nixpkgs is already past (prs_digest
-        # .mark_superseded): every one, in sets too, up to date or not.
+        # An open update PR that nixpkgs is already past
+        # (prs_digest.mark_superseded): every such row, sets included, up
+        # to date or not.
         if row.get("supersededPRs"):
             put("views/superseded.json", row)
         if row.get("set"):
@@ -782,8 +1029,9 @@ def views(rows, out):
                 },
             )
             if row.get("archived"):
-                # No longer on CRAN or in Bioconductor (sources/cran_digest.py);
-                # most nixpkgs marks broken already: those it doesn't apart.
+                # No longer on CRAN or in Bioconductor (sources/cran_digest.py).
+                # nixpkgs already marks most of them broken; the others are
+                # counted apart.
                 found_set["archived"] = found_set.get("archived", 0) + 1
                 if not (row.get("markedBroken") or broken_builds(row)):
                     found_set["archivedUnmarked"] = (
@@ -792,14 +1040,15 @@ def views(rows, out):
             found_set["packages"] += 1
             found_set["outdated"] += is_outdated(row)
             if on_branch(row):
-                # Of those, already updated on the branch (haskell-updates).
+                # Already updated on the set's branch (haskell-updates).
                 found_set["onBranch"] = found_set.get("onBranch", 0) + 1
             failed = letter.startswith("f")
             broken = bool(row.get("markedBroken") or broken_builds(row))
             found_set["failed"] += failed
             found_set["broken"] += broken
-            # The overview's bar: each package once, at its worst (failing,
-            # then broken, then outdated), so its parts never overlap.
+            # The overview's bar counts each package once, at its worst
+            # (failing, then broken, then outdated), so its parts never
+            # overlap.
             if failed:
                 found_set["bar"]["failed"] += 1
             elif broken:
@@ -820,10 +1069,11 @@ def views(rows, out):
             put("views/backport.json", row)
         counts["updateFailures"] += bool(row.get("updateFailure"))
         counts["buildFailures"] += bool(failed_builds(row))
-        # The same by where they fail: each Hydra system, and Linux and
-        # Darwin (a package failing on both Linux systems counted once), as
-        # the page's platform filter counts them: only where the package is
-        # available (not ete's aarch64-darwin, built by ete-unwrapped).
+        # The same by where the builds fail: each Hydra system, and Linux
+        # and Darwin (a package failing on both Linux systems is counted
+        # once for Linux), as the page's platform filter counts them. Only
+        # where the package is available counts: ete's failing
+        # aarch64-darwin build doesn't, as ete isn't available there.
         systems = {
             b["system"]
             for b in failed_builds(row)
@@ -831,17 +1081,18 @@ def views(rows, out):
         }
         for where in systems | {s.rsplit("-", 1)[-1] for s in systems}:
             failing_on[where] = failing_on.get(where, 0) + 1
-        # Only what counts now: the hourly checks recount, but only the daily
-        # sync sets and drops these dates, so a change in how nixkeeper counts
-        # would otherwise leave the lists apart from the cards for a day.
+        # Only rows that count now are listed. The hourly checks recount,
+        # but only the daily sync sets and clears these dates, so after a
+        # change in how nixkeeper counts, the lists would otherwise disagree
+        # with the cards for a day.
         now_counts = {
             "failing": bool(failed_builds(row)),
             "outdated": is_outdated(row),
             "updateFailing": bool(row.get("updateFailure")),
         }
         for kind, field in AGES.items():
-            # Not an update already merged, waiting for the channel: nothing
-            # to do about it (it stays in the card's count).
+            # An update already merged and waiting for the channel needs no
+            # action, so it's left out of the list (but not the card's count).
             if kind == "outdated" and waiting_for_channel(row):
                 continue
             if row.get(field) and now_counts[kind]:
@@ -851,8 +1102,8 @@ def views(rows, out):
             put("views/broken.json", row)
         if unbuilt_where(row):
             put("views/unbuilt.json", row)
-        # A fix to backport is the maintainer's to do too, even with
-        # nixos-unstable fine (its list tile: Fixes to backport).
+        # A fix to backport is for the maintainer to do too, even when
+        # nixos-unstable is fine (the list's tile: Fixes to backport).
         if letter[0] in "fmo" or letter.endswith("v") or row.get("backport"):
             put("views/attention.json", row)
     for path, members in found.items():
@@ -866,16 +1117,16 @@ def views(rows, out):
     out["maintainers.json"] = {
         "maintainers": [maintainers[key] for key in sorted(maintainers)]
     }
-    # Why things fail, across packages (causes.py): failed builds grouped by
-    # the same error, each a view of its packages; the bot's failures by
-    # cause.
+    # Why things fail across packages (causes.py): failed builds grouped by
+    # their error, each group a view of its packages.
     groups = causes.build_groups(rows)
     for group in groups:
         out[f"views/cause/{group['key']}.json"] = {
             "packages": [summary_entry(row) for row in group["rows"]],
             **{k: v for k, v in group.items() if k != "rows"},
         }
-    # Every group, for the overview's card shown in full (loaded on asking).
+    # Every group, for the overview's card when it's expanded (loaded only
+    # then).
     if groups:
         out["views/causes.json"] = {
             "groups": [{k: v for k, v in g.items() if k != "rows"} for g in groups]
@@ -886,16 +1137,17 @@ def views(rows, out):
     )
     return {
         "counts": {**counts, "buildFailuresOn": dict(sorted(failing_on.items()))},
-        # Their counts are the cards' (one counted with no date yet, until the
-        # daily sync gives it one, is in the count, not the lists).
+        # The lists' counts are the cards'. A row counted before the daily
+        # sync gives it a date is in the count, but not in the lists.
         "highlights": {
             kind: {**highlights(found), "count": counts[HIGHLIGHT_COUNTS[kind]]}
             for kind, found in ages.items()
         },
         # The overview's "Blocking the most": how many dependencies stop
-        # others' builds, how many packages have a build stopped (the
-        # blocked view's: its blockers read or not yet), and the HIGHLIGHTS
-        # that stop the most, [name, row?, packages, builds].
+        # other packages' builds, how many packages have a build stopped
+        # (the blocked view's size, whether its blockers are known yet or
+        # not), and the HIGHLIGHTS that stop the most, each [name, whether
+        # it has a row, packages, builds].
         "blockers": {
             "count": len(blockers),
             "packages": len(found.get("views/blocked.json", [])),
@@ -903,9 +1155,9 @@ def views(rows, out):
                 [name, is_row, len(names), builds]
                 for name, (is_row, names, builds) in top[:HIGHLIGHTS]
             ],
-            # And on staging-next, before its merge into master: how many
-            # packages its failing dependencies stop there, the ones
-            # stopping the most, and which evaluation.
+            # The same on staging-next, before it's merged into master: how
+            # many packages its failing dependencies stop there, the ones
+            # that stop the most, and which evaluation this is.
             **(
                 {
                     "stagingNext": {
@@ -924,10 +1176,11 @@ def views(rows, out):
                 else {}
             ),
         },
-        # The overview's "Why things fail": the biggest groups of failed builds
-        # sharing an error (causes.SHOWN; each {"key", "count", "reason",
-        # "signature", "line", "title"?, "about"?}), how many groups and
-        # packages in all, and the bot's failures by cause.
+        # The overview's "Why things fail": the biggest groups of failed
+        # builds sharing an error (causes.SHOWN of them, each {"key",
+        # "count", "reason", "signature", "line", "title"?, "about"?}), how
+        # many groups and packages there are in all, and the update bot's
+        # failures by cause.
         "causes": {
             "builds": [
                 {k: v for k, v in group.items() if k != "rows"}
@@ -944,8 +1197,8 @@ def views(rows, out):
             "backport": len(found.get("views/backport.json", [])),
             "unbuilt": len(found.get("views/unbuilt.json", [])),
             "superseded": len(found.get("views/superseded.json", [])),
-            # (In the file, by name with capitals first, as its keys sort: the
-            # page sorts them its way.)
+            # Sorted with capitals first, as Python sorts strings; the page
+            # sorts them its own way.
             "teams": dict(sorted(teams.items())),
             "lists": dict(sorted(lists.items())),
             "sets": dict(sorted(sets.items())),
@@ -954,6 +1207,8 @@ def views(rows, out):
 
 
 def _write_file(path, text):
+    """Write text to path through a temporary file, so a failed write never
+    leaves the file half-written."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w") as f:
         f.write(text)
@@ -1009,7 +1264,7 @@ def write(
             SYNC_ONLY, before anything is written.
     """
     check_kept(kept)
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     tmp_dir = out_dir + ".tmp"
     # Also done by lock.held; repeated here for callers, such as tests,
     # that write without the lock.
@@ -1063,7 +1318,7 @@ def restore_interrupted_swap(out_dir=None):
     Args:
         out_dir: The data folder (the configured one by default).
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     old_dir = out_dir + ".old"
     if not os.path.isdir(old_dir):
         return
@@ -1087,7 +1342,7 @@ def update(index, entries, out_dir=None):
         entries: Repology's entries, by the rows' "dataFile".
         out_dir: The data folder (the configured one by default).
     """
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     # Also done by lock.held; repeated here for callers, such as tests,
     # that write without the lock.
     restore_interrupted_swap(out_dir)
@@ -1106,15 +1361,16 @@ def update(index, entries, out_dir=None):
     _remove_files_no_longer_written(out_dir, written)
 
 
-# The view of the PRs maintainers can merge: written by the daily sync only
-# (with what it keeps, write's kept), so a partial run leaves it.
+# The view of the PRs maintainers can merge. Only the daily sync writes it,
+# as one of write's kept files, so a partial run leaves it in place.
 MERGE_VIEW = "views/merge.json"
-# Every file the daily sync keeps under rows/ or views/ (write's kept): the
-# only ones there a partial run leaves although it doesn't write them.
-# write (check_kept) refuses a kept file there that isn't listed, so a new
-# one can't be deleted by every hourly check unnoticed.
+# Every file the daily sync keeps under rows/ or views/ (write's kept
+# files): the only files there that a partial run leaves although it doesn't
+# write them. check_kept refuses a kept file there that isn't listed, so a
+# new one can't be deleted by every hourly check without anyone noticing.
 SYNC_ONLY = frozenset({MERGE_VIEW})
-# The folders a partial run tidies: only what files writes is there.
+# The folders a partial run tidies: everything in them is written by
+# files().
 GENERATED_FOLDERS = ("rows", "views")
 
 
@@ -1169,34 +1425,54 @@ def _remove_files_no_longer_written(out_dir, written):
 
 
 def _load(path):
+    """Read a JSON file."""
     with open(path) as f:
         return json.load(f)
 
 
 @functools.lru_cache(maxsize=64)
 def _cached(path, changed):
-    """A data file's JSON, read once while it's unchanged (changed: its
-    modification time): entries() reads a shard for each of its rows."""
+    """Read a data file's JSON, once while the file is unchanged.
+
+    entries() reads a row's shard for each row it's asked about, so without
+    the cache a shard would be read again for each of its rows.
+
+    Args:
+        path: The file.
+        changed: Its modification time, part of the cache's key, so a file
+            that was written again is read again.
+    """
     return _load(path)
 
 
 def _shared(path):
-    """A data file's JSON from the cache: not to be changed."""
+    """Read a data file's JSON through the cache.
+
+    The result is shared with every other caller, so it must not be
+    changed.
+    """
     return _cached(path, os.stat(path).st_mtime_ns)
 
 
 def load(out_dir=None):
-    """The last run's index, with every row in "packages" (without their
-    Repology entries: entries()), whichever format it was written in; an
-    empty one if there's none or it can't be read."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Read the last run's index, with every row in "packages".
+
+    The rows come without their Repology entries (entries() reads those).
+    Both formats are read.
+
+    Returns:
+        The index, or {"packages": []} when there's none or it can't be
+        read.
+    """
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         index = _load(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):
         return {"packages": []}
     if index.get("format") == FORMAT:
-        # The rows from the shards; if one can't be read, index.json's (in
-        # data from 0.12.0, written beside format 1), else none.
+        # The rows come from the shards. If one can't be read, the rows in
+        # index.json are kept (data from 0.12.0 has them, written beside
+        # format 1), else there are none.
         with contextlib.suppress(OSError, ValueError, KeyError, TypeError):
             index["packages"] = sorted(
                 (
@@ -1215,12 +1491,17 @@ def load(out_dir=None):
 
 
 def saved_entries(out_dir=None):
-    """Every row's Repology entries from the last run, {name: entries}, each
-    shard read once (format 2); {} for format 1 or if one can't be read
-    (entries() then reads each row's own file). For the hourly checks, which
-    write every shard again: entries() a row at a time would read a shard
-    per row, about 126,000 shard reads with every package."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Read every row's Repology entries from the last run, each shard once.
+
+    This is for the hourly checks, which write every shard again: calling
+    entries() for each row would read a shard per row, about 126,000 shard
+    reads with every package.
+
+    Returns:
+        {name: entries}, or {} for format 1 or when a file can't be read
+        (entries() then reads each row's own file).
+    """
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         index = _load(os.path.join(out_dir, "index.json"))
         if index.get("format") != FORMAT:
@@ -1235,10 +1516,15 @@ def saved_entries(out_dir=None):
 
 
 def entries(row, out_dir=None):
-    """row's Repology entries from the last run: from its shard (format 2),
-    else its data file (format 1, from 0.11.0 and before). Raises OSError or
-    ValueError when neither can be read."""
-    out_dir = out_dir or config.OUT_DIR  # the setting now, not at import
+    """Read row's Repology entries from the last run.
+
+    They're read from the row's shard (format 2), else from its own data
+    file (format 1, 0.11.0 and before).
+
+    Raises:
+        OSError, ValueError: Neither can be read.
+    """
+    out_dir = out_dir or config.OUT_DIR  # the setting as it is now, not at import
     try:
         index = _shared(os.path.join(out_dir, "index.json"))
         if index.get("format") == FORMAT:
