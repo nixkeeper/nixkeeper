@@ -21,7 +21,7 @@ and takes much longer than these estimates say.
 
 import os
 
-from . import log
+from . import config, log
 from .errors import Problem
 
 # What a package costs, as (seconds, requests): in the first sync it's in
@@ -138,10 +138,7 @@ def check(lists, count, new=0):
         f"{about(requests)} requests to public services."
     )
     log.info(message)
-    if (
-        os.environ.get("GITHUB_ACTIONS") == "true"
-        and seconds > GITHUB_ACTIONS_SECONDS * 0.9
-    ):
+    if config.on_github_actions() and seconds > GITHUB_ACTIONS_SECONDS * 0.9:
         log.warn(
             f"This sync may outlast GitHub Actions' 6-hour limit, and "
             f"publish nothing: {new:,} packages are new to the data. Add big "

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nixkeeper import listcheck, scale
+from nixkeeper import config, listcheck, scale
 from nixkeeper.errors import Problem
 
 
@@ -67,13 +67,13 @@ class Check(unittest.TestCase):
         )
 
     def test_warns_when_it_may_outlast_github(self):
-        env = {"GITHUB_ACTIONS": "true"}
-        with mock.patch.dict(os.environ, env, clear=True):
+        github = mock.patch.object(config, "on_github_actions", return_value=True)
+        with mock.patch.dict(os.environ, {}, clear=True), github:
             scale.check({}, 4000, 100)
         self.assertNotIn("6-hour", self.stderr.getvalue())
         # Only some 8,000 new packages at once take that long now (raised
         # past the limit with maxPackages).
-        with mock.patch.dict(os.environ, env, clear=True):
+        with mock.patch.dict(os.environ, {}, clear=True), github:
             scale.check({"maxPackages": 9000}, 9000, 9000)
         self.assertIn("::warning::This sync may outlast", self.stderr.getvalue())
 

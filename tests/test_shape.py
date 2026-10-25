@@ -388,11 +388,12 @@ class Typed(unittest.TestCase):
 class Report(unittest.TestCase):
     def test_how_many_and_the_first_few(self):
         out = io.StringIO()
-        shape.report({"rows": [f"r{n}: twice" for n in range(7)]}, out)
+        with mock.patch("sys.stderr", out):
+            shape.report({"rows": [f"r{n}: twice" for n in range(7)]})
         self.assertEqual(
             out.getvalue().splitlines(),
             [
-                "Data shape: 7 rows problems",
+                "warning: Data shape: 7 rows problems",
                 "  r0: twice",
                 "  r1: twice",
                 "  r2: twice",

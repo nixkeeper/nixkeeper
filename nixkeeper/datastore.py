@@ -1454,7 +1454,7 @@ def _check_shape(written):
             frames[-1],
         )
         where = f"{os.path.basename(frame.filename)}:{frame.lineno}"
-        log.info(f"Data shape: the check itself failed at {where}: {e!r}")
+        log.warn(f"Data shape: the check itself failed at {where}: {e!r}")
 
 
 def write(

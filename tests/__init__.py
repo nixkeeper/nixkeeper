@@ -7,6 +7,9 @@ Run with `nix flake check`, or from the repository root inside `nix develop`:
 
 from nixkeeper import config
 
+# The real one, for its own test (test_settings.py).
+ON_GITHUB_ACTIONS = config.on_github_actions
+
 
 def offline():
     """Tests never reach the real sites: each source's address off, unless a
@@ -29,6 +32,9 @@ def offline():
     config.STABLE_INDEX_URL = ""
     # Nor a nixkeeper-prs digest: the sync lists PRs and issues itself.
     config.PRS_DIGEST_URL = ""
+    # Not on GitHub Actions, wherever the tests run: the log's plain form
+    # (log.py). A test of GitHub's form patches it on.
+    config.on_github_actions = lambda: False
 
 
 offline()

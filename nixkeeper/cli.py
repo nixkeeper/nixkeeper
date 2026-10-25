@@ -249,7 +249,7 @@ def _run_command(argv=None):
     """Run the command argv gives, raising a Problem for its user to fix."""
     args = parser().parse_args(argv)
     if not args.command:
-        parser().print_help(sys.stderr)
+        log.info(parser().format_help().rstrip("\n"))
         sys.exit(2)
     found = settings(args)
     for flag, (name, _) in SETTINGS.items():

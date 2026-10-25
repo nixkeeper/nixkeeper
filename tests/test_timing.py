@@ -2,6 +2,7 @@
 
 import io
 import unittest
+from unittest import mock
 
 from nixkeeper import timing
 
@@ -18,7 +19,8 @@ class Phases(unittest.TestCase):
             [("nixpkgs", 4.2), ("Repology", 185), ("writing", 30.4)],
         )
         out = io.StringIO()
-        phases.report(out)
+        with mock.patch("sys.stderr", out):
+            phases.report()
         self.assertEqual(
             out.getvalue().splitlines(),
             [

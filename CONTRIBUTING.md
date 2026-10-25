@@ -197,10 +197,15 @@ Around that:
   view, `shard_of` and `SHARD_FILE` for a row's shard), shared by
   `datastore.py`, which writes them, and `shape.py`, which checks them
 - `log.py`: what the commands say as they run, on standard error: `info`,
-  and `notice` and `warn` (GitHub Actions' annotations there, `notice: `
-  and `warning: ` lines elsewhere), and `group` to fold lines under a
-  title. Nothing else prints to standard error (a test checks it);
-  standard output is what a command prints as its answer
+  and `notice` and `warn` (GitHub Actions' annotations there, escaped;
+  `notice: ` and `warning: ` lines elsewhere, at those priorities in a
+  systemd journal), and `group` to fold lines under a title (indented
+  elsewhere; not nested). Whether it runs on GitHub Actions is
+  `config.on_github_actions()`, which the tests turn off
+  (`tests/__init__.py`) and a test of GitHub's form patches on. Nothing
+  else names `sys.stderr`, prints to a file or writes a workflow command
+  (a test checks it); standard output is what a command prints as its
+  answer
 - `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
   each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the

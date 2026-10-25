@@ -4,8 +4,9 @@ The report shows where a sync's minutes go, so they're seen rather than
 guessed, and it's the evidence to start from before making a phase faster.
 """
 
-import sys
 import time
+
+from . import log
 
 
 class Phases:
@@ -31,17 +32,13 @@ class Phases:
         self.laps.append((name, now - self._last))
         self._last = now
 
-    def report(self, out=sys.stderr):
-        """Write every phase's time to the log, the longest first, with its share.
-
-        Args:
-            out: Where to write (standard error, the log, by default).
-        """
+    def report(self):
+        """Say every phase's time in the log, the longest first, with its share."""
         total = self._clock() - self._start
-        print(f"Phases: {_took(total)} in all", file=out)
+        log.info(f"Phases: {_took(total)} in all")
         for name, seconds in sorted(self.laps, key=lambda lap: -lap[1]):
             share = 100 * seconds / total if total else 0
-            print(f"  {_took(seconds):>8} {share:3.0f}%  {name}", file=out)
+            log.info(f"  {_took(seconds):>8} {share:3.0f}%  {name}")
 
 
 def _took(seconds):

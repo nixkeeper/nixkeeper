@@ -169,12 +169,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   hourly checks publish nothing on it until a full sync with this version
   has run (the manifest's `verdicts` says one has).
 
-- What the commands say as they run goes through one small module,
-  `log.py` (`info`, `notice`, `warn`, `group`), where 122 hand-written
-  prints said it. On GitHub Actions the log is as before, annotations
-  included; elsewhere (a terminal, the NixOS module's journal) a warning
-  reads `warning: ...` rather than `::warning::...`. Two syncs with every
-  package, before and after, wrote the same 5,401 files and the same log.
+- Outside GitHub Actions (a terminal, the NixOS module's journal), warnings
+  now read `warning: ...` instead of `::warning::...`, and notices
+  `notice: ...`; the journal files them as warnings and notices
+  (`journalctl -p warning -u nixkeeper-sync`). On GitHub Actions they're
+  annotations as before, now in full when the message is several lines
+  long (a Nix evaluation error), and problems the data check finds before
+  a write are one too.
 
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
