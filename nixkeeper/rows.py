@@ -751,7 +751,7 @@ def insecure(pkgs):
 
 
 def maintainers(pkgs, field="maintainers"):
-    """Return the GitHub handles in pkgs' meta.maintainers.
+    """Return the GitHub handles in a meta field of pkgs (maintainers by default).
 
     Args:
         pkgs: The package index's entries.
@@ -786,7 +786,7 @@ def teams(pkgs):
     """Return the nixpkgs teams in pkgs' meta.teams, by short name.
 
     Returns:
-        Each team's shortName ("Gaming", "Qt-KDE", as in
+        The teams' shortNames ("Gaming", "Qt-KDE", as in
         maintainers/team-list.nix), each once, in order.
     """
     found = []
