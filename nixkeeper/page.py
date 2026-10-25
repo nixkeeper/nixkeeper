@@ -112,6 +112,7 @@ class _Handler(http.server.SimpleHTTPRequestHandler):
     """
 
     def __init__(self, *args, page, data, **kwargs):
+        """Serve the page's folder, with the data folder under /data/."""
         self.page, self.data = page, data
         super().__init__(*args, directory=page, **kwargs)
 

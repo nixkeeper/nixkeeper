@@ -1,6 +1,9 @@
-"""nixpkgs side: the package lists (Nix files), the channel's package index and
-revision, where nixpkgs marks packages broken, and where their sources come
-from."""
+"""Read what nixpkgs itself says.
+
+That's the package lists (Nix files), the channel's package index and
+revision, where nixpkgs marks packages broken, where their sources come
+from, and their patches.
+"""
 
 import hashlib
 import json
@@ -18,10 +21,19 @@ from .. import config
 
 
 def read_lists(path=None):
-    """The package lists: {"maintainers": [...], "extraPackages": [...],
-    "updateChecks": {...}, "ignoredUpdates": {...}, "upToDate": {...}, ...}.
-    From a JSON file as is, or from the Nix folder (package-lists/) by
-    evaluating it."""
+    """Read the package lists.
+
+    They're read from a JSON file as it is, or from the Nix folder
+    (package-lists/) by evaluating it.
+
+    Returns:
+        {"maintainers": [...], "extraPackages": [...], "updateChecks":
+        {...}, "ignoredUpdates": {...}, "upToDate": {...}, ...}.
+
+    Raises:
+        SystemExit: There are no lists at path, nix isn't on the PATH, or
+            the lists don't evaluate.
+    """
     path = path or config.LISTS
     if not os.path.exists(path):
         sys.exit(
@@ -58,9 +70,11 @@ def read_lists(path=None):
 
 
 def channel_revision():
-    """The nixpkgs commit the channel (and so the index) was built from, or the
-    branch name if it can't be fetched: links then still work, their line
-    numbers just may have drifted."""
+    """Return the nixpkgs commit the channel, and so the index, was built from.
+
+    When it can't be fetched, that's the branch name instead: links then
+    still work, though their line numbers may have drifted.
+    """
     req = urllib.request.Request(
         config.NIXPKGS_REVISION_URL, headers={"User-Agent": config.user_agent()}
     )
@@ -94,8 +108,13 @@ _kept_lock = threading.Lock()
 
 
 def keep_answers(out_dir=None):
-    """From now on, keep evaluate's answers, starting from those the last
-    sync wrote (EVALUATIONS in out_dir). Returns how many it had."""
+    """Start keeping evaluate's answers, from those the last sync wrote.
+
+    They're read from EVALUATIONS in out_dir.
+
+    Returns:
+        How many answers it had.
+    """
     global _kept
     found = {}
     try:
@@ -108,8 +127,13 @@ def keep_answers(out_dir=None):
 
 
 def kept_answers():
-    """The answers this run used, to write as EVALUATIONS (those of commits
-    no longer asked about are dropped), or None when they aren't kept."""
+    """Return the answers this run used, to write as EVALUATIONS.
+
+    Those of commits no longer asked about are dropped.
+
+    Returns:
+        {"answers": ...}, or None when answers aren't kept.
+    """
     if _kept is None:
         return None
     with _kept_lock:
@@ -129,16 +153,24 @@ def stop_keeping():
 
 
 def evaluate(revision, system, expr, attrs):
-    """expr (a function of legacyPackages, with {attrs} where the list of
-    attributes goes) evaluated at the channel's revision for system: its
-    JSON answer, one value per attribute. The attributes are read from a
-    file, not put on nix's command line: Linux limits one argument to 128
-    KB, a few thousand attribute names (reading a file outside the store
-    takes --impure; what's evaluated is still that revision). Raises with
-    nix's last line of output if that fails. While answers are kept
-    (keep_answers), only the attributes not answered at that revision yet
-    are evaluated (none, most syncs between channel moves); not for a
-    branch name, which moves."""
+    """Evaluate expr at the channel's revision for system.
+
+    expr is a function of legacyPackages, with {attrs} where the list of
+    attributes goes. The attributes are read from a file, not put on nix's
+    command line: Linux limits one argument to 128 KB, a few thousand
+    attribute names (reading a file outside the store takes --impure;
+    what's evaluated is still that revision).
+
+    While answers are kept (keep_answers), only the attributes not answered
+    at that revision yet are evaluated: none, most syncs between channel
+    moves. Not for a branch name, which moves.
+
+    Returns:
+        The JSON answer, one value per attribute.
+
+    Raises:
+        EvalError: nix failed; its last line of output says why.
+    """
     if _kept is None or revision == config.NIXPKGS_BRANCH:
         return _evaluate(revision, system, expr, attrs)
     key = f"{revision} {system} {hashlib.sha256(expr.encode()).hexdigest()[:12]}"
@@ -154,7 +186,7 @@ def evaluate(revision, system, expr, attrs):
 
 
 def _evaluate(revision, system, expr, attrs):
-    """evaluate's answer from nix itself."""
+    """Ask nix itself for evaluate's answer."""
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "attrs.json")
         with open(path, "w") as f:
@@ -164,8 +196,14 @@ def _evaluate(revision, system, expr, attrs):
 
 
 def _nix_eval(revision, system, apply):
-    """legacyPackages.system at revision, with apply applied: its JSON
-    answer. Raises EvalError with nix's last line of output."""
+    """Evaluate legacyPackages.system at revision, with apply applied.
+
+    Returns:
+        The JSON answer.
+
+    Raises:
+        EvalError: nix failed; its last line of output says why.
+    """
     try:
         out = subprocess.run(
             [
@@ -191,15 +229,20 @@ def _nix_eval(revision, system, apply):
 
 
 class EvalError(Exception):
-    """nixpkgs didn't evaluate (evaluate): the reason, from nix."""
+    """Raised when nixpkgs doesn't evaluate (evaluate), with nix's reason."""
 
 
 def broken(attrs, revision):
-    """{attr: [systems where nixpkgs marks it broken]} at the channel's
-    revision. The index can't say: it's evaluated for x86_64-linux only, and
-    `broken = stdenv.hostPlatform.isDarwin;` is false there. Evaluates nixpkgs
-    per platform instead (evaluation only, so darwin works from Linux). Empty
-    if that fails: this is extra information, not worth failing the sync."""
+    """Find where nixpkgs marks each attribute broken, at the channel's revision.
+
+    The index can't say: it's evaluated for x86_64-linux only, and `broken =
+    stdenv.hostPlatform.isDarwin;` is false there. So nixpkgs is evaluated
+    per platform instead (evaluation only, so darwin works from Linux).
+
+    Returns:
+        {attr: [the systems where nixpkgs marks it broken]}, or {} when that
+        fails: it's extra information, not worth failing the sync.
+    """
     attrs = sorted(attrs)
     result = {}
     for system in config.HYDRA_SYSTEMS:
@@ -242,10 +285,18 @@ SOURCES_EXPR = """pkgs: map (attr:
 
 
 def sources(attrs, revision):
-    """{attr: {"version", "gitRepoUrl", "tag", "rev", "url"}} at the channel's
-    revision, for x86_64-linux (where sources come from doesn't depend on the
-    platform, as a rule); attributes that don't evaluate are left out. Raises
-    EvalError if nixpkgs doesn't evaluate."""
+    """Read where each attribute's source comes from, at the channel's revision.
+
+    That's for x86_64-linux: where sources come from doesn't depend on the
+    platform, as a rule.
+
+    Returns:
+        {attr: {"version", "gitRepoUrl", "tag", "rev", "url"}}; attributes
+        that don't evaluate are left out.
+
+    Raises:
+        EvalError: nixpkgs doesn't evaluate.
+    """
     attrs = sorted(attrs)
     values = evaluate(revision, "x86_64-linux", SOURCES_EXPR, attrs)
     return {a: v for a, v in zip(attrs, values, strict=True) if v}
@@ -282,8 +333,14 @@ PATCHES_EXPR = """pkgs: map (attr:
 
 
 def patches(attrs, revision):
-    """{attr: [patch names and URLs]} at revision (x86_64-linux), for the
-    attrs that have any. Raises EvalError if nixpkgs doesn't evaluate."""
+    """Read each attribute's patches at revision, for x86_64-linux.
+
+    Returns:
+        {attr: [patch names and URLs]}, for the attrs that have any.
+
+    Raises:
+        EvalError: nixpkgs doesn't evaluate.
+    """
     attrs = sorted(attrs)
     if not attrs:
         return {}
@@ -292,8 +349,11 @@ def patches(attrs, revision):
 
 
 def load_index(url=None):
-    """attribute -> package (pname, version, meta) for all of nixos-unstable
-    (or the channel whose index url is)."""
+    """Download a channel's package index: nixos-unstable's, or the one at url.
+
+    Returns:
+        {attribute: package (pname, version, meta)}.
+    """
     print("Downloading nixpkgs package index...", file=sys.stderr)
     req = urllib.request.Request(
         url or config.NIXPKGS_INDEX_URL, headers={"User-Agent": config.user_agent()}
@@ -313,14 +373,20 @@ SYSTEMS = {
 
 
 def platforms(pkgs):
-    """Where any of pkgs is available, from meta.platforms less
-    meta.badPlatforms: Linux and Darwin (any system of each), and "systems"
-    (of SYSTEMS) when those don't already say which: a package on
-    x86_64-linux only, not aarch64-linux (about 1,900 attributes of 151,000
-    on 2026-10-07). None when none of them declares platforms: nixpkgs then
-    doesn't restrict it."""
+    """Work out where any of pkgs is available.
+
+    That's from meta.platforms less meta.badPlatforms: Linux and Darwin
+    (any system of each), and "systems" (of SYSTEMS) when those don't
+    already say which, such as a package on x86_64-linux but not
+    aarch64-linux (about 1,900 attributes of 151,000 on 2026-10-07).
+
+    Returns:
+        {"linux", "darwin", "systems"?}, or None when none of pkgs declares
+        platforms: nixpkgs then doesn't restrict them.
+    """
 
     def strings(field, p):
+        """Return the strings in p's meta field."""
         return {s for s in p["meta"].get(field) or [] if isinstance(s, str)}
 
     declared = [p for p in pkgs if p["meta"].get("platforms")]
@@ -341,8 +407,12 @@ def platforms(pkgs):
 
 
 def available_on(platforms, system):
-    """Whether a row whose platforms() are platforms is available on system
-    (x86_64-linux), as the page's platform filter has it."""
+    """Return whether a row is available on system, as the page's filter says.
+
+    Args:
+        platforms: The row's platforms (platforms()'s result).
+        system: The system, such as x86_64-linux.
+    """
     if platforms is None:
         return True
     if not platforms.get(system.rsplit("-", 1)[-1]):

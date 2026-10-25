@@ -186,6 +186,7 @@ def newest_repos(entries, count):
     from .versions import version_key
 
     def order(e):
+        """Rank an entry: comparable versions first, then the newest first."""
         return (
             e.get("status") in UNCOMPARABLE,
             _Reversed(version_key(e.get("version") or "")),
@@ -206,6 +207,7 @@ class _Reversed:
     """A sort key that orders in reverse, so the newest version comes first."""
 
     def __init__(self, key):
+        """Hold the key to reverse."""
         self.key = key
 
     def __lt__(self, other):
@@ -696,9 +698,11 @@ def highlights(found):
     """
 
     def since(f):
+        """Return when an entry's problem began, as a timestamp."""
         return datetime.fromisoformat(f[0]).timestamp()
 
     def pick(chosen):
+        """Format the first HIGHLIGHTS of chosen, each family once."""
         picked = grouped(chosen, lambda f: f[3], lambda f: f[1])[:HIGHLIGHTS]
         return [
             [name, at, letter, *([family_entry(members)] if members else [])]
@@ -937,6 +941,7 @@ def views(rows, out):
     found = {}
 
     def put(path, row):
+        """Add row to the view at path."""
         found.setdefault(path, []).append(row)
 
     counts = dict.fromkeys(
