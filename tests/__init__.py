@@ -5,10 +5,9 @@ Run with `nix flake check`, or from the repository root inside `nix develop`:
     python3 -m unittest discover -s tests -t .
 """
 
-from nixkeeper import config
+import os
 
-# The real one, for its own test (test_settings.py).
-ON_GITHUB_ACTIONS = config.on_github_actions
+from nixkeeper import config
 
 
 def offline():
@@ -34,7 +33,7 @@ def offline():
     config.PRS_DIGEST_URL = ""
     # Not on GitHub Actions, wherever the tests run: the log's plain form
     # (log.py). A test of GitHub's form patches it on.
-    config.on_github_actions = lambda: False
+    os.environ.pop("GITHUB_ACTIONS", None)
 
 
 offline()

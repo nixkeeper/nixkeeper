@@ -255,7 +255,6 @@ class UserAgent(unittest.TestCase):
         with (
             mock.patch.dict(os.environ, env, clear=True),
             mock.patch("nixkeeper.version", return_value="0.9.0"),
-            mock.patch.object(config, "on_github_actions", tests.ON_GITHUB_ACTIONS),
         ):
             return config.user_agent()
 

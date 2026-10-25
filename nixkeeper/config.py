@@ -206,12 +206,7 @@ CONTACT_MAX = 100  # characters of NIXKEEPER_CONTACT kept in the User-Agent
 
 
 def on_github_actions():
-    """Return whether this runs on GitHub Actions.
-
-    The log's warnings are its annotations there (log.py), the sync warns
-    of its 6-hour limit (scale.py), and the User-Agent names the repository
-    running it (user_agent).
-    """
+    """Return whether this runs on GitHub Actions."""
     return os.environ.get("GITHUB_ACTIONS") == "true"
 
 

@@ -203,9 +203,9 @@ Around that:
   elsewhere; not nested). Whether it runs on GitHub Actions is
   `config.on_github_actions()`, which the tests turn off
   (`tests/__init__.py`) and a test of GitHub's form patches on. Nothing
-  else names `sys.stderr`, prints to a file or writes a workflow command
-  (a test checks it); standard output is what a command prints as its
-  answer
+  else names `sys.stderr`, prints to a file (one the code writes itself
+  takes `f.write`) or writes a workflow command (a test checks it);
+  standard output is what a command prints as its answer
 - `timing.py`: how long each phase of a sync took (`Phases`: a `lap` after
   each step of `sync.py`), in its log at the end, the longest first
 - `shape.py`: what `data/` must look like, checked before each write (the

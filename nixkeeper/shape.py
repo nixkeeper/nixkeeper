@@ -429,16 +429,16 @@ def _failing_on(entry, platform):
 def report(found):
     """Say the problems in the log: how many of each kind, and the first few.
 
-    How many is a warning (an annotation on GitHub Actions); the first few
-    are the lines after it.
+    Each kind is one warning, the first few problems in it: an annotation
+    on GitHub Actions, which shows them on the run's page.
 
     Args:
         found: The problems, as problems returns them. Nothing is said when
             there are none.
     """
     for kind, texts in found.items():
-        log.warn(f"Data shape: {len(texts):,} {kind} problems")
-        for text in texts[:SHOWN]:
-            log.info(f"  {text}")
+        lines = [f"Data shape: {len(texts):,} {kind} problems"]
+        lines += [f"  {text}" for text in texts[:SHOWN]]
         if len(texts) > SHOWN:
-            log.info(f"  ... and {len(texts) - SHOWN:,} more")
+            lines.append(f"  ... and {len(texts) - SHOWN:,} more")
+        log.warn("\n".join(lines))

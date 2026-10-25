@@ -4,6 +4,8 @@ import ast
 import io
 import os
 import pathlib
+import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -57,11 +59,30 @@ class Said(unittest.TestCase):
         )
         self.assertEqual(self.said(False, lambda: log.info("x"), journal=True), "x\n")
 
+        # Each line, as the journal files each on its own; before any indent.
+        def grouped():
+            with log.group("t"):
+                log.warn("a\nb")
+
+        self.assertEqual(
+            self.said(False, grouped, journal=True), "t\n<4>  warning: a\n<4>  b\n"
+        )
+
     def test_the_journal_is_standard_error_only_when_systemd_says(self):
+        with tempfile.TemporaryFile("w") as journal:
+            found = os.fstat(journal.fileno())
+            stream = f"{found.st_dev}:{found.st_ino}"
+            with mock.patch("sys.stderr", journal):
+                with mock.patch.dict(os.environ, {"JOURNAL_STREAM": stream}):
+                    self.assertTrue(log._to_journal())
+                # Another stream's (stderr redirected), or none.
+                other = f"{found.st_dev}:{found.st_ino + 1}"
+                with mock.patch.dict(os.environ, {"JOURNAL_STREAM": other}):
+                    self.assertFalse(log._to_journal())
+                with mock.patch.dict(os.environ, {}, clear=True):
+                    self.assertFalse(log._to_journal())
         with mock.patch.dict(os.environ, {"JOURNAL_STREAM": "1:2"}):
             self.assertFalse(log._to_journal())  # a StringIO, not a file
-        with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertFalse(log._to_journal())
 
     def test_a_group_folds_its_lines_on_github(self):
         def grouped():
@@ -83,6 +104,17 @@ class Said(unittest.TestCase):
             self.said(False, grouped), "Checks\n  one\n  two\n  warning: three\nafter\n"
         )
 
+    def test_another_threads_lines_arent_the_groups(self):
+        # Hydra's background thread, while the main thread is in a group.
+        def grouped():
+            with log.group("Checks"):
+                other = threading.Thread(target=log.info, args=("Hydra: done",))
+                other.start()
+                other.join()
+                log.info("one")
+
+        self.assertEqual(self.said(False, grouped), "Checks\nHydra: done\n  one\n")
+
     def test_a_group_is_closed_when_it_fails(self):
         def failing():
             with self.assertRaises(ValueError), log.group("Checks"):
@@ -90,7 +122,7 @@ class Said(unittest.TestCase):
 
         self.assertTrue(self.said(True, failing).endswith("::endgroup::\n"))
         self.assertEqual(self.said(False, failing), "Checks\n")
-        self.assertEqual(log._depth, 0)
+        self.assertEqual(log._depth(), 0)
 
 
 # GitHub Actions' workflow commands: only log.py writes them.

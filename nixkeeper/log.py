@@ -15,11 +15,22 @@ Standard output is left to what a command prints as its answer
 import contextlib
 import os
 import sys
+import threading
 
 from . import config
 
-# How deep in groups the lines being said are, for their indent off GitHub.
-_depth = 0
+# Each thread's own: how deep in groups its lines are, for their indent off
+# GitHub (Hydra's background thread says its lines while the main thread is
+# in a group: they aren't that group's).
+_local = threading.local()
+# Whether each standard error is the journal's stream, by its id and
+# JOURNAL_STREAM (_to_journal).
+_journal: dict[tuple[int, str], bool] = {}
+
+
+def _depth():
+    """Return how deep in groups this thread's lines are."""
+    return getattr(_local, "depth", 0)
 
 
 def _escaped(text):
@@ -38,12 +49,18 @@ def _to_journal():
     line as its priority (journalctl -p warning). It says which stream is
     the journal's in JOURNAL_STREAM ("device:inode").
     """
-    try:
-        device, inode = (int(n) for n in os.environ["JOURNAL_STREAM"].split(":"))
-        found = os.fstat(sys.stderr.fileno())
-    except (KeyError, ValueError, OSError, AttributeError):
-        return False  # not a journal, or not a file at all (tests' StringIO)
-    return (found.st_dev, found.st_ino) == (device, inode)
+    stream = os.environ.get("JOURNAL_STREAM")
+    if not stream:
+        return False
+    key = (id(sys.stderr), stream)
+    if key not in _journal:
+        try:
+            device, inode = (int(n) for n in stream.split(":"))
+            found = os.fstat(sys.stderr.fileno())
+            _journal[key] = (found.st_dev, found.st_ino) == (device, inode)
+        except (AttributeError, ValueError, OSError):
+            _journal[key] = False  # not a file at all (tests' StringIO)
+    return _journal[key]
 
 
 def _say(text, priority=""):
@@ -53,10 +70,12 @@ def _say(text, priority=""):
         text: The message.
         priority: The journal's priority for it ("<4>"), when it's one.
     """
-    if _depth and not config.on_github_actions():
-        text = "\n".join("  " * _depth + line for line in text.split("\n"))
+    indent = "" if config.on_github_actions() else "  " * _depth()
+    # The journal files each line on its own: each gets the priority, which
+    # it reads only at the very start of a line.
+    start = (priority if _to_journal() else "") + indent
     # sys.stderr is looked up each time, so tests can replace it.
-    print((priority if _to_journal() else "") + text, file=sys.stderr)
+    print("\n".join(start + line for line in text.split("\n")), file=sys.stderr)
 
 
 def info(message):
@@ -101,14 +120,13 @@ def group(title):
     Args:
         title: The group's title.
     """
-    global _depth
     if not config.on_github_actions():
         _say(title)
-        _depth += 1
+        _local.depth = _depth() + 1
         try:
             yield
         finally:
-            _depth -= 1
+            _local.depth -= 1
         return
     _say(f"::group::{_escaped(title)}")
     try:
