@@ -275,7 +275,7 @@ def directory_dates():
 
 
 def unchanged(attr, dates, since):
-    """Return whether the bot's logs for attr can't have changed since since.
+    """Return whether the bot's logs for attr can't have changed since `since`.
 
     They can't have when the package's directory last changed before since
     (with a minute's margin, as the index only shows minutes), or when it
@@ -615,7 +615,7 @@ BOT_FAILED = re.compile(BOT_FAILURE)
 
 
 def with_bot_reason(attempt):
-    """Give attempt the reason "bot" when its excerpt says the bot's machine failed.
+    """Set attempt's reason to "bot" when its excerpt shows the bot's machine failed.
 
     That's for attempts read before that reason existed (2026-10-08), by
     nixkeeper-updates or by an earlier sync, without reading their logs
@@ -641,7 +641,8 @@ def supersede(attempt, where):
 
     Args:
         attempt: The attempt, changed in place.
-        where: "nixos-unstable", "master" (superseded), or "ignored".
+        where: "nixos-unstable" or "master" (where nixpkgs moved past it),
+            or "ignored" (a rule ignores it).
     """
     attempt.update(
         supersededOutcome=attempt["outcome"], outcome="superseded", supersededOn=where
