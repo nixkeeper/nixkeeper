@@ -18,13 +18,14 @@
 # an instance on GitHub Pages only), CLOUDFLARE_SITE_URL (where it's served,
 # https://nixkeeper.com), CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN (a
 # token with only Account → Workers Scripts → Edit). wrangler is nixpkgs'
-# (this flake's lock), unless NIXKEEPER_WRANGLER names another command (for
-# tests).
+# (this flake's lock), unless NIXKEEPER_WRANGLER names another command (a
+# fake one in tests/sh/cloudflare.sh).
 #
 # A failed deploy is tried again, 3 attempts in all, NIXKEEPER_DEPLOY_PAUSE
-# seconds apart (30 by default; 0 in tests): Cloudflare's API sometimes fails
-# one request ("An unknown error has occurred", code 10013, 2026-10-25), and
-# the site then kept the last sync's data until the next one.
+# seconds apart (30 by default, 0 in the tests): Cloudflare's API sometimes
+# fails one request ("An unknown error has occurred", code 10013,
+# 2026-10-25), and the site then kept the last sync's data until the next
+# one.
 
 set -euo pipefail
 
@@ -87,14 +88,15 @@ read -r -a wrangler <<<"${NIXKEEPER_WRANGLER:-nix run --inputs-from . nixpkgs#wr
 # Static assets only (no Worker code): wrangler uploads only the files
 # Cloudflare doesn't have yet, and the new version replaces the old all at
 # once, never a new index.json with yesterday's shards.
-# Trying again is safe: an attempt that failed replaced nothing, and the
-# files it did upload aren't uploaded twice.
+# Trying again is safe: the same files deploy to the same site, and the ones
+# Cloudflare already has aren't uploaded again. Every failure is tried again,
+# a lasting one too (a revoked token): telling a passing one from a lasting
+# one isn't worth it here, for a minute more before the run fails.
+message="page $(git rev-parse --short HEAD:page), data ${data:0:12}"
 pause=${NIXKEEPER_DEPLOY_PAUSE:-30}
 attempts=3
 for attempt in $(seq "$attempts"); do
-  if "${wrangler[@]}" deploy \
-    --config "$work/wrangler.json" \
-    --message "page $(git rev-parse --short HEAD:page), data ${data:0:12}"; then
+  if "${wrangler[@]}" deploy --config "$work/wrangler.json" --message "$message"; then
     break
   fi
   if [ "$attempt" -eq "$attempts" ]; then

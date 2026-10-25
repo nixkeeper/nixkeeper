@@ -17,7 +17,9 @@ happen. For what nixkeeper does and how to set up your own, see the
   (`page/maintainer-view.js`), what the list keeps (`page/filters.js`), the
   list's rows and cells (`page/list.js`), the views' controls (wired onto
   stand-in elements) and the search box's query (`page/search.js`) with
-  Node's own test runner
+  Node's own test runner. `tests/sh/` tests the scripts' own logic: the
+  Cloudflare deploy's retry (`scripts/cloudflare.sh`), against a fake
+  wrangler
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -198,6 +200,7 @@ nix fmt                   # format everything (Nix, Python, the page), and sort 
 nix flake check           # tests, formatting, linters, package-list checks
 nix develop -c python3 -m unittest discover -s tests -t .   # tests, quickly
 nix develop -c node --test 'tests/js/*.test.mjs'            # the page's tests
+bash tests/sh/cloudflare.sh                                  # the deploy script's retry
 nix run .#community-check -- <attribute>   # try a community update check for real
 nix eval --json -f package-lists                             # what the lists evaluate to
 nix run .#screenshots -- --browser google-chrome   # retake the screenshots in assets/screenshots/

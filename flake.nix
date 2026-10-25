@@ -292,8 +292,16 @@
             # Named explicitly: on its own actionlint looks for .git, which the
             # flake source (CI's view of the repo) doesn't include.
             actionlint .github/workflows/*.yml
-            shellcheck scripts/*.sh
+            shellcheck scripts/*.sh tests/sh/*.sh
             biome lint page tests/js
+            touch $out
+          '';
+          # The scripts' own logic (tests/sh/), for now the Cloudflare deploy's
+          # retry, against a fake wrangler.
+          scripts = pkgs.runCommand "nixkeeper-script-tests" { nativeBuildInputs = [ pkgs.git ]; } ''
+            cd ${self}
+            export HOME=$TMPDIR
+            bash tests/sh/cloudflare.sh
             touch $out
           '';
           # The page's rules (page/logic.js), with Node's own test runner.
