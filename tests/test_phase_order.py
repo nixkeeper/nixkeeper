@@ -84,7 +84,13 @@ class Order(unittest.TestCase):
         ]
         # Each once, in this order. If this fails because a step moved,
         # Reordered's test for that pair, if there is one, says what changes.
-        self.assertEqual(steps, VERDICT_STEPS)
+        self.assertEqual(
+            steps,
+            VERDICT_STEPS,
+            "a verdict step moved, was renamed, or is called differently in "
+            "sync.py: update VERDICT_STEPS (and see Reordered for what the "
+            "order changes)",
+        )
 
 
 def verdict(row):
@@ -197,7 +203,8 @@ class Reordered(unittest.TestCase):
 
     def test_hydras_builds_before_master(self):
         # Hydra's builds say what master has (hydra.add_builds sets
-        # "master", as the first step here does), which count_master then
+        # "master", as the first step here does: test_hydra's
+        # test_add_builds_records_it checks it does), which count_master then
         # takes. The other way round, there'd be nothing to take.
         (row,), _ = self.both_ways(
             lambda: [{"name": "p", "nixVersion": "1.0", "nixStatus": "newest"}],
