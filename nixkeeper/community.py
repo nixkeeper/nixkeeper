@@ -1,5 +1,7 @@
-"""The community lists (community/): rules anyone can contribute by PR, for
-any nixpkgs package, in the format of your own lists:
+"""Read the community's rules, and check that they still work.
+
+The community lists (community/) hold rules anyone can contribute by PR,
+for any nixpkgs package, in the format of your own lists:
 
 - update checks (update-checks.nix), where to look for new releases;
 - ignored updates (ignored-updates.nix), failed nixpkgs-update attempts that
@@ -7,7 +9,7 @@ any nixpkgs package, in the format of your own lists:
 - up-to-date rules (up-to-date.nix), versions Repology gets wrong
   (nixkeeper/uptodate.py).
 
-Each is opt-in in the package lists:
+Each kind is opt-in in the package lists:
 
     community = { updateChecks = true; ignoredUpdates = true; upToDate = true; };
 
@@ -20,7 +22,12 @@ between.
 Community update checks run on every subscriber's machine, so they're held
 to limits your own aren't (safety(), and http.get's safe mode): an unsafe one
 is refused and reported, never fetched. Ignore and up-to-date rules fetch
-nothing."""
+nothing.
+
+`nixkeeper community-check` runs the rules for real (run, stale_ignores,
+stale_up_to_date), and keeps the community rules' status issue up to date
+(publish).
+"""
 
 import ipaddress
 import json
@@ -35,6 +42,7 @@ from urllib.parse import urlsplit
 # built), and where a checkout has them.
 _PACKAGED = resources.files("nixkeeper") / "community"
 _CHECKOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "community")
+# The community files, in community/.
 CHECKS = "update-checks.nix"
 IGNORES = "ignored-updates.nix"
 UP_TO_DATE = "up-to-date.nix"
@@ -57,6 +65,7 @@ ATTRIBUTE = re.compile(r"^[A-Za-z_][A-Za-z0-9_'+-]*(?:\.[A-Za-z_][A-Za-z0-9_'+-]
 GITHUB_REPO = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/(?!\.\.?$)[A-Za-z0-9_.-]+$")
 # Hostnames that only mean something on a local network.
 LOCAL_SUFFIXES = (".localhost", ".local", ".internal", ".lan", ".home.arpa")
+# The longest a community rule's pattern may be.
 MAX_PATTERN = 200
 # A group with a repeat inside that is repeated itself, like (a+)+ or (\w*)*:
 # the shape that can take a very long time on a page that almost matches.
@@ -64,21 +73,30 @@ NESTED_REPEAT = re.compile(r"\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)[+*{]")
 
 
 def path(name=CHECKS):
-    """A community file: the package's copy, or a checkout's."""
+    """Return a community file's path: the package's copy, or a checkout's."""
     if (_PACKAGED / name).is_file():
         return str(_PACKAGED / name)
     return os.path.normpath(os.path.join(_CHECKOUT, name))
 
 
 def opted(lists, kind):
-    """Whether the lists opt in to the community's kind of rules
-    ("updateChecks", "ignoredUpdates", "upToDate"): `community.<kind> = true;`."""
+    """Return whether the lists opt in to the community's kind of rules.
+
+    kind is "updateChecks", "ignoredUpdates" or "upToDate"; the lists opt
+    in with `community.<kind> = true;`.
+    """
     return (lists.get("community") or {}).get(kind) is True
 
 
 def rules(file=None):
-    """{package name: rule}, from a community file (evaluated with Nix; by
-    default the update checks), or {} with a warning if it can't be read."""
+    """Read a community file, evaluated with Nix.
+
+    Args:
+        file: The file; the update checks by default.
+
+    Returns:
+        {package name: rule}, or {} with a warning when it can't be read.
+    """
     file = file or path()
     try:
         result = subprocess.run(
@@ -106,21 +124,28 @@ def rules(file=None):
 
 
 def ignores(file=None):
-    """{package name: {version: reason}}, the community's ignore rules."""
+    """Return the community's ignore rules: {package name: {version: reason}}."""
     return rules(file or path(IGNORES))
 
 
 def up_to_date(file=None):
-    """{package name: {"version", "newest"?, "reason"}}, the community's
-    up-to-date rules."""
+    """Return the community's up-to-date rules.
+
+    Returns:
+        {package name: {"version", "newest"?, "reason"}}.
+    """
     return rules(file or path(UP_TO_DATE))
 
 
 def merge_up_to_date(lists, tracked):
-    """The up-to-date rules to apply: your own, plus the community's for
-    packages you track and have no rule of your own for (only with
-    `community.upToDate = true;`). Returns (rules, names of the community
-    ones)."""
+    """Return the up-to-date rules to apply.
+
+    They're your own, plus the community's for packages you track and have
+    no rule of your own for (only with `community.upToDate = true;`).
+
+    Returns:
+        (rules, the names of the community's).
+    """
     own = lists.get("upToDate") or {}
     if not opted(lists, "upToDate"):
         return own, set()
@@ -136,10 +161,15 @@ def merge_up_to_date(lists, tracked):
 
 
 def merge_ignores(lists, tracked):
-    """The ignore rules to apply: your own, plus the community's for packages
-    you track (only with `community.ignoredUpdates = true;`); your reason wins
-    for the same version. Returns (rules, {(name, version)} of the
-    community's)."""
+    """Return the ignore rules to apply.
+
+    They're your own, plus the community's for packages you track (only
+    with `community.ignoredUpdates = true;`); your reason wins for the same
+    version.
+
+    Returns:
+        (rules, {(name, version)} of the community's).
+    """
     own = lists.get("ignoredUpdates") or {}
     if not opted(lists, "ignoredUpdates"):
         return own, set()
@@ -156,10 +186,14 @@ def merge_ignores(lists, tracked):
 
 
 def merge(lists, tracked):
-    """The update checks to run: your own, plus the community's for packages
-    you track and have no rule of your own for (only with
-    `community.updateChecks = true;`). Returns (checks, names of the
-    community ones)."""
+    """Return the update checks to run.
+
+    They're your own, plus the community's for packages you track and have
+    no rule of your own for (only with `community.updateChecks = true;`).
+
+    Returns:
+        (checks, the names of the community's).
+    """
     own = lists.get("updateChecks") or {}
     if not opted(lists, "updateChecks"):
         return own, set()
@@ -177,8 +211,11 @@ def merge(lists, tracked):
 
 
 def is_public_host(host):
-    """Whether host is a name or address on the public internet: not an IP
-    address written out, not localhost or a local-network name."""
+    """Return whether host is a name on the public internet.
+
+    Not when it's an IP address written out, localhost, or a local-network
+    name (LOCAL_SUFFIXES).
+    """
     host = (host or "").lower().rstrip(".")
     if not host or host == "localhost" or host.endswith(LOCAL_SUFFIXES):
         return False
@@ -190,7 +227,13 @@ def is_public_host(host):
 
 
 def safety(rule):
-    """Why a community rule can't run, or None if it can."""
+    """Return why a community rule can't run, or None if it can.
+
+    It can't with an unknown field, a malformed github or follows, a url
+    that isn't https to a public host on the usual port, or a pattern
+    that's too long or could take very long to match (a nested repeat, or a
+    reference back to a group).
+    """
     if not isinstance(rule, dict):
         return "not a rule"
     unknown = set(rule) - FIELDS
@@ -225,9 +268,15 @@ def safety(rule):
 
 
 def problems(rules):
-    """What's wrong with community rules beyond their format (which
-    nix/package-lists.nix checks): the limits, and the patterns as Python
-    compiles them. For CI: ["name: why", ...]."""
+    """Return what's wrong with community rules beyond their format, for CI.
+
+    The format is nix/package-lists.nix's to check. These are the limits
+    (safety), the patterns as Python compiles them, and the follows
+    (follows_problems).
+
+    Returns:
+        ["name: why", ...], sorted.
+    """
     found = []
     for name, rule in sorted(rules.items()):
         if why := safety(rule):
@@ -245,8 +294,10 @@ def problems(rules):
 
 
 def follows_problems(rules):
-    """Rules that follow themselves, or a package that follows another (no
-    chains: follows.py would skip them)."""
+    """Return the rules that follow themselves, or a package that follows another.
+
+    There are no chains: follows.py would skip them.
+    """
     following = {
         name: rule["follows"]
         for name, rule in rules.items()
@@ -262,10 +313,17 @@ def follows_problems(rules):
 
 
 def run(names=None, file=None):
-    """Run community update checks for real, as a sync would (`nixkeeper
-    community-check`): every one (names None), or those named, against
-    nixpkgs' current versions. Returns {name: (version found or None, why
-    not)}."""
+    """Run community update checks for real, as a sync would.
+
+    That's `nixkeeper community-check`, against nixpkgs' current versions.
+
+    Args:
+        names: The rules to run; None for every one.
+        file: Another update checks file.
+
+    Returns:
+        {name: (the version found or None, why not)}.
+    """
     from datetime import UTC, datetime
 
     from .sources import nixpkgs as nixpkgs_source
@@ -306,10 +364,18 @@ def run(names=None, file=None):
 
 
 def sort_names(names, file=None):
-    """Package names given by hand, sorted by the community rules they have:
-    (those with an update check, those with ignore/up-to-date rules, those with
-    neither). A name can have both kinds. file: another update checks file,
-    as for run()."""
+    """Sort package names given by hand by the community rules they have.
+
+    A name can have both kinds.
+
+    Args:
+        names: The names.
+        file: Another update checks file, as for run().
+
+    Returns:
+        (those with an update check, those with ignore or up-to-date rules,
+        those with neither).
+    """
     with_checks = set(rules(file))
     with_ignores = set(ignores()) | set(up_to_date())
     return (
@@ -320,10 +386,19 @@ def sort_names(names, file=None):
 
 
 def stale_up_to_date(names=None, file=None):
-    """Community up-to-date rules that no longer do anything (uptodate.why_not):
-    nixpkgs has moved on, or Repology now shows a newer version elsewhere.
-    Every rule (names None), or those named. Returns {name: (version, why)};
-    a package Repology can't be reached for is left out, not called stale."""
+    """Find the community up-to-date rules that no longer do anything.
+
+    That's when nixpkgs has moved on, or Repology now shows a newer version
+    elsewhere (uptodate.why_not). A package Repology can't be reached for
+    is left out, not called stale.
+
+    Args:
+        names: The rules to check; None for every one.
+        file: Another up-to-date rules file.
+
+    Returns:
+        {name: (version, why)}.
+    """
     from . import rows, uptodate
     from .datastore import data_file
     from .sources import nixpkgs as nixpkgs_source
@@ -368,11 +443,19 @@ def stale_up_to_date(names=None, file=None):
 
 
 def stale_ignores(names=None, file=None):
-    """Community ignore rules that no longer do anything: the bot's latest
-    attempt isn't a failure at that version anymore (it moved on, or never
-    tried), so the rule can go. Every rule (names None), or those named.
-    Returns {name: [(version, why)]}; a package whose log can't be read is
-    left out, not called stale."""
+    """Find the community ignore rules that no longer do anything.
+
+    That's when the bot's latest attempt isn't a failure at that version
+    anymore (it moved on, or never tried), so the rule can go. A package
+    whose log can't be read is left out, not called stale.
+
+    Args:
+        names: The rules to check; None for every one.
+        file: Another ignore rules file.
+
+    Returns:
+        {name: [(version, why)]}.
+    """
     from .sources import nixpkgs_update
 
     found = {}
@@ -413,9 +496,14 @@ def stale_ignores(names=None, file=None):
 
 
 def report(results, stale=None, stale_up_to_date=None):
-    """Print run()'s, stale_ignores()' and stale_up_to_date()'s results, and
-    as a GitHub Actions job summary when there is one. Returns how many
-    update checks failed."""
+    """Print the community checks' results, and add them to the job summary.
+
+    That's run()'s, stale_ignores()' and stale_up_to_date()'s results, also
+    written as a GitHub Actions job summary when there is one.
+
+    Returns:
+        How many update checks failed.
+    """
     lines = ["| Package | Found | Problem |", "|---|---|---|"]
     failed = 0
     for name, (version, why) in sorted(results.items()):
@@ -454,11 +542,17 @@ def report(results, stale=None, stale_up_to_date=None):
 
 
 def changed(base_dir):
-    """The rules added or changed since base_dir (main's community/, for a
-    pull request): only those are tried there, so a PR isn't failed by a rule
-    it didn't touch. Returns (update check names, ignore/up-to-date rule names)."""
+    """Return the rules added or changed since base_dir.
+
+    base_dir is main's community/, for a pull request: only those rules are
+    tried there, so a PR isn't failed by a rule it didn't touch.
+
+    Returns:
+        (update check names, ignore and up-to-date rule names).
+    """
 
     def differ(name, current):
+        """Return the names in current whose rule differs from base_dir's."""
         base_file = os.path.join(base_dir, name)
         base = rules(base_file) if os.path.exists(base_file) else {}
         return [n for n, rule in current.items() if base.get(n) != rule]
@@ -477,9 +571,12 @@ STATE = re.compile(r"<!-- nixkeeper-community-state (\{.*?\}) -->", re.S)
 
 
 def track(results, previous, now):
-    """The new record of broken rules ({name: {"since", "reason"}}) from a
-    run's results and the previous record, and what changed: (record, newly
-    broken names, recovered names)."""
+    """Update the record of broken rules with a run's results.
+
+    Returns:
+        (the record, {name: {"since", "reason"}}; the names newly broken;
+        the names that work again).
+    """
     broken = {}
     for name, (_, why) in results.items():
         if why is not None:
@@ -491,6 +588,12 @@ def track(results, previous, now):
 
 
 def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
+    """Write the community rules' status issue's body.
+
+    It lists the broken update checks and the ignore and up-to-date rules
+    that can go, and ends with the record of broken rules, kept there for
+    the next run.
+    """
     total = len(results)
     lines = [
         "The community rules (`community/`), checked weekly by the "
@@ -559,10 +662,15 @@ def issue_body(results, broken, now, stale=None, stale_up_to_date=None):
 
 
 def publish(results, stale=None, stale_up_to_date=None, now=None):
-    """Update the community checks' status issue with a run's results (in the
-    repository NIXKEEPER_GITHUB_REPO or the workflow's own), commenting when a
-    rule newly breaks or recovers. Needs a token given explicitly, never the
-    local gh login."""
+    """Update the community rules' status issue with a run's results.
+
+    The issue is in NIXKEEPER_GITHUB_REPO, or the workflow's own
+    repository; a comment is posted when a rule newly breaks or works
+    again. It needs a token given explicitly, never the local gh login.
+
+    Raises:
+        SystemExit: There's no repository or no token.
+    """
     from datetime import UTC, datetime
 
     from .sources import github
