@@ -16,8 +16,8 @@ lookup checks the type of what it reads and reports what doesn't fit
 """
 
 import sys
-from types import NoneType
-from typing import NamedTuple
+from types import NoneType, UnionType
+from typing import NamedTuple, TypedDict, get_args, get_type_hints
 
 from .naming import SHARD_FILE, shard_of, slug
 
@@ -34,88 +34,113 @@ class Field(NamedTuple):
     required: bool = False
 
 
-# Every field a row may have. A field not listed here is reported as
-# unknown: either a typo, or a new field to add here and to docs/data.md
-# (a test checks that every field here is named in docs/data.md).
-ROW = {
+class Row(TypedDict, total=False):
+    """Every field a row may have, and what it may hold.
+
+    A field not listed here is reported as unknown: either a typo, or a new
+    field to add here and to docs/data.md (a test checks that every field
+    here is named in docs/data.md). The type checker (mypy, in nix flake
+    check) holds the code that builds rows to it, and ROW, made from it,
+    holds the data to it. Which fields every row has is REQUIRED's to say:
+    a row is built a field at a time, so while it's built, any may be
+    missing.
+    """
+
     # What the package is.
-    "name": Field((str,), required=True),
-    "attrs": Field((list,), required=True),
-    "searchTerm": Field((str,), required=True),
-    "lists": Field((list,), required=True),
-    "project": Field((str, NoneType)),
-    "dataFile": Field((str,)),
-    "platforms": Field((dict, NoneType)),
-    "homepage": Field((str, NoneType)),
-    "maintainers": Field((list,)),
-    "nonTeamMaintainers": Field((list,)),
-    "markedBroken": Field((bool,)),
-    "markedInsecure": Field((list,)),
-    "teams": Field((list,)),
-    "teamsByList": Field((list,)),
-    "set": Field((str,)),
-    "branch": Field((dict,)),
-    "lookupFailed": Field((bool,)),
-    "unversioned": Field((bool,)),
-    "unread": Field((list,)),
-    "source": Field((str,)),
-    "family": Field((str,)),
-    "unfree": Field((bool,)),
-    "devel": Field((bool,)),
+    name: str
+    attrs: list
+    searchTerm: str
+    lists: list
+    project: str | None
+    dataFile: str
+    platforms: dict | None
+    homepage: str | None
+    maintainers: list
+    nonTeamMaintainers: list
+    markedBroken: bool
+    markedInsecure: list
+    teams: list
+    teamsByList: list
+    set: str
+    branch: dict
+    lookupFailed: bool
+    unversioned: bool
+    unread: list
+    source: str
+    family: str
+    unfree: bool
+    devel: bool
     # Its versions.
-    "nixStatus": Field((str,), required=True),
+    nixStatus: str
     # Null for a list entry that nixpkgs doesn't have (nixStatus "missing").
-    "nixVersion": Field((str, NoneType)),
-    "refVersion": Field((str, NoneType)),
-    "refFromMaster": Field((bool,)),
-    "refFromPR": Field((bool,)),
-    "repoCount": Field((int,)),
-    "repology": Field((list,)),
-    "repologyCheckedAt": Field((str,)),
-    "repologyVersion": Field((str,)),
-    "repologySaid": Field((dict,)),
-    "onlyNixpkgs": Field((bool,)),
-    "staleSince": Field((str,)),
-    "upstream": Field((dict,)),
-    "feed": Field((dict,)),
-    "upToDate": Field((dict,)),
-    "keptBeside": Field((dict,)),
-    "archived": Field((bool,)),
-    "searchShowsMore": Field((list,)),
-    "outdatedSince": Field((str,)),
-    "nixVulnerable": Field((bool,)),
-    "vulnerabilities": Field((list,)),
-    "backport": Field((list,)),
+    nixVersion: str | None
+    refVersion: str | None
+    refFromMaster: bool
+    refFromPR: bool
+    repoCount: int
+    repology: list
+    repologyCheckedAt: str
+    repologyVersion: str
+    repologySaid: dict
+    onlyNixpkgs: bool
+    staleSince: str
+    upstream: dict
+    feed: dict
+    upToDate: dict
+    keptBeside: dict
+    archived: bool
+    searchShowsMore: list
+    outdatedSince: str
+    nixVulnerable: bool
+    vulnerabilities: list
+    backport: list
     # Master, its update PRs, and its other PRs and issues on GitHub.
-    "master": Field((str,)),
-    "masterPR": Field((dict,)),
-    "openPR": Field((dict,)),
-    "otherPRs": Field((list,)),
-    "dropPR": Field((dict,)),
-    "stagingPR": Field((dict,)),
-    "supersededPRs": Field((list,)),
-    "fixPRs": Field((list,)),
-    "openPRs": Field((int,)),
-    "openIssues": Field((int,)),
-    "countedAt": Field((str,)),
-    "issueChecks": Field((list,)),
+    master: str
+    masterPR: dict
+    openPR: dict
+    otherPRs: list
+    dropPR: dict
+    stagingPR: dict
+    supersededPRs: list
+    fixPRs: list
+    openPRs: int
+    openIssues: int
+    countedAt: str
+    issueChecks: list
     # Its builds on Hydra.
-    "builds": Field((list,)),
-    "neverBuiltOn": Field((list,)),
-    "failingSince": Field((str,)),
-    "buildFixPR": Field((dict,)),
-    "buildCausePR": Field((dict,)),
-    "stagingNextBreaks": Field((dict,)),
-    "stagingNextBlockedBy": Field((dict,)),
-    "stagingNextBlocks": Field((dict,)),
+    builds: list
+    neverBuiltOn: list
+    failingSince: str
+    buildFixPR: dict
+    buildCausePR: dict
+    stagingNextBreaks: dict
+    stagingNextBlockedBy: dict
+    stagingNextBlocks: dict
     # The update bot's attempts (nixpkgs-update).
-    "update": Field((dict, NoneType)),
-    "updateFailure": Field((bool,)),
-    "updateFailingSince": Field((str,)),
-    "queued": Field((dict,)),
+    update: dict | None
+    updateFailure: bool
+    updateFailingSince: str
+    queued: dict
     # Recent fixes, and the sources that couldn't be refreshed.
-    "recentFixes": Field((list,)),
-    "notRefreshed": Field((dict, list)),
+    recentFixes: list
+    notRefreshed: dict | list
+
+
+def _field(hint, required):
+    """Return the Field a Row annotation describes.
+
+    Args:
+        hint: The annotation: a type, or a union of them (str | None).
+        required: Whether every row has the field.
+    """
+    return Field(get_args(hint) if isinstance(hint, UnionType) else (hint,), required)
+
+
+# The fields every row has, once it's written.
+REQUIRED = {"name", "attrs", "searchTerm", "lists", "nixStatus"}
+# Every field a row may have, from Row: {name: Field}.
+ROW = {
+    name: _field(hint, name in REQUIRED) for name, hint in get_type_hints(Row).items()
 }
 
 # The view the build failures are counted from, as the page counts them.

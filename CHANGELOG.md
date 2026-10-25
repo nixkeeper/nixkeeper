@@ -150,6 +150,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   it, and for each pair whose order matters, it shows on a few packages
   the other verdict the other order would give.
 
+- A row's fields have a type, `Row` in `shape.py` (what the data check
+  reads them from), and `nix flake check` runs mypy over the code that
+  works out whether a package is outdated, so a misspelt field or a wrong
+  type there fails the check. Nothing the sync writes changes: two syncs
+  with every package, before and after, wrote the same 5,401 files.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

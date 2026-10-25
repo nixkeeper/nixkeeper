@@ -6,12 +6,14 @@ runs' rows for the notifications.
 """
 
 import re
+from typing import Literal
 
 from . import config
+from .shape import Row
 from .versions import is_newer, version_key
 
 
-def is_outdated(row):
+def is_outdated(row: Row):
     """Return whether a row is outdated.
 
     It is when Repology says so, when nixkeeper's own update check found a
@@ -27,7 +29,7 @@ def is_outdated(row):
     )
 
 
-def behind_as_devel(row):
+def behind_as_devel(row: Row):
     """Return whether a devel variant (a beta) has fallen behind.
 
     Repology calls it legacy because the stable variant is newer, but it's
@@ -62,7 +64,7 @@ def same_release(version, channel):
     )
 
 
-def ahead_on_master(row):
+def ahead_on_master(row: Row):
     """Return whether Hydra's build of master is newer than the channel's version.
 
     Someone has packaged a newer release then, so there is one, whether or
@@ -77,7 +79,7 @@ def ahead_on_master(row):
     )
 
 
-def count_master(row):
+def count_master(row: Row):
     """Make master's version the one to update to, when it's ahead.
 
     That's when master is ahead of what Repology and the update checks
@@ -94,10 +96,14 @@ def count_master(row):
 
 
 # A row's update PRs: merged into master, merged into staging, and open.
-PR_FIELDS = ("masterPR", "stagingPR", "openPR")
+PR_FIELDS: tuple[Literal["masterPR", "stagingPR", "openPR"], ...] = (
+    "masterPR",
+    "stagingPR",
+    "openPR",
+)
 
 
-def count_prs(row):
+def count_prs(row: Row):
     """Take the version to update to from the row's update PRs, when needed.
 
     That's for a row Repology calls outdated without naming a newer version
@@ -121,7 +127,7 @@ def count_prs(row):
         row["refFromPR"] = True
 
 
-def on_master(row):
+def on_master(row: Row):
     """Return the version master has, when it's ahead of the channel, or None.
 
     That's the higher of what Hydra built there ("master") and what an
@@ -134,7 +140,7 @@ def on_master(row):
     return max(versions, key=version_key, default=None)
 
 
-def waiting_for_channel(row):
+def waiting_for_channel(row: Row):
     """Return whether a row is outdated only until the channel catches up.
 
     Master already has the version it's compared with, or a newer one: the
@@ -149,7 +155,7 @@ def waiting_for_channel(row):
     )
 
 
-def on_branch(row):
+def on_branch(row: Row):
     """Return whether a row is outdated only until its set's branch is merged.
 
     The branch that updates its set before master (haskell-updates; the
@@ -164,12 +170,12 @@ def on_branch(row):
     )
 
 
-def failed_builds(row):
+def failed_builds(row: Row):
     """Return the row's builds that failed."""
     return [b for b in row.get("builds") or [] if b["status"] == "failed"]
 
 
-def broken_builds(row):
+def broken_builds(row: Row):
     """Return the row's builds nixpkgs marks broken.
 
     They're known failures, so they don't count as failed.
@@ -177,7 +183,7 @@ def broken_builds(row):
     return [b for b in row.get("builds") or [] if b["status"] == "broken"]
 
 
-def build_label(row, build):
+def build_label(row: Row, build):
     """Return a job's name, as the notifications write it.
 
     That's its platform, with its attribute when it isn't the row's own
@@ -195,7 +201,7 @@ def build_label(row, build):
 COUNTED_VULNERABILITIES = ("affected", "byVersion", "tracker", "wontFix", "osv")
 
 
-def counted_vulnerabilities(row):
+def counted_vulnerabilities(row: Row):
     """Return the ids of a row's CVEs and advisories that count."""
     return [
         v["id"]
@@ -204,7 +210,7 @@ def counted_vulnerabilities(row):
     ]
 
 
-def is_vulnerable(row):
+def is_vulnerable(row: Row):
     """Return whether a row counts as vulnerable, by any of its sources.
 
     It does when nixpkgs itself marks it insecure (markedInsecure), when
@@ -224,7 +230,7 @@ def is_vulnerable(row):
     )
 
 
-def failures(row):
+def failures(row: Row):
     """Return why a row counts as failed, or [] when it doesn't.
 
     That's what the page's red "failed" filter goes by.
@@ -254,7 +260,7 @@ STALE_LABELS = {
 }
 
 
-def stale_sources(row):
+def stale_sources(row: Row):
     """Return which of the row's sources couldn't be refreshed on its run."""
     sources = set(row.get("notRefreshed") or {})
     if row.get("staleSince"):

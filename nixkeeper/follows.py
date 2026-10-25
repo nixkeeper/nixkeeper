@@ -18,10 +18,18 @@ recorded on the row, so the hourly checks follow along without reading
 the lists.
 """
 
+from collections.abc import Iterator
+from typing import Literal
+
+from .shape import Row
 from .sources import upstream
 
 # The update PRs a follower takes from the package it follows.
-PR_FIELDS = ("openPR", "masterPR", "stagingPR")
+PR_FIELDS: tuple[Literal["openPR", "masterPR", "stagingPR"], ...] = (
+    "openPR",
+    "masterPR",
+    "stagingPR",
+)
 
 
 def of(checks):
@@ -42,7 +50,7 @@ def recorded(rows):
     }
 
 
-def pairs(rows, follows):
+def pairs(rows: list[Row], follows) -> Iterator[tuple[Row, Row]]:
     """Yield the (follower, followed) rows for each rule with both tracked.
 
     A package that follows another follower is skipped: there are no chains.
@@ -54,7 +62,7 @@ def pairs(rows, follows):
             yield row, other
 
 
-def apply_versions(rows, follows, now, community=frozenset()):
+def apply_versions(rows: list[Row], follows, now, community=frozenset()):
     """Give each follower the newest version of the package it follows.
 
     That's the followed row's refVersion (once master is counted), else its
@@ -76,7 +84,7 @@ def apply_versions(rows, follows, now, community=frozenset()):
     return changed
 
 
-def apply_prs(rows, follows):
+def apply_prs(rows: list[Row], follows):
     """Give each follower the update PRs of the package it follows.
 
     The same PRs update both. Only the PRs the followed row has are copied.

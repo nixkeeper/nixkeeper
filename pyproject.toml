@@ -28,6 +28,17 @@ nixkeeper = [
   "community/*.nix",  # the community rules, likewise
 ]
 
+[tool.mypy]
+# nix flake check runs it (checks.lint). Only functions with annotations
+# are checked: for now, those that build a row's verdict, with row: Row
+# (shape.Row).
+files = ["nixkeeper"]
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = "brotli"  # no type information
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 88  # Python's standard (Black / ruff default)
 

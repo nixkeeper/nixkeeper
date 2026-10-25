@@ -9,7 +9,7 @@ once it's done.
 
 import threading
 
-_noted = {}
+_noted: dict[str, dict] = {}
 _lock = threading.Lock()
 # A reason longer than this is cut: an error's text can be long.
 WHY_LENGTH = 200

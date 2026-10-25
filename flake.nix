@@ -86,6 +86,7 @@
 
         linters = with pkgs; [
           ruff
+          mypy # the row's type (shape.Row), where the verdict is built
           deadnix
           statix
           actionlint
@@ -287,6 +288,7 @@
             cd ${self}
             export HOME=$TMPDIR
             ruff check --no-cache .
+            mypy --cache-dir "$TMPDIR/mypy"
             deadnix --fail .
             statix check .
             # Named explicitly: on its own actionlint looks for .git, which the

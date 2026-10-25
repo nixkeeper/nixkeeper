@@ -195,9 +195,9 @@ Around that:
 - `shape.py`: what `data/` must look like, checked before each write (the
   sync's and the hourly checks'). It never raises on bad data, which is
   what it looks for, and a fault in the check itself is logged without
-  stopping the write: a row's fields and their types (`ROW`:
-  a field added to the rows is added there and to `docs/data.md`, which a
-  test holds to it), and the manifest's counts against the views they
+  stopping the write: a row's fields and their types (`Row`, a `TypedDict`,
+  from which `ROW` is made: a field added to the rows is added there and to
+  `docs/data.md`, which a test holds to it), and the manifest's counts against the views they
   count. For now its problems are reported in the log (`Data shape: ...`)
 - `page.py`: `nixkeeper page` and `nixkeeper serve`. The package carries the
   page: its build copies `page/` into `nixkeeper/page/` (and links it as
@@ -229,7 +229,7 @@ nix run .#pr-check        # outdated packages' update PRs, against data/ (hourly
 nix run .#sync -- --help  # the command's flags (each app passes its arguments on)
 nix run . -- paths        # the command as installed: your own folders, not the checkout's
 nix fmt                   # format everything (Nix, Python, the page), and sort the lists
-nix flake check           # tests, formatting, linters, package-list checks
+nix flake check           # tests, formatting, linters (mypy too), package-list checks
 nix develop -c python3 -m unittest discover -s tests -t .   # tests, quickly
 nix develop -c node --test 'tests/js/*.test.mjs'            # the page's tests
 bash tests/sh/cloudflare.sh                                  # the deploy script's retry
@@ -284,6 +284,12 @@ sentences.
   change said plainly (`search: parse the box once per value`, not
   `typing works out less`). Every commit ends with an `Assisted-by:` line
   when an AI assistant helped.
+
+A function that reads or writes a row's fields takes it as `row: Row`
+(`shape.Row`): mypy, in `nix flake check`, then holds it to the row's
+fields and their types, and a misspelt field or a wrong type fails the
+check. Only annotated functions are checked; for now, those that build a
+row's verdict.
 
 For example, from `nixkeeper/shape.py`:
 

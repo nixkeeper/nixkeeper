@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from . import config, datastore
 from .changes import is_outdated
+from .shape import Row
 from .sources import repology
 
 
@@ -113,7 +114,7 @@ def not_refreshed(row, source, reason, before, now):
     }
 
 
-def add_outdated_since(rows, previous, now):
+def add_outdated_since(rows: list[Row], previous, now):
     """Mark when each outdated row first became outdated ("outdatedSince").
 
     Neither Repology nor nixpkgs has that date, so it's carried from run to

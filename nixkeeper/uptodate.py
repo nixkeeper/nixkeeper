@@ -27,13 +27,14 @@ naming it, as a wrong Repology verdict is.
 
 import sys
 
+from .shape import Row
 from .versions import is_newer
 
 # The fields an up-to-date rule can have.
 FIELDS = {"version", "newest", "reason"}
 
 
-def why_not(row, rule):
+def why_not(row: Row, rule):
     """Return why rule no longer applies to row, or None if it still does.
 
     The row is taken as Repology has it, before any rule.
@@ -47,7 +48,7 @@ def why_not(row, rule):
     return None
 
 
-def apply(rows, rules, community=frozenset()):
+def apply(rows: list[Row], rules, community=frozenset()):
     """Mark the rows the rules apply to as up to date.
 
     A rule of your own that no longer applies gets a notice saying it can

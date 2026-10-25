@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from .. import config, history
 from ..changes import is_outdated, on_master
 from ..rows import search_term
+from ..shape import Row
 from . import http, updates_digest
 
 # A log's file name in a package's directory listing: the attempt's date.
@@ -649,7 +650,7 @@ def supersede(attempt, where):
     )
 
 
-def recheck_superseded(rows):
+def recheck_superseded(rows: list[Row]):
     """Mark failed attempts superseded by an update found on master since.
 
     An update PR merged into master can be found after the logs were read.
@@ -1048,7 +1049,7 @@ class _Finder:
             )
 
 
-def _keep(row, old):
+def _keep(row: Row, old):
     """Give row the last sync's attempt, as it isn't read this time.
 
     Args:
@@ -1059,7 +1060,7 @@ def _keep(row, old):
     row["updateFailure"] = bool((old or {}).get("updateFailure"))
 
 
-def judge(row, attempts, rules=None, community=()):
+def judge(row: Row, attempts, rules=None, community=()):
     """Give row the latest of attempts, judged by nixpkgs' state and the rules.
 
     A failed attempt is superseded where nixpkgs has moved past it

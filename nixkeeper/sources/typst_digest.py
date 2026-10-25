@@ -13,6 +13,7 @@ it.
 import sys
 
 from .. import config
+from ..shape import Row
 from . import about, feeds
 
 FILE = "typst.json.gz"
@@ -41,7 +42,7 @@ def load(now):
     return packages
 
 
-def apply(rows, nixpkgs, packages):
+def apply(rows: list[Row], nixpkgs, packages):
     """Compare typstPackages' rows with Typst Universe.
 
     The row of a package's latest attribute (typstPackages.cetz) is newest
@@ -66,7 +67,7 @@ def apply(rows, nixpkgs, packages):
         name = (pkg or {}).get("pname")
         found = packages.get(name) if name else None
         version = row.get("nixVersion")
-        if not found or not version:
+        if not name or not found or not version:
             continue
         latest = PREFIX + name
         latest_version = (nixpkgs.get(latest) or {}).get("version")

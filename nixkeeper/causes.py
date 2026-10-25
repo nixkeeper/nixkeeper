@@ -66,7 +66,7 @@ NORMALIZE = (
 # Friendly titles for patterns we know: (pattern on the line, title, what it
 # concerns), the first that matches; "{}" in a title is the pattern's first
 # group (the header, the module), so each is a group of its own.
-TITLES = (
+TITLE_PATTERNS = (
     (
         r"METADATA specifies version|pyprojectVersionPatchHook",
         "Version doesn't match the package's metadata",
@@ -122,7 +122,7 @@ TITLES = (
     ),
     (r"is deprecated \[-Werror", "Deprecated declaration is an error", "compiler"),
 )
-TITLES = tuple((re.compile(p), title, about) for p, title, about in TITLES)
+TITLES = tuple((re.compile(p), title, about) for p, title, about in TITLE_PATTERNS)
 # In a kernel module, these errors mean the kernel changed (a function it
 # dropped, a callback's new signature), not the compiler: the kernel's title.
 KERNEL_API = next(t[1:] for t in TITLES if t[2] == "kernel drivers")

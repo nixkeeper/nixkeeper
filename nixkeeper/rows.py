@@ -14,6 +14,7 @@ import os
 import re
 
 from . import config
+from .shape import Row
 from .sources.nixpkgs import platforms
 from .versions import (
     RELEASE_WORDS,
@@ -484,7 +485,7 @@ def series_ref(name, version, entries, others, kept=False):
     return best if best and is_newer(BUILD.sub("", best), plain) else None
 
 
-def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
+def make_row(proj, name, attrs, nix, others, nixpkgs, devel) -> Row:
     """Make one row from a project's entries.
 
     The row starts from Repology's verdict on nixpkgs' entry. Then, when
@@ -506,7 +507,7 @@ def make_row(proj, name, attrs, nix, others, nixpkgs, devel):
     Returns:
         The row.
     """
-    row = {
+    row: Row = {
         "name": name,
         # The attribute name, which unlike the pname tells variants apart
         # (_1password-gui and _1password-gui-beta both have pname
@@ -614,7 +615,7 @@ class _Found:
 # matters: each reads the row as the ones before it left it.
 
 
-def _within_own_series(row, found):
+def _within_own_series(row: Row, found):
     """Compare an older series kept beside a newer one within its own series.
 
     python313's 3.13.15 is compared with 3.13.16, not with Python's newest,
@@ -628,7 +629,7 @@ def _within_own_series(row, found):
         row["refVersion"] = ref
 
 
-def _release_word(row, found):
+def _release_word(row: Row, found):
     """Call nixpkgs' version newest when only a word naming the release differs.
 
     Repology ranks such a word lower: godot's 4.7.2-stable against 4.7.2.
@@ -645,7 +646,7 @@ def _release_word(row, found):
         row["nixStatus"] = "newest"
 
 
-def _distribution_snapshot(row, found):
+def _distribution_snapshot(row: Row, found):
     """Call nixpkgs' version newest when only a distribution's snapshot is newer.
 
     That's one distribution's snapshot of this same release:
@@ -659,7 +660,7 @@ def _distribution_snapshot(row, found):
         row["nixStatus"] = "newest"
 
 
-def _same_snapshot(row, found):
+def _same_snapshot(row: Row, found):
     """Call nixpkgs' version newest when the newer one is the same snapshot.
 
     That's another spelling of the same snapshot, mostly in nixpkgs' own
@@ -669,7 +670,7 @@ def _same_snapshot(row, found):
         row["nixStatus"] = "newest"
 
 
-def _own_earlier_version(row, found):
+def _own_earlier_version(row: Row, found):
     """Compare with the other repositories when only nixpkgs' own is newer.
 
     That's a row behind only nixpkgs' own earlier version (231 rows on
@@ -698,7 +699,7 @@ def _own_earlier_version(row, found):
         row["nixStatus"] = "newest" if rest else "unique"
 
 
-def _other_commit(row, found):
+def _other_commit(row: Row, found):
     """Call nixpkgs' version newest when it's behind only another commit.
 
     That's another commit on a nixpkgs channel (75 rows on 2026-10-20,
@@ -716,7 +717,7 @@ def _other_commit(row, found):
         row["refVersion"] = found.version
 
 
-def _unsupported(row, found):
+def _unsupported(row: Row, found):
     """Leave a version nixpkgs doesn't build by default uncompared.
 
     UNSUPPORTED isn't a version, so there's nothing to compare (10 rows were
@@ -727,7 +728,7 @@ def _unsupported(row, found):
         row["refVersion"] = None
 
 
-def _kept_series(row, found):
+def _kept_series(row: Row, found):
     """Work out what an older version kept beside a newer one is kept beside.
 
     That's a version Repology calls legacy (config.KEPT). It gets
@@ -796,7 +797,7 @@ CORRECTIONS = (
 )
 
 
-def _add_from_index(row, pkgs, nix):
+def _add_from_index(row: Row, pkgs, nix):
     """Add what nixpkgs' package index says of the row's packages.
 
     Args:
@@ -916,7 +917,7 @@ CHANNEL_STATUSES = {"newest", "outdated", "unique", "devel", config.KEPT}
 LETTERS_ONLY = re.compile(r"[-_.+~]?[A-Za-z]+")
 
 
-def channel_versions(rows, nixpkgs):
+def channel_versions(rows: list[Row], nixpkgs):
     """Use the channel's versions where they're newer than Repology's.
 
     Repology reads nixos-unstable some hours after it moves, and the
@@ -948,13 +949,13 @@ def channel_versions(rows, nixpkgs):
         channel = (nixpkgs.get(beside.get("attr")) or {}).get("version")
         if channel and is_newer(channel, beside.get("version")):
             beside["version"] = channel
-        if row.get("nixStatus") not in CHANNEL_STATUSES or not row.get("nixVersion"):
+        theirs = row.get("nixVersion")
+        if row.get("nixStatus") not in CHANNEL_STATUSES or not theirs:
             continue
         versions = {nixpkgs[a].get("version") for a in row["attrs"] if a in nixpkgs}
         if len(versions) != 1:
             continue
         ours = versions.pop()
-        theirs = row["nixVersion"]
         if not is_newer(ours, theirs) or LETTERS_ONLY.fullmatch(
             ours.removeprefix(theirs)
         ):

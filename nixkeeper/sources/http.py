@@ -169,7 +169,7 @@ NOT_MODIFIED = 304
 
 
 # When each site was last asked, for pace().
-_last_asked = {}
+_last_asked: dict[str, float] = {}
 _pacing = threading.Lock()
 
 

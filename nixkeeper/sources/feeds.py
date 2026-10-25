@@ -11,6 +11,7 @@ compared with ("feed", set by compare).
 """
 
 from .. import config
+from ..shape import Row
 from ..versions import version_key
 from . import digests
 
@@ -47,7 +48,7 @@ def load(file, source, label, now):
     return found
 
 
-def compare(row, name, newest, url, released=None, dated=False, **more):
+def compare(row: Row, name, newest, url, released=None, dated=False, **more):
     """Make row outdated or newest against a version from its set's source.
 
     The row says what it was compared with ("feed"), and is no longer kept

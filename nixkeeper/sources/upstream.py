@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 from .. import community as community_rules
 from .. import config, history, schedule
+from ..shape import Row
 from ..versions import is_newer, version_key
 from . import github, http
 
@@ -94,7 +95,7 @@ def outdated_after(check):
     return {**OUTDATED_AFTER, **(check.get("outdatedAfter") or {})}
 
 
-def apply(row, found, decides=True):
+def apply(row: Row, found, decides=True):
     """Record an update check's result on its row.
 
     When upstream is ahead of nixpkgs, its version is also the one the row
