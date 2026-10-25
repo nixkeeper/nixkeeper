@@ -169,7 +169,7 @@ def search_batch(token, searches):
 def search_counts(token, queries):
     """Return the result counts of several searches, in order.
 
-    A search GitHub couldn't answer counts None.
+    A search GitHub couldn't answer gives None.
     """
     return [count for count, _ in search_batch(token, [(q, 0) for q in queries])]
 
@@ -566,8 +566,8 @@ def add_update_prs(rows, open_prs=True, merged_since=None):
 def count_warnings(rows):
     """Warn of counts that are probably wrong, though no error says so.
 
-    The sync prints them as ::warning:: lines, which show up as annotations
-    on the workflow run.
+    add_counts (here and in github_bulk) prints them as ::warning:: lines,
+    which show up as annotations on the workflow run.
 
     Returns:
         The warnings.
@@ -612,7 +612,7 @@ def staging_next_merges(token, since):
 
     Returns:
         [{"day": the day it was merged (UTC), "kind": "staging-next", "pr",
-        "title"}] for each merge since since (YYYY-MM-DD), or None without a
+        "title"}] for each merge since `since` (YYYY-MM-DD), or None without a
         token or when GitHub couldn't answer.
     """
     if not token:
