@@ -31,6 +31,7 @@ before.
 import sys
 from datetime import datetime, timedelta
 
+from ..shape import Row
 from ..versions import is_newer
 from . import about, feeds, upstream
 
@@ -95,7 +96,7 @@ def result(entry):
     return found
 
 
-def apply(rows, digest, rules, now):
+def apply(rows: list[Row], digest, rules, now):
     """Give rows without a rule the digest's result as their worked-out check.
 
     It's applied by upstream.apply as inferred, so it only adds a newer

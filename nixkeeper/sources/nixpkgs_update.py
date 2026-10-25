@@ -860,7 +860,7 @@ def add_queue(rows, nixpkgs, queue):
 
 
 def add_attempts(
-    rows,
+    rows: list[Row],
     nixpkgs,
     previous,
     now,

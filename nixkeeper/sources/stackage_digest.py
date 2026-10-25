@@ -15,6 +15,7 @@ Repology's verdict (Hackage's newest).
 
 import sys
 
+from ..shape import Row
 from ..versions import version_key
 from . import about, feeds
 
@@ -55,7 +56,7 @@ def series_name(series):
     return "Stackage " + series.replace("lts-", "LTS ")
 
 
-def apply(rows, nixpkgs, found):
+def apply(rows: list[Row], nixpkgs, found):
     """Compare the rows of the haskellPackages nixpkgs pins with the series.
 
     Each is outdated or newest against its version in the series' newest

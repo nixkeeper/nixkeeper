@@ -22,6 +22,7 @@ compared (apply) with:
 import re
 import sys
 
+from ..shape import Row
 from . import about, feeds
 
 FILE = "emacs.json.gz"
@@ -67,7 +68,7 @@ def load(now):
     return archives
 
 
-def apply(rows, nixpkgs, archives):
+def apply(rows: list[Row], nixpkgs, archives):
     """Compare emacsPackages' rows with the archive each comes from.
 
     The archive is chosen by the module's rules. Each row is newest or
@@ -86,7 +87,7 @@ def apply(rows, nixpkgs, archives):
         if not attrs or not all(a.startswith(PREFIX) for a in attrs):
             continue
         version = row.get("nixVersion") or ""
-        pkg = next((nixpkgs[a] for a in attrs if a in nixpkgs), {})
+        pkg: dict = next((nixpkgs[a] for a in attrs if a in nixpkgs), {})
         if not version or MANUAL in ((pkg.get("meta") or {}).get("position") or ""):
             continue
         name = attrs[0][len(PREFIX) :].strip('"')

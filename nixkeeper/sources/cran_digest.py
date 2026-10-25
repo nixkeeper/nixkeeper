@@ -16,6 +16,7 @@ it says why; the others are likely broken too, or due for removal.
 
 import sys
 
+from ..shape import Row
 from . import about, feeds
 
 FILE = "cran.json.gz"
@@ -65,7 +66,7 @@ def package_name(attr):
     return ESCAPED.get(name) or name.replace("_", ".")
 
 
-def apply(rows, nixpkgs, found):
+def apply(rows: list[Row], nixpkgs, found):
     """Compare rPackages' rows with CRAN, else the Bioconductor release nixpkgs pins.
 
     Each row says what it was compared with ("feed"). A row in none of them

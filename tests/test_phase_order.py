@@ -19,6 +19,7 @@ from unittest import mock
 
 from nixkeeper import changes, follows, history, sync, uptodate
 from nixkeeper.rows import channel_versions
+from nixkeeper.shape import Row
 from nixkeeper.sources import feeds, nixpkgs_update, upstream
 from tests.helpers import pkg
 
@@ -91,6 +92,23 @@ class Order(unittest.TestCase):
             "sync.py: update VERDICT_STEPS (and see Reordered for what the "
             "order changes)",
         )
+
+
+class Typed(unittest.TestCase):
+    def test_every_verdict_step_takes_typed_rows(self):
+        # mypy checks a function's body only when it has annotations, so each
+        # step takes its rows as Row (shape.Row): a misspelt field in one
+        # fails nix flake check. "feed" is each of sync.FEEDS.
+        for name in VERDICT_STEPS:
+            owner, _, attr = name.rpartition(".")
+            if owner == "feed":
+                functions = [getattr(feed, attr) for feed in sync.FEEDS]
+            else:
+                functions = [getattr(getattr(sync, owner) if owner else sync, attr)]
+            for function in functions:
+                with self.subTest(step=f"{function.__module__}.{attr}"):
+                    first = next(iter(inspect.signature(function).parameters.values()))
+                    self.assertIn(first.annotation, (Row, list[Row]))
 
 
 def verdict(row):

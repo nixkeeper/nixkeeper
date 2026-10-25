@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 
 from .. import config, history, schedule
 from ..changes import is_outdated
+from ..shape import Row
 from ..versions import is_newer, version_key
 from . import http
 
@@ -319,7 +320,7 @@ def fetch(wanted, broken=None):
     return results
 
 
-def add_builds(rows, nixpkgs, previous, now, broken=None, fetched=None):
+def add_builds(rows: list[Row], nixpkgs, previous, now, broken=None, fetched=None):
     """Give every row in nixpkgs its Hydra builds.
 
     Each row gets "builds", each with when Hydra was asked ("checkedAt"),

@@ -196,9 +196,9 @@ Around that:
   sync's and the hourly checks'). It never raises on bad data, which is
   what it looks for, and a fault in the check itself is logged without
   stopping the write: a row's fields and their types (`Row`, a `TypedDict`,
-  from which `ROW` is made: a field added to the rows is added there and to
-  `docs/data.md`, which a test holds to it), and the manifest's counts against the views they
-  count. For now its problems are reported in the log (`Data shape: ...`)
+  from which `ROW` is made: a field added to the rows is added there and
+  to `docs/data.md`, which a test holds to it), and the manifest's counts
+  against the views they count. For now its problems are reported in the log (`Data shape: ...`)
 - `page.py`: `nixkeeper page` and `nixkeeper serve`. The package carries the
   page: its build copies `page/` into `nixkeeper/page/` (and links it as
   `share/nixkeeper/www/`); from a checkout, `page/` itself
@@ -288,8 +288,12 @@ sentences.
 A function that reads or writes a row's fields takes it as `row: Row`
 (`shape.Row`): mypy, in `nix flake check`, then holds it to the row's
 fields and their types, and a misspelt field or a wrong type fails the
-check. Only annotated functions are checked; for now, those that build a
-row's verdict.
+check. Only annotated functions are checked: for now, those that build a
+row's verdict (a test holds each step in `tests/test_phase_order.py` to
+it). mypy checks names and types, not presence: reading a field that may
+be missing still needs `row.get(...)`. And a misspelt `row.get(...)` is
+caught only where its value is used (it reads as `object`), not where
+it's only tested for truth.
 
 For example, from `nixkeeper/shape.py`:
 

@@ -215,7 +215,7 @@ def due(name, check, row, before, now):
 
 
 def add_checks(
-    rows, checks, previous, now, community=frozenset(), inferred=frozenset()
+    rows: list[Row], checks, previous, now, community=frozenset(), inferred=frozenset()
 ):
     """Run the update checks of the rows that have one.
 
@@ -246,7 +246,7 @@ def add_checks(
         for name, check in checks.items()
         if name in by_name and "follows" not in check
     }
-    failed = {}
+    failed: dict[str, str] = {}
     if not wanted:
         return failed
     before = {row["name"]: row for row in previous["packages"]}

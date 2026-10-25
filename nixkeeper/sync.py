@@ -66,6 +66,11 @@ from .sources import (
 )
 from .sources import nixpkgs as nixpkgs_source
 
+# The sources whose packages are compared with them instead of Repology:
+# Typst Universe, the Emacs archives, Stackage LTS, CRAN and Bioconductor
+# (sources/feeds.py).
+FEEDS = (typst_digest, emacs_digest, stackage_digest, cran_digest)
+
 
 def ask_hydra(attrs, nixpkgs, revision, previous, now, bulk=frozenset()):
     """Collect Hydra's build results for the tracked attributes.
@@ -361,9 +366,8 @@ def own_sources_and_lists(run, index_rows):
             file=sys.stderr,
         )
     # Typst, Emacs, Stackage-pinned Haskell and R packages are compared with
-    # their own sources instead of Repology: Typst Universe, the Emacs
-    # archives, Stackage LTS, CRAN and Bioconductor (sources/feeds.py).
-    for feed in (typst_digest, emacs_digest, stackage_digest, cran_digest):
+    # their own sources instead of Repology (FEEDS).
+    for feed in FEEDS:
         if any(a.startswith(feed.PREFIX) for a in run.tracked):
             feed.apply(index_rows, run.nixpkgs, feed.load(run.now))
     # What a branch that updates a set before master has (haskell-updates).
