@@ -229,10 +229,12 @@ def is_public_host(host):
 def safety(rule):
     """Return why a community rule can't run, or None if it can.
 
-    It can't with an unknown field, a malformed github or follows, a url
-    that isn't https to a public host on the usual port, or a pattern
-    that's too long or could take very long to match (a nested repeat, or a
-    reference back to a group).
+    It can't when it isn't a rule at all (not an attrset), or with an
+    unknown field; a malformed github; a follows that's malformed or has
+    other fields beside it; a url that isn't https to a public host, or
+    that names a port or credentials; or a pattern that's too long or
+    could take very long to match (a nested repeat, or a reference back to
+    a group).
     """
     if not isinstance(rule, dict):
         return "not a rule"
