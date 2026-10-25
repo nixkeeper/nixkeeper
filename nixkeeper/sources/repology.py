@@ -1,5 +1,8 @@
-"""Repology API client: project lookups with retries, and fallback between
-domains when there are several (config.REPOLOGY_URLS)."""
+"""Look projects up on Repology's API.
+
+Lookups are retried, and fall back between domains when there are several
+(config.REPOLOGY_URLS).
+"""
 
 import json
 import sys
@@ -21,6 +24,7 @@ _working = None
 
 
 def _domains():
+    """Return Repology's domains, the one that last answered first."""
     domains = list(config.REPOLOGY_URLS)
     if _working in domains:
         domains.remove(_working)
@@ -29,6 +33,7 @@ def _domains():
 
 
 def _answered(base):
+    """Remember base as the domain that answered, for the rest of the run."""
     global _working
     if base != _working and base != config.REPOLOGY_URLS[0]:
         print(f"  using {base} for the rest of the run", file=sys.stderr)
@@ -36,9 +41,18 @@ def _answered(base):
 
 
 def get(path):
-    """GET a Repology path, trying each domain (the last one that answered
-    first), and retrying the lot after RETRY_DELAYS seconds. Returns (json,
-    final_url), or (None, None) on 404."""
+    """GET a Repology path, as JSON.
+
+    Each domain is tried, the last one that answered first, and the lot is
+    retried after RETRY_DELAYS seconds.
+
+    Returns:
+        (json, the final URL), or (None, None) on a 404.
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: Every attempt failed;
+            the last one's error.
+    """
     last_err = None
     for attempt, delay in enumerate([0, *config.RETRY_DELAYS]):
         if attempt:
@@ -69,9 +83,11 @@ def get(path):
 
 
 def trimmed(entries):
-    """entries with only FIELDS, each once: Repology lists a package once per
-    binary package (xournalpp, xournalpp-doc, ...), which then read the same.
-    In Repology's order."""
+    """Return entries with only FIELDS, each once, in Repology's order.
+
+    Repology lists a package once per binary package (xournalpp,
+    xournalpp-doc, ...), and those read the same once trimmed.
+    """
     seen, kept = set(), []
     for entry in entries or []:
         entry = {k: entry[k] for k in FIELDS if k in entry}
@@ -83,8 +99,11 @@ def trimmed(entries):
 
 
 def project_for_attr(attr):
-    """Resolve a nixpkgs attribute to its Repology project. Returns
-    (project, entries), or (None, None) if Repology doesn't know it."""
+    """Find the Repology project of a nixpkgs attribute.
+
+    Returns:
+        (project, entries), or (None, None) when Repology doesn't know it.
+    """
     query = urllib.parse.urlencode(
         {
             "repo": config.NIX_REPO,
@@ -100,28 +119,45 @@ def project_for_attr(attr):
 
 
 def project_by_name(name):
+    """Read a Repology project by name.
+
+    Returns:
+        (name, entries), or (None, None) when Repology has no such project.
+    """
     entries, _ = get(f"/api/v1/project/{urllib.parse.quote(name)}")
     # Repology answers an unknown project with an empty list, not a 404.
     return (name, trimmed(entries)) if entries else (None, None)
 
 
 def has_attrs(entries, attrs):
-    """Whether Repology's entries include nixpkgs packaging one of attrs."""
+    """Return whether Repology's entries include nixpkgs packaging one of attrs."""
     return any(
         e.get("repo") == config.NIX_REPO and e.get("srcname") in attrs for e in entries
     )
 
 
 def resolve(fallback, attrs, known=None):
-    """Find the Repology project for tracked nixpkgs attrs, else for fallback
-    as a project name. Returns (project, entries), (None, None) if Repology
-    doesn't know it; raises on failure.
+    """Find the Repology project for tracked nixpkgs attributes.
 
-    known: the project the last run found for them. Asked for directly, it
-    takes one request, where asking by attribute takes two (Repology answers
-    with a redirect to the project). Used while it still has one of attrs in
-    nixpkgs; otherwise (Repology renamed or split the project) they're looked
-    up by attribute as before."""
+    The attributes are looked up first, then fallback as a project name.
+
+    Args:
+        fallback: A project name to try when no attribute resolves (not in
+            nixpkgs, or Repology hasn't caught up yet).
+        attrs: The attributes.
+        known: The project the last run found for them. Asked for directly,
+            it takes one request, where asking by attribute takes two
+            (Repology answers with a redirect to the project). It's used
+            while it still has one of attrs in nixpkgs; otherwise (Repology
+            renamed or split the project) they're looked up by attribute as
+            before.
+
+    Returns:
+        (project, entries), or (None, None) when Repology doesn't know it.
+
+    Raises:
+        urllib.error.URLError, OSError, ValueError: A lookup failed.
+    """
     if known and attrs:
         project, entries = project_by_name(known)
         time.sleep(1)
