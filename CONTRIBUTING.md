@@ -267,8 +267,10 @@ def row_problems(row):
     """
 ```
 
-Older code is being rewritten to this style module by module; new and
-changed code follows it already.
+All of `nixkeeper/` follows it. `tests/test_docstrings.py` keeps it so:
+every module, class and function has a docstring (dunder methods other
+than `__init__` aside), and each docstring's first line is its whole
+summary.
 
 ## Screenshots
 
