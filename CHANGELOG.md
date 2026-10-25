@@ -165,7 +165,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   Repology's beside it (`repologyVerdict`, in the rows only: 11,911 rows,
   about 1.5 MB more data). Nothing else the sync writes changes: two syncs
   with every package, before and after, wrote the same 5,401 files once
-  that field is set aside.
+  that field is set aside. Data written before has no such field, so the
+  hourly checks publish nothing on it until a full sync with this version
+  has run (the manifest's `verdicts` says one has).
 
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse

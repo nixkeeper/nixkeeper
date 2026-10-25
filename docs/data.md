@@ -50,7 +50,10 @@ hand (`jq . index.json`).
 is the nixkeeper that ran the last full sync (the page shows it at the
 bottom). `checkedAt` is when the last full sync ran (the hourly checks update
 single rows without changing it). `packageCount` is how many rows there are,
-`shardCount` how many shards hold them.
+`shardCount` how many shards hold them. `verdicts` (1) says the rows keep
+Repology's verdict where theirs differs (`repologyVerdict`), so the hourly
+checks can decide them again; without it (data from before), they wait for
+a full sync.
 
 `listProblems`, only when there are any, lists mistakes the sync found in the
 package lists, as sentences: a maintainer handle no package lists, an extra

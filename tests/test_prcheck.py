@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nixkeeper import config, datastore, notify, prcheck
+from nixkeeper import config, datastore, notify, prcheck, verdict
 from nixkeeper.sources import github, prs_digest
 
 URL = "https://github.com/NixOS/nixpkgs/pull/"
@@ -55,7 +55,11 @@ class PRCheck(unittest.TestCase):
 
     def publish(self, *rows):
         """The last run's data, in format 1 (as from 0.11.0: still read)."""
-        index = {"checkedAt": "2026-09-30T06:00:00+00:00", "packages": list(rows)}
+        index = {
+            "checkedAt": "2026-09-30T06:00:00+00:00",
+            "packages": list(rows),
+            "verdicts": verdict.FORMAT,
+        }
         with open("data/index.json", "w") as f:
             json.dump(index, f)
         self.published = [row["name"] for row in rows]
@@ -170,6 +174,38 @@ class PRCheck(unittest.TestCase):
             (wesnoth["update"]["outcome"], wesnoth["update"]["supersededOn"]),
             ("superseded", "master"),
         )
+
+    def test_data_from_before_waits_for_a_sync(self):
+        """Rows written before repologyVerdict was: a check's, master's or a
+        rule's verdict there can't be told from Repology's, so nothing is
+        decided again or published until a sync with this version."""
+        said = {"status": "outdated", "newest": "155.0"}
+        rows = [
+            row("chrome", nixStatus="newest", refVersion=None, repologySaid=said),
+            row(
+                "unciv",
+                nixVersion="4.22.1",
+                refVersion="4.22.5",
+                master="4.22.5",
+                refFromMaster=True,
+            ),
+        ]
+        before = self.publish(*rows)
+        del before["verdicts"]
+        with open("data/index.json", "w") as f:
+            json.dump(before, f)
+        with (
+            open("data/index.json") as f,
+            mock.patch.object(prcheck.nixpkgs, "channel_revision") as asked,
+            mock.patch.object(notify, "notify") as notified,
+        ):
+            written = f.read()
+            prcheck.main()
+        asked.assert_not_called()
+        notified.assert_not_called()
+        with open("data/index.json") as f:
+            self.assertEqual(f.read(), written)
+        self.assertIn("nothing is published until a full sync", self.stderr.getvalue())
 
     def test_nothing_changed_writes_nothing(self):
         existing = {

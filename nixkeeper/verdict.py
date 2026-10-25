@@ -23,6 +23,22 @@ from .changes import ahead_on_master
 from .shape import Row
 from .versions import is_newer, version_key
 
+# What the rows keep for decide, as the manifest says it ("verdicts"): 1,
+# Repology's verdict (repologyVerdict) where the verdict differs from it.
+# Data without it was written before, when a changed verdict kept no
+# Repology's verdict to go back to: its rows can't be decided again
+# (decidable), so the hourly checks wait for a sync.
+FORMAT = 1
+
+
+def decidable(index):
+    """Return whether the rows of a manifest's data can be decided again.
+
+    Args:
+        index: The data's index.json, as datastore.load reads it.
+    """
+    return index.get("verdicts") == FORMAT
+
 
 @dataclasses.dataclass
 class _Verdict:

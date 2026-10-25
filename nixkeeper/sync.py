@@ -641,7 +641,13 @@ def write(run, projects, index_rows, problems, prs, found_fixes):
     (every_package_outputs).
     """
     # version is the nixkeeper that made this data, for the page's footer.
-    index = {"checkedAt": run.now, "packages": index_rows, "version": version()}
+    index = {
+        "checkedAt": run.now,
+        "packages": index_rows,
+        "version": version(),
+        # The rows can be decided again by the hourly checks (verdict.py).
+        "verdicts": verdict.FORMAT,
+    }
     if run.everything:
         index["allPackages"] = True
         # What updates each set updated in bulk, said once here rather than

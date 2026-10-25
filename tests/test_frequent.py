@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from nixkeeper import config, datastore, frequent, notify
+from nixkeeper import config, datastore, frequent, notify, verdict
 from nixkeeper.errors import Problem
 from nixkeeper.sources import github, http, repology
 from nixkeeper.sources import nixpkgs as nixpkgs_source
@@ -72,7 +72,11 @@ class FrequentCheck(unittest.TestCase):
 
     def publish(self, *rows):
         """The last run's data, in format 1 (as from 0.11.0: still read)."""
-        index = {"checkedAt": "2026-09-30T06:00:00+00:00", "packages": list(rows)}
+        index = {
+            "checkedAt": "2026-09-30T06:00:00+00:00",
+            "packages": list(rows),
+            "verdicts": verdict.FORMAT,
+        }
         with open("data/index.json", "w") as f:
             json.dump(index, f)
         self.published = [row["name"] for row in rows]
@@ -114,6 +118,8 @@ class FrequentCheck(unittest.TestCase):
         self.assertIn("outdatedSince", chrome)
         self.assertEqual(index["packages"][1], before["packages"][1])  # untouched
         self.assertEqual(index["checkedAt"], before["checkedAt"])  # the full sync's
+        # Still decidable, for the next hourly check (verdict.decidable).
+        self.assertEqual(index["verdicts"], verdict.FORMAT)
         get.assert_called_once_with(
             CHECKS["google-chrome"]["url"], None, False
         )  # not bbedit's
@@ -138,6 +144,7 @@ class FrequentCheck(unittest.TestCase):
                 "checkedAt": "2026-09-30T06:00:00+00:00",
                 "packages": [chrome_row(), bbedit],
                 "sources": sources,
+                "verdicts": verdict.FORMAT,
             },
             {
                 "google-chrome.json": entries("154.0.8037.57", "154.0.8037.57"),
@@ -263,6 +270,17 @@ class FrequentCheck(unittest.TestCase):
         # Next hour, still failing: nothing new to write or say.
         _, notified, _ = self.run_frequent("<html>moved</html>")
         notified.assert_not_called()
+
+    def test_data_from_before_waits_for_a_sync(self):
+        before = self.publish(chrome_row())
+        del before["verdicts"]
+        with open("data/index.json", "w") as f:
+            json.dump(before, f)
+        with mock.patch.object(repology, "project_by_name") as asked:
+            frequent.main()
+        asked.assert_not_called()
+        self.assertEqual(self.written()["packages"], before["packages"])
+        self.assertIn("nothing is published until a full sync", self.stderr.getvalue())
 
     def test_needs_a_previous_sync(self):
         with self.assertRaises(Problem):

@@ -75,7 +75,10 @@ def refresh_repology(row, previous, now):
 def main():
     """Run the frequent check, and publish what changed."""
     now = datetime.now(UTC).isoformat()
-    previous, packages = partial.load()
+    loaded = partial.load()
+    if loaded is None:
+        return  # waiting for a full sync (partial.load says so)
+    previous, packages = loaded
     # Your own checks and, if the lists opt in, the community's (community.py).
     merged, from_community = community.merge(
         nixpkgs_source.read_lists(), [row["name"] for row in packages]

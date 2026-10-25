@@ -8,7 +8,7 @@ Most hours nothing does, so nothing is written, committed or posted.
 import copy
 import sys
 
-from . import config, datastore, history, notify
+from . import config, datastore, history, notify, verdict
 from .errors import Problem
 
 
@@ -16,7 +16,9 @@ def load():
     """Load the last published data, and a copy of its rows to change.
 
     Returns:
-        (the last published index, a deep copy of its rows).
+        (the last published index, a deep copy of its rows), or None when
+        its rows can't be decided again (verdict.decidable): written by an
+        older nixkeeper, they wait for a full sync with this one.
 
     Raises:
         Problem: There's no published data: the daily sync has to have
@@ -28,6 +30,15 @@ def load():
             f"No previous run in {config.data_dir()}: run the full sync first "
             "(nixkeeper sync; from a checkout, nix run .#sync)."
         )
+    if not verdict.decidable(previous):
+        print(
+            "::notice::The data was written by an older nixkeeper "
+            f"({previous.get('version') or 'unknown'}), before its rows kept "
+            "Repology's verdict: nothing is published until a full sync with "
+            "this one.",
+            file=sys.stderr,
+        )
+        return None
     return previous, copy.deepcopy(previous["packages"])
 
 

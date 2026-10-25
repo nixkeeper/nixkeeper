@@ -3,9 +3,11 @@
 import ast
 import itertools
 import pathlib
+import types
 import unittest
+from unittest import mock
 
-from nixkeeper import config, verdict
+from nixkeeper import config, datastore, rows, sync, verdict
 from nixkeeper.sources import upstream
 from nixkeeper.verdict import decide
 
@@ -220,26 +222,93 @@ class FromRepologys(unittest.TestCase):
         self.assertEqual(len(results), 1)
 
 
+# The fields only verdict.decide writes, once a row's Repology verdict is set.
+VERDICT = ("nixStatus", "refVersion")
+
+
+def writes(node):
+    """Return whether an ast node writes one of VERDICT's fields.
+
+    That's an assignment to row["nixStatus"] (plain, augmented or
+    annotated), a call of .update naming one, or a dict literal with one.
+    A key held in a variable isn't seen (frequent.refresh_repology's
+    row[key] = fresh[key]).
+    """
+    if isinstance(node, ast.Assign | ast.AugAssign | ast.AnnAssign):
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        return any(
+            isinstance(part, ast.Subscript)
+            and isinstance(part.slice, ast.Constant)
+            and part.slice.value in VERDICT
+            for target in targets
+            for part in ast.walk(target)
+        )
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "update"
+    ):
+        return any(k.arg in VERDICT for k in node.keywords) or any(
+            isinstance(a, ast.Dict) and writes(a) for a in node.args
+        )
+    if isinstance(node, ast.Dict):
+        return any(
+            isinstance(k, ast.Constant) and k.value in VERDICT for k in node.keys
+        )
+    return False
+
+
 class OnlyHere(unittest.TestCase):
     def test_only_verdict_and_repologys_verdict_write_it(self):
         # Anything else writing nixStatus or refVersion would be undone by the
         # next decide, or would be taken for Repology's verdict.
         allowed = {
-            "verdict.py",
-            "rows.py",  # Repology's verdict, with its corrections (make_row)
-            "frequent.py",  # Repology's fresh verdict (refresh_repology)
+            "verdict.py:decide",
+            # Repology's verdict, with its corrections.
+            "rows.py:make_row",
+            *(f"rows.py:{c.__name__}" for c in rows.CORRECTIONS),
+            "rows.py:_add_from_index",  # "unlisted", for a row Repology hasn't
+            # Repology's fresh verdict.
+            "frequent.py:refresh_repology",
+            # The rows community-check makes to run the checks on.
+            "community_check.py:run",
+            # A copy of a row as Repology had it, for the log (not the row).
+            "inferred.py:report",
         }
         package = pathlib.Path(verdict.__file__).parent
         writers = set()
         for path in package.rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
-                targets = node.targets if isinstance(node, ast.Assign) else []
-                for target in targets:
-                    for part in ast.walk(target):
-                        if (
-                            isinstance(part, ast.Subscript)
-                            and isinstance(part.slice, ast.Constant)
-                            and part.slice.value in ("nixStatus", "refVersion")
-                        ):
-                            writers.add(path.relative_to(package).as_posix())
+            name = path.relative_to(package).as_posix()
+            for function in ast.walk(ast.parse(path.read_text())):
+                if not isinstance(function, ast.FunctionDef):
+                    continue
+                for node in ast.walk(function):
+                    if writes(node):
+                        writers.add(f"{name}:{function.name}")
         self.assertLessEqual(writers, allowed)
+
+    def test_each_way_of_writing_it_is_seen(self):
+        for code in (
+            'row["nixStatus"] = "x"',
+            'row["refVersion"] += "x"',
+            'row["nixStatus"]: str = "x"',
+            'row.update(nixStatus="x")',
+            'row.update({"refVersion": "x"})',
+            'r = {"nixStatus": "x"}',
+        ):
+            with self.subTest(code):
+                self.assertTrue(any(writes(n) for n in ast.walk(ast.parse(code))))
+        self.assertFalse(any(writes(n) for n in ast.walk(ast.parse('row["x"] = 1'))))
+
+
+class Decidable(unittest.TestCase):
+    def test_the_sync_says_its_rows_can_be_decided_again(self):
+        run = types.SimpleNamespace(now="NOW", everything=False, lists={})
+        with mock.patch.object(datastore, "write") as written:
+            sync.write(run, {}, [], [], {}, [])
+        index = written.call_args.args[0]
+        self.assertTrue(verdict.decidable(index))
+        # Data from before: not.
+        self.assertFalse(
+            verdict.decidable({k: v for k, v in index.items() if k != "verdicts"})
+        )
