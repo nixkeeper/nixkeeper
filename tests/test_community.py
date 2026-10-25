@@ -546,7 +546,9 @@ class StatusIssue(unittest.TestCase):
         self.assertIsNone(comment)
 
     def test_ignore_rules_that_can_go(self):
-        stale = {"xskat": [("4.0-9", "the bot's latest attempt is at 4.1")]}
+        stale_ignore_rules = {
+            "xskat": [("4.0-9", "the bot's latest attempt is at 4.1")]
+        }
         env = {"GITHUB_TOKEN": "t", "GITHUB_REPOSITORY": "nixkeeper/nixkeeper"}
         with (
             mock.patch.dict(os.environ, env, clear=True),
@@ -556,12 +558,14 @@ class StatusIssue(unittest.TestCase):
             ) as update,
             mock.patch("sys.stderr", io.StringIO()),
         ):
-            community_check.publish({"a": ("1.0", None)}, stale, now=self.NOW)
+            community_check.publish(
+                {"a": ("1.0", None)}, stale_ignore_rules, now=self.NOW
+            )
         body = update.call_args.args[3]
         self.assertIn("| `xskat` | 4.0-9 | the bot's latest attempt is at 4.1 |", body)
 
     def test_up_to_date_rules_that_can_go(self):
-        stale_up = {"pacvim": ("2018-05-16", "nixpkgs is now at 1.1.1")}
+        stale_up_to_date_rules = {"pacvim": ("2018-05-16", "nixpkgs is now at 1.1.1")}
         env = {"GITHUB_TOKEN": "t", "GITHUB_REPOSITORY": "nixkeeper/nixkeeper"}
         with (
             mock.patch.dict(os.environ, env, clear=True),
@@ -574,7 +578,7 @@ class StatusIssue(unittest.TestCase):
             community_check.publish(
                 {"a": ("1.0", None)},
                 stale_ignore_rules=None,
-                stale_up_to_date_rules=stale_up,
+                stale_up_to_date_rules=stale_up_to_date_rules,
                 now=self.NOW,
             )
         body = update.call_args.args[3]

@@ -281,12 +281,18 @@ def _run_command(argv=None):
                 log.info("No community rules added or changed.")
                 return
         results = community_check.run(checks, args.file)
-        stale = community_check.stale_ignores(ignored) if ignored != [] else {}
-        stale_up = community_check.stale_up_to_date(ignored) if ignored != [] else {}
-        failed = community_check.report(results, stale, stale_up)
+        stale_ignore_rules = (
+            community_check.stale_ignores(ignored) if ignored != [] else {}
+        )
+        stale_up_to_date_rules = (
+            community_check.stale_up_to_date(ignored) if ignored != [] else {}
+        )
+        failed = community_check.report(
+            results, stale_ignore_rules, stale_up_to_date_rules
+        )
         for kind, have, gone in (
-            ("ignore rules", community.ignores(), stale),
-            ("up-to-date rules", community.up_to_date(), stale_up),
+            ("ignore rules", community.ignores(), stale_ignore_rules),
+            ("up-to-date rules", community.up_to_date(), stale_up_to_date_rules),
         ):
             still = [n for n in ignored or [] if n in have and n not in gone]
             if still:
@@ -295,12 +301,14 @@ def _run_command(argv=None):
             print(f"  {name}: no community rule of that name")
         failed += len(unknown)
         if args.report_issue:
-            community_check.publish(results, stale, stale_up)
+            community_check.publish(results, stale_ignore_rules, stale_up_to_date_rules)
             return
         # A pull request's ignore or up-to-date rule has to do something when
         # it's added.
         if args.changed_from:
-            failed += sum(map(len, stale.values())) + len(stale_up)
+            failed += sum(map(len, stale_ignore_rules.values())) + len(
+                stale_up_to_date_rules
+            )
         if failed:
             raise Problem(f"{failed} community rule(s) don't work.")
         return

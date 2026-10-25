@@ -556,9 +556,10 @@ def count_warnings(rows):
     """Return warnings about counts that look wrong.
 
     That's the searches that failed (those counts are blank), and every
-    PR count equal to its issue count (a token that can't see pull
-    requests). add_counts (here and in github_bulk) says them as warnings (log.warn),
-    which show up as annotations on the workflow run.
+    PR count equal to its issue count, across enough rows to tell (a
+    token that can't see pull requests). add_counts (here and in
+    github_bulk) says them as warnings (log.warn), which show up as
+    annotations on the workflow run.
 
     Returns:
         The warnings.
