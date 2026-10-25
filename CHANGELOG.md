@@ -126,6 +126,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   tested on its own. Nothing they write changes: two syncs with every
   package, before and after, wrote the same 5,401 files.
 
+- A row's verdict is corrected where Repology's doesn't fit nixpkgs (a
+  release word, a distribution's snapshot, nixpkgs' own older channels, a
+  kept series, ...) by eight small named functions in `rows.py`, applied
+  in the order `CORRECTIONS` lists them, where one 250-line `make_row` did
+  it all; each is tested on its own. The rows don't change: the old and
+  new code gave the same rows for 100,000 generated projects, and two
+  syncs with every package, before and after, wrote the same 5,401 files.
+
 - **The overview has one search box**, the one at the top (with its menu),
   rather than a second one under the tiles: the team picker and "browse
   every maintainer" stay there. Maintainers are found by handle on

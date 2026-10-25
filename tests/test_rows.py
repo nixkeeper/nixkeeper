@@ -1,3 +1,4 @@
+import inspect
 import unittest
 
 from nixkeeper import rows as rows_module
@@ -823,6 +824,202 @@ class Rows(unittest.TestCase):
             project("Zed", [], []),
         )
         self.assertEqual([r["name"] for r in rows], ["_1password-gui", "bbedit", "Zed"])
+
+
+class Corrections(unittest.TestCase):
+    """Each of make_row's corrections, on its own."""
+
+    def correct(self, correction, version, status, ref, *others, **kw):
+        """The row a correction leaves, from Repology's verdict.
+
+        Args:
+            correction: The correction to apply.
+            version: nixpkgs unstable's version.
+            status: Repology's status for it.
+            ref: The version nixpkgs is compared with.
+            *others: Entries from repositories other than nixpkgs unstable.
+            **kw: name (the row's, "p" by default), devel (False by
+                default) and nixpkgs (nixpkgs unstable's other entries).
+        """
+        name, devel = kw.get("name", "p"), kw.get("devel", False)
+        entry = nix(name, version, status)
+        row = {
+            "nixStatus": status,
+            "refVersion": ref,
+            "nixVulnerable": True,
+            "devel": devel,
+        }
+        entries = [entry, *kw.get("nixpkgs", ()), *others]
+        correction(row, rows_module._Found(name, entry, entries, list(others), devel))
+        return row
+
+    def verdict(self, row):
+        return row["nixStatus"], row["refVersion"]
+
+    def test_every_correction_listed(self):
+        # A correction written but not in CORRECTIONS would never run.
+        corrections = {
+            name
+            for name, value in vars(rows_module).items()
+            if callable(value)
+            and getattr(value, "__module__", None) == rows_module.__name__
+            and list(inspect.signature(value).parameters) == ["row", "found"]
+        }
+        self.assertEqual(corrections, {c.__name__ for c in rows_module.CORRECTIONS})
+        self.assertEqual(len(rows_module.CORRECTIONS), len(corrections))
+
+    def test_within_own_series(self):
+        python = (
+            other("debian", "3.13.16", "legacy"),
+            other("arch", "3.15.0", "newest"),
+        )
+        python315 = [nix("python315", "3.15.0", "newest")]
+
+        def ref(status="outdated", devel=False):
+            row = self.correct(
+                rows_module._within_own_series,
+                "3.13.15",
+                status,
+                "3.15.0",
+                *python,
+                name="python313",
+                nixpkgs=python315,
+                devel=devel,
+            )
+            return row["refVersion"]
+
+        self.assertEqual(ref(), "3.13.16")
+        self.assertEqual(ref(status="newest"), "3.15.0")
+        self.assertEqual(ref(devel=True), "3.15.0")
+
+    def test_release_word(self):
+        def verdict(version, status="outdated"):
+            row = self.correct(rows_module._release_word, version, status, "4.7.2")
+            return self.verdict(row)
+
+        self.assertEqual(verdict("4.7.2-stable"), ("newest", "4.7.2"))
+        self.assertEqual(verdict("4.7.1-stable"), ("outdated", "4.7.2"))
+        self.assertEqual(verdict("4.7.2"), ("outdated", "4.7.2"))
+        self.assertEqual(verdict("4.7.2-stable", "legacy"), ("legacy", "4.7.2"))
+
+    def test_distribution_snapshot(self):
+        def status(*repos):
+            snapshot = [other(r, "0.3.0.20240120", "newest") for r in repos]
+            row = self.correct(
+                rows_module._distribution_snapshot,
+                "0.3.0",
+                "outdated",
+                "0.3.0.20240120",
+                *snapshot,
+            )
+            return row["nixStatus"]
+
+        self.assertEqual(status("slackbuilds"), "newest")
+        self.assertEqual(status("arch", "debian_13"), "outdated")
+
+    def test_same_snapshot(self):
+        def status(version, ref):
+            row = self.correct(rows_module._same_snapshot, version, "outdated", ref)
+            return row["nixStatus"]
+
+        self.assertEqual(status("unstable-2022-10-20", "2022-10-20"), "newest")
+        self.assertEqual(status("unstable-2022-10-20", "2023-01-01"), "outdated")
+
+    def test_own_earlier_version(self):
+        old = other("nix_stable_25_11", "39.0.0", "newest")
+        current = other("nix_stable_26_05", "5.15.1", "outdated")
+
+        def verdict(*others, devel=False):
+            row = self.correct(
+                rows_module._own_earlier_version,
+                "5.15.1",
+                "outdated",
+                "39.0.0",
+                old,
+                current,
+                *others,
+                devel=devel,
+            )
+            return self.verdict(row)
+
+        self.assertEqual(
+            verdict(other("pypi", "5.15.1", "outdated")), ("newest", "5.15.1")
+        )
+        self.assertEqual(
+            verdict(other("pypi", "5.16.0", "outdated")), ("outdated", "5.16.0")
+        )
+        self.assertEqual(
+            verdict(other("aur", "39.0.0", "newest")), ("outdated", "39.0.0")
+        )
+        self.assertEqual(verdict(devel=True), ("outdated", "39.0.0"))
+        # Nothing to compare with but the old channel: unique.
+        row = self.correct(
+            rows_module._own_earlier_version,
+            "5.15.1",
+            "outdated",
+            "39.0.0",
+            old,
+            other("nix_stable_26_05", "5.15.1", "ignored"),
+        )
+        self.assertEqual(self.verdict(row), ("unique", None))
+
+    def test_other_commit(self):
+        mine, theirs = "0.0.0+rev=e45dbac", "0.0.0+rev=9566ca7"
+        stable = other("nix_stable_26_05", theirs, "unique")
+
+        def verdict(*others):
+            row = self.correct(
+                rows_module._other_commit, mine, "outdated", theirs, *others
+            )
+            return self.verdict(row)
+
+        self.assertEqual(verdict(stable), ("newest", mine))
+        self.assertEqual(
+            verdict(stable, other("aur", theirs, "newest")), ("outdated", theirs)
+        )
+
+    def test_unsupported(self):
+        row = self.correct(rows_module._unsupported, "0-unsupported", "outdated", "1")
+        self.assertEqual(self.verdict(row), ("unsupported", None))
+        row = self.correct(rows_module._unsupported, "0", "outdated", "1")
+        self.assertEqual(self.verdict(row), ("outdated", "1"))
+
+    def test_kept_series(self):
+        def kept(version, ref, newer, *others, status="legacy"):
+            return self.correct(
+                rows_module._kept_series,
+                version,
+                status,
+                ref,
+                *others,
+                name="glibmm_2_4",
+                nixpkgs=[nix("glibmm", newer, "newest")],
+            )
+
+        # Kept beside the newer series, not flagged by its CVE ranges.
+        row = kept("2.66.8", "2.88.0", "2.88.0", other("arch", "2.88.0", "newest"))
+        self.assertEqual(row["keptBeside"], {"attr": "glibmm", "version": "2.88.0"})
+        self.assertNotIn("nixVulnerable", row)
+        self.assertEqual(row["nixStatus"], "legacy")
+        # And behind in its own series.
+        row = kept(
+            "2.66.8",
+            "2.88.0",
+            "2.88.0",
+            other("debian_13", "2.66.10", "legacy"),
+            other("alpine_edge", "2.66.10", "legacy"),
+        )
+        self.assertEqual(self.verdict(row), ("outdated", "2.66.10"))
+        # Newer only as a beta: the main line, compared like any other.
+        row = kept("157.0.1", "158.0", "158.0b1")
+        self.assertEqual(self.verdict(row), ("outdated", "158.0"))
+        self.assertNotIn("keptBeside", row)
+        row = kept("158.0", "158.0", "159.0b1")
+        self.assertEqual(self.verdict(row), ("newest", "158.0"))
+        # Not kept: left alone.
+        row = kept("2.66.8", "2.88.0", "2.88.0", status="outdated")
+        self.assertEqual(self.verdict(row), ("outdated", "2.88.0"))
+        self.assertNotIn("keptBeside", row)
 
 
 class SearchTerm(unittest.TestCase):

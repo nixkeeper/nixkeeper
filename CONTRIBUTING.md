@@ -161,6 +161,13 @@ Around that:
   community's rules for real, finds the ignore and up-to-date rules that
   no longer do anything, and keeps the community rules' status issue up
   to date
+- `rows.py`: a row starts from Repology's verdict on nixpkgs' entry, which
+  each of `CORRECTIONS` corrects in turn where it doesn't fit nixpkgs (an
+  older series compared within itself, a release word, a commit, ...).
+  Each correction is a function of the row and what Repology found
+  (`_Found`), changing the row in place; the order matters, as each reads
+  the row the ones before it left. A new correction is a new function,
+  listed in `CORRECTIONS` (a test checks each one is)
 - `datastore.py`: writing and reading `data/`. A full sync builds a new
   folder and swaps it in (`write`); the hourly checks rewrite only the
   files that changed and remove those under `rows/` and `views/` they no
