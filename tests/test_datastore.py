@@ -491,6 +491,25 @@ class Collectors(unittest.TestCase):
     FAILING = {"name": "f", "builds": [build("failed")], "maintainers": ["Ann"]}
     IN_SET = {**FAILING, "name": "s", "set": "rPackages"}
 
+    def test_each_collector_under_its_own_name(self):
+        # views() reads each by name: a name holding another collector would
+        # only show as wrong output.
+        made = datastore._Collectors.made()
+        expected = {
+            "view_files": datastore._Views,
+            "counts": datastore._Counts,
+            "names": datastore._Names,
+            "facets": datastore._Facets,
+            "maintainers": datastore._Maintainers,
+            "ages": datastore._Ages,
+            "blockers": datastore._Blockers,
+            "staging": datastore._StagingNextBlockers,
+            "sets": datastore._Sets,
+        }
+        self.assertEqual(
+            {name: type(c) for name, c in made._asdict().items()}, expected
+        )
+
     def test_views_leave_a_sets_rows_out_of_most(self):
         views = datastore._Views()
         for row in (self.FAILING, self.IN_SET):

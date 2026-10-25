@@ -31,6 +31,7 @@ import shutil
 import sys
 import traceback
 from datetime import UTC, datetime, timedelta
+from typing import NamedTuple
 
 from . import causes, config, shape
 from . import rows as rows_module
@@ -938,43 +939,34 @@ def views(rows, out):
         teams' and lists' sizes ({name: count}), and each set's counts
         ({name: {"packages", "outdated", "failed", "broken", ...}}).
     """
-    # Every collector sees every row. A new output is a new collector: add it
-    # to the tuple, and name it on the line after, in the same place.
-    collectors = (
-        _Views(),
-        _Counts(),
-        _Names(),
-        _Facets(),
-        _Maintainers(),
-        _Ages(),
-        _Blockers(),
-        _StagingNextBlockers(),
-        _Sets(),
-    )
-    view_files, counts, names, facets, maintainers, ages, blockers, staging, sets = (
-        collectors
-    )
+    # Every collector sees every row. A new output is a new collector, in
+    # _Collectors.
+    collectors = _Collectors.made()
     for row in rows:
         letter = status(row)
         for collector in collectors:
             collector.add(row, letter)
-    files, view_sizes = view_files.result()
+    files, view_sizes = collectors.view_files.result()
     out.update(files)
-    out["names.json"] = names.result()
-    out["facets.json"] = facets.result()
-    out["maintainers.json"] = maintainers.result()
-    counted = counts.result()
+    out["names.json"] = collectors.names.result()
+    out["facets.json"] = collectors.facets.result()
+    out["maintainers.json"] = collectors.maintainers.result()
+    counted = collectors.counts.result()
     return {
         "counts": counted,
-        "highlights": ages.result(counted),
+        "highlights": collectors.ages.result(counted),
         # The overview's "Blocking the most", on master and, before it's
         # merged into master, on staging-next.
         "blockers": {
-            **blockers.result(),
-            **({"stagingNext": staging.result()} if staging.stops else {}),
+            **collectors.blockers.result(),
+            **(
+                {"stagingNext": collectors.staging.result()}
+                if collectors.staging.stops
+                else {}
+            ),
         },
         "causes": _causes(rows, out),
-        "views": {**view_sizes, "sets": sets.result()},
+        "views": {**view_sizes, "sets": collectors.sets.result()},
     }
 
 
@@ -1403,6 +1395,29 @@ class _Sets:
     def result(self):
         """Return each set's counts, by set."""
         return dict(sorted(self.sets.items()))
+
+
+class _Collectors(NamedTuple):
+    """views()' collectors, one per output, each under its own name.
+
+    They're made by keyword (made), so a name can't end up holding another
+    collector; a test checks each against its annotation.
+    """
+
+    view_files: _Views
+    counts: _Counts
+    names: _Names
+    facets: _Facets
+    maintainers: _Maintainers
+    ages: _Ages
+    blockers: _Blockers
+    staging: _StagingNextBlockers
+    sets: _Sets
+
+    @classmethod
+    def made(cls):
+        """Make each collector afresh, under its name."""
+        return cls(**{name: kind() for name, kind in cls.__annotations__.items()})
 
 
 def _write_file(path, text):
