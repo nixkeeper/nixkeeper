@@ -33,7 +33,6 @@ def run(names=None, file=None):
     Returns:
         {name: (the version found or None, why not)}.
     """
-
     if names is not None and not names:
         return {}
     all_rules = community.rules(file)
@@ -41,7 +40,7 @@ def run(names=None, file=None):
     chosen = {n: r for n, r in all_rules.items() if names is None or n in names}
     index = nixpkgs_source.load_index()
     results = {n: (None, "no community rule of that name") for n in unknown}
-    rows = []
+    checked = []
     for name in chosen:
         if name not in index:
             results[name] = (None, "not in nixpkgs' channel index")
@@ -56,10 +55,10 @@ def run(names=None, file=None):
             )
             continue
         version = index[name].get("version")
-        rows.append({"name": name, "nixVersion": version, "refVersion": version})
+        checked.append({"name": name, "nixVersion": version, "refVersion": version})
     now = datetime.now(UTC).isoformat()
-    upstream.add_checks(rows, chosen, {"packages": []}, now, set(chosen))
-    for row in rows:
+    upstream.add_checks(checked, chosen, {"packages": []}, now, set(chosen))
+    for row in checked:
         failing = (row.get("notRefreshed") or {}).get("upstream")
         if failing:
             results[row["name"]] = (None, failing["reason"])
@@ -104,7 +103,6 @@ def stale_up_to_date(names=None, file=None):
     Returns:
         {name: (version, why)}.
     """
-
     chosen = {
         name: rule
         for name, rule in sorted(community.up_to_date(file).items())
@@ -157,7 +155,6 @@ def stale_ignores(names=None, file=None):
     Returns:
         {name: [(version, why)]}.
     """
-
     found = {}
     for name, versions in sorted(community.ignores(file).items()):
         if names is not None and name not in names:
@@ -372,7 +369,6 @@ def publish(results, stale=None, stale_up_to_date=None, now=None):
     Raises:
         Problem: There's no repository or no token.
     """
-
     now = now or datetime.now(UTC).isoformat()
     repo = os.environ.get("NIXKEEPER_GITHUB_REPO") or os.environ.get(
         "GITHUB_REPOSITORY"
