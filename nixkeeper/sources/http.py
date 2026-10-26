@@ -166,7 +166,8 @@ def _read(resp, deadline, limit=None):
 NOT_MODIFIED = 304
 
 
-# When each site was last asked, for pace().
+# When each site was last asked, for pace(). Process-wide on purpose: one
+# request per site every SITE_PAUSE_SECONDS, whatever asks, threads too.
 _last_asked: dict[str, float] = {}
 _pacing = threading.Lock()
 

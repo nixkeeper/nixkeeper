@@ -50,7 +50,7 @@ class Retries(Case):
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             mock.patch.object(config, "RETRY_DELAYS", [5, 15]),
-            mock.patch.object(repology, "_working", None),
+            mock.patch.object(repology._working, "domain", None),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)

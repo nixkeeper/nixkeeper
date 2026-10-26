@@ -13,7 +13,7 @@ class Repology(unittest.TestCase):
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             mock.patch("time.sleep"),
-            mock.patch.object(repology, "_working", None),
+            mock.patch.object(repology._working, "domain", None),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -82,7 +82,7 @@ class Repology(unittest.TestCase):
     def test_falls_back_again_if_the_working_domain_fails(self):
         with (
             mock.patch.object(config, "REPOLOGY_URLS", ["https://a", "https://b"]),
-            mock.patch.object(repology, "_working", "https://b"),
+            mock.patch.object(repology._working, "domain", "https://b"),
             mock.patch(
                 "urllib.request.urlopen",
                 side_effect=[urllib.error.URLError("down"), response(["ok"])],

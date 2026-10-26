@@ -22,11 +22,14 @@ from . import config
 
 # Each thread's own: how deep in groups its lines are, for their indent off
 # GitHub (Hydra's background thread says its lines while the main thread is
-# in a group: they aren't that group's).
+# in a group: they aren't that group's). Module-level on purpose: the log is
+# the process's, and each thread keeps its own depth.
 _local = threading.local()
 # The last answer of _to_journal, and what it was for: (standard error,
 # JOURNAL_STREAM). The stream itself is kept, not its id, which Python gives
-# again to a later object once this one is gone.
+# again to a later object once this one is gone. Module-level on purpose: a
+# cache of one answer, asked again when standard error or JOURNAL_STREAM
+# changes.
 _journal = types.SimpleNamespace(asked=None, answer=False)
 
 

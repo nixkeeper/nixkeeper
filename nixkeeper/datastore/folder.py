@@ -318,6 +318,8 @@ def _remove_files_no_longer_written(out_dir, written):
                 os.rmdir(root)
 
 
+# Process-wide on purpose: a read cache keyed by the file's modification time,
+# so it can't give a file that was written again.
 @functools.lru_cache(maxsize=64)
 def _cached(path, changed):
     """Read a data file's JSON, once while the file is unchanged.
