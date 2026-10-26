@@ -339,8 +339,8 @@ All of `nixkeeper/` follows it, and ruff's pydocstyle rules (`D`, with the
 Google convention) check it in `nix flake check` (`checks.lint`): public
 modules, classes and functions have a docstring, and its first line is its
 whole summary. A `_private` or nested helper needs one only when its name
-and arguments don't say enough; that's on purpose, rather than a line that
-repeats the name.
+and arguments don't say enough: a docstring that just repeats the name isn't
+wanted.
 
 ## Screenshots
 
