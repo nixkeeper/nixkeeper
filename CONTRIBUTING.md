@@ -9,18 +9,18 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `nixkeeper/`: the sync and the hourly checks, as a Python package (see
   [The code](#the-code))
 - `tests/`: offline tests, one file per module (nothing reaches the network:
-  sources are faked). `tests/js/` tests the page's rules (one file per module,
-  `status.test.mjs` for `page/status.js` and so on),
-  a package panel's sections (`page/panel.js`), how it reads its data
-  (`page/data.js`, with `fetch` stood in for), its address
-  (`page/state.js`), a package's panel (`page/package-view.js`, the parts
-  that are HTML), the overview (`page/overview.js`), a maintainer's page
-  (`page/maintainer-view.js`), what the list keeps (`page/filters.js`), the
-  list's rows and cells (`page/list.js`), the views' controls (wired onto
-  stand-in elements) and the search box's query (`page/search.js`) with
-  Node's own test runner. `tests/sh/` tests the scripts' own logic: the
-  Cloudflare deploy's retry (`scripts/cloudflare.sh`), against a fake
-  wrangler
+  sources are faked). `tests/js/` tests the page's rules (one file per
+  module, `status.test.mjs` for `page/status.js` and so on), a package
+  panel's sections (`page/panel.js`), how it reads its data (`page/data.js`,
+  with `fetch` stood in for), its address (`page/state.js`), a package's
+  panel (`page/package-view.js`, the parts that are HTML), the overview
+  (`page/overview.js`), a maintainer's page (`page/maintainer-view.js`),
+  what the list keeps (`page/filters.js`), the list's rows and cells
+  (`page/row.js`), where the data is from (`page/sources.js`), the views'
+  controls (wired onto stand-in elements) and the search box's query
+  (`page/search.js`) with Node's own test runner. `tests/sh/` tests the
+  scripts' own logic: the Cloudflare deploy's retry
+  (`scripts/cloudflare.sh`), against a fake wrangler
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
   flake builds it from the checkout; see [Releasing](#releasing))
 - `nix/module.nix`: the NixOS module (`nixosModules.default`).
@@ -62,28 +62,30 @@ happen. For what nixkeeper does and how to set up your own, see the
   (numbers, dates, icons, why a build failed); `data.js` where the data is
   and how it's read (its files as JSON, the shards' rows once each);
   `state.js` the filters, sort and paging in one object (`state`), read from
-  the address and written back (`readState`, `writeState`), and a view's
-  address (`scopeHref`, with the tables `app.js` gives it in `known`);
-  `list.js` the list (its header with the tiles, refines and facets, Your
-  packages and Your team, each row and its cells, where the data is from);
-  `filters.js` what the list keeps (the tiles' filters, refines, sorts,
-  platforms, and the list worked out with them); `search.js` the search box
-  as a query (`is:builds on:darwin`: parseQuery, writeQuery, needsList: the
-  words that open a list from the overview, matchNote: what status: and
-  ofteam: wait for) and its menu (suggest, wireSearchMenu; the values and
-  counts from list.js's searchValues); `prefs.js` what this browser keeps
-  (localStorage, the rows hidden here); `store.js` what's loaded of the
-  data, in one object (`store`); `timing.js` each redraw's parts, with
-  `?debug=timing`; `app.js` imports them, changes the state, fills the store
-  and draws the page. Each view wires its own controls (`wireList`,
-  `wireOverview`, `wireMaintainerView`), given what they need of the page
-  (`pageHooks` in `app.js`); `app.js` keeps the search box's listeners, the
-  links between views, the theme menu and the keyboard. Native ES modules,
-  no build step: `index.html` preloads each (`modulepreload`), so a new
-  module goes there too. `favicon*.svg` (the mark, and the live status icons
-  the page switches between), `nixkeeper-lockup-tight*.svg` (the header) and
-  `tokens.css` are copies from `assets/brand/`, written by `nix run
-  .#brand`. `markup.js` holds the page's HTML helpers:
+  the address and written back (`readState`, `writeState`), the list's own
+  (`listView`: whose packages, the folds opened), and a view's address
+  (`scopeHref`, with the tables `app.js` gives it in `known`); `list.js`
+  draws the list and wires it, from `list-controls.js` (its header with the
+  tiles, refines and facets, Your packages and Your team), `row.js` (each
+  row and its cells) and `sources.js` (where the data is from); `filters.js`
+  what the list keeps (the tiles' filters, refines, sorts, platforms, and
+  the list worked out with them); `search.js` the search box as a query
+  (`is:builds on:darwin`: parseQuery, writeQuery, needsList: the words that
+  open a list from the overview, matchNote: what status: and ofteam: wait
+  for) and its menu (suggest, wireSearchMenu; the values and counts from
+  list.js's searchValues); `prefs.js` what this browser keeps (localStorage,
+  the rows hidden here); `store.js` what's loaded of the data, in one object
+  (`store`); `timing.js` each redraw's parts, with `?debug=timing`; `app.js`
+  imports them, changes the state, fills the store and draws the page. Each
+  view wires its own controls (`wireList`, `wireOverview`,
+  `wireMaintainerView`), given what they need of the page (`pageHooks` in
+  `app.js`); `app.js` keeps the search box's listeners, the links between
+  views, the theme menu and the keyboard. Native ES modules, no build step:
+  `index.html` preloads each (`modulepreload`), so a new module goes there
+  too. `favicon*.svg` (the mark, and the live status icons the page switches
+  between), `nixkeeper-lockup-tight*.svg` (the header) and `tokens.css` are
+  copies from `assets/brand/`, written by `nix run .#brand`. `markup.js`
+  holds the page's HTML helpers:
   - `html`: a template tag that escapes every value except markup made
     with `html` itself
   - `raw`: markup the page writes itself, never text from the data
