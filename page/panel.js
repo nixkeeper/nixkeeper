@@ -4,15 +4,13 @@
 import {
   compareVersions,
   cvePieces,
-  html,
   onMaster,
-  raw,
-  safeUrl,
   shortAge,
   targetVersion,
   VULN_COUNTED,
   vulnFixes,
 } from './logic.js';
+import { html, raw, safeUrl } from './markup.js';
 import { BUILD_FAILED, fmt, GH_ICONS, icon, longDate, shortDay } from './ui.js';
 
 // What each verdict on a CVE or advisory says (nixkeeper-vulnerabilities,

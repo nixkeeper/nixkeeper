@@ -1,4 +1,4 @@
-// The page writes markup only through setHtml and appendHtml (page/logic.js),
+// The page writes markup only through setHtml and appendHtml (page/markup.js),
 // which take only html`` or raw(): text from the data is then always escaped.
 // It's for the page's code (page/), but for the file that defines setHtml:
 // move setHtml, and the regex below moves with it. Tests fake the DOM and may
@@ -13,6 +13,6 @@ or {
   `$el.insertAdjacentHTML($where, $value)`
 } as $write where {
   $filename <: r".*/page/.*\.m?js",
-  not $filename <: r".*/page/logic\.js",
-  register_diagnostic(span=$write, message="Write markup with setHtml or appendHtml (page/logic.js), which take only html`` or raw(): text from the data is escaped.")
+  not $filename <: r".*/page/markup\.js",
+  register_diagnostic(span=$write, message="Write markup with setHtml or appendHtml (page/markup.js), which take only html`` or raw(): text from the data is escaped.")
 }

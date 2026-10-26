@@ -7,13 +7,11 @@ import { describe, test } from 'node:test';
 
 import {
   aheadOnMaster,
-  appendHtml,
   attentionPrint,
   attentionRank,
   botWontUpdate,
   buildFailedBecause,
   buildsWith,
-  capitalized,
   communityCheck,
   comparedRepos,
   compareVersions,
@@ -24,7 +22,6 @@ import {
   daysText,
   daysUntil,
   decodeFacets,
-  escapeHtml,
   facetCounts,
   failedBecause,
   familyLabel,
@@ -34,7 +31,6 @@ import {
   githubRepo,
   hasFailure,
   homeHref,
-  html,
   inPickedSet,
   isVulnerable,
   maintainerMatches,
@@ -58,11 +54,8 @@ import {
   parseTeams,
   problemSince,
   prPrint,
-  raw,
-  safeUrl,
   sameRelease,
   searchHandle,
-  setHtml,
   severityRank,
   shardOf,
   shortAge,
@@ -84,10 +77,19 @@ import {
   vulnSummary,
   waitingForChannel,
   weekChange,
-  withoutLeadingJoiner,
   withRunStamps,
   withSlash,
 } from '../../page/logic.js';
+import {
+  appendHtml,
+  capitalized,
+  escapeHtml,
+  html,
+  raw,
+  safeUrl,
+  setHtml,
+  withoutLeadingJoiner,
+} from '../../page/markup.js';
 
 const NOW = Date.parse('2026-10-01T12:00:00Z');
 const daysAgo = (n) => new Date(NOW - n * 86400e3).toISOString();

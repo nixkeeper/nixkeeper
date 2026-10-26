@@ -32,7 +32,6 @@ import {
   failedBecause,
   familyLabel,
   faviconKey,
-  html,
   inPickedSet,
   isVulnerable,
   midway,
@@ -44,9 +43,6 @@ import {
   onBranch,
   onMaster,
   onPlatform,
-  raw,
-  safeUrl,
-  setHtml,
   shortAge,
   TOP_LEVEL,
   targetVersion,
@@ -61,6 +57,7 @@ import {
   waitingForChannel,
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
+import { html, raw, safeUrl, setHtml } from './markup.js';
 import { isHidden, remember } from './prefs.js';
 import { REFINE_WORDS, searchText } from './search.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';

@@ -4,7 +4,8 @@
 // page of every maintainer. What they need of the page comes as arguments:
 // the loader of the merge bot's PRs (app.js's loadMerge), the pager.
 
-import { html, maintainerMatches, prPrint, raw } from './logic.js';
+import { maintainerMatches, prPrint } from './logic.js';
+import { html, raw } from './markup.js';
 import { remember, stored } from './prefs.js';
 import { searchText } from './search.js';
 import { maintainerHref, scopeHref, state, teamName } from './state.js';

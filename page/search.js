@@ -7,14 +7,13 @@
 // package) stays the address's: not in the box.
 
 import {
-  html,
   maintainersParam,
   NAME_STATUSES,
   parseMaintainers,
   parseTeams,
-  setHtml,
   teamsParam,
 } from './logic.js';
+import { html, setHtml } from './markup.js';
 import { known, state } from './state.js';
 
 // The refines (REFINES keys), as qualifiers.

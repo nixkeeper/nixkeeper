@@ -5,7 +5,6 @@
 // (app.js's panelPage): a package's address, and hiding it.
 
 import {
-  capitalized,
   communityCheck,
   comparedRepos,
   compareVersions,
@@ -13,21 +12,17 @@ import {
   daysText,
   daysUntil,
   fromMaster,
-  html,
   nixkeeperEntry,
   nothingCompared,
   olderVersionKept,
   onBranch,
   onHost,
   onMaster,
-  raw,
-  safeUrl,
-  setHtml,
   shortAge,
   targetVersion,
   waitingForChannel,
-  withoutLeadingJoiner,
 } from './logic.js';
+import { capitalized, html, raw, safeUrl, setHtml, withoutLeadingJoiner } from './markup.js';
 import {
   backportNote,
   buildLine,
