@@ -6,18 +6,6 @@
 
 import { onHost } from './address.js';
 import { daysText, daysUntil, shortAge } from './dates.js';
-import {
-  communityCheck,
-  computeStatus,
-  fromMaster,
-  nixkeeperEntry,
-  nothingCompared,
-  olderVersionKept,
-  onBranch,
-  onMaster,
-  targetVersion,
-  waitingForChannel,
-} from './logic.js';
 import { capitalized, html, raw, safeUrl, setHtml, withoutLeadingJoiner } from './markup.js';
 import {
   backportNote,
@@ -31,6 +19,18 @@ import {
 } from './panel.js';
 import { writeQuery } from './search.js';
 import { failedBuilds, state } from './state.js';
+import {
+  communityCheck,
+  computeStatus,
+  fromMaster,
+  nixkeeperEntry,
+  nothingCompared,
+  olderVersionKept,
+  onBranch,
+  onMaster,
+  targetVersion,
+  waitingForChannel,
+} from './status.js';
 import { store } from './store.js';
 import {
   archivedText,

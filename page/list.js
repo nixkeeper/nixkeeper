@@ -24,35 +24,37 @@ import {
   shownHandle,
 } from './filters.js';
 import {
-  buildFailedBecause,
-  communityCheck,
-  computeStatus,
   facetCounts,
-  failedBecause,
   familyLabel,
   faviconKey,
   inPickedSet,
-  midway,
   NAME_STATUSES,
   nameSet,
-  neverBuiltOn,
-  nothingCompared,
-  olderVersionKept,
-  onBranch,
-  onMaster,
-  onPlatform,
   TOP_LEVEL,
-  targetVersion,
-  unbuiltOn,
-  unbuiltWhere,
-  updateTitle,
-  waitingForChannel,
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
 import { html, raw, safeUrl, setHtml } from './markup.js';
 import { isHidden, remember } from './prefs.js';
 import { REFINE_WORDS, searchText } from './search.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';
+import {
+  buildFailedBecause,
+  communityCheck,
+  computeStatus,
+  failedBecause,
+  midway,
+  neverBuiltOn,
+  nothingCompared,
+  olderVersionKept,
+  onBranch,
+  onMaster,
+  onPlatform,
+  targetVersion,
+  unbuiltOn,
+  unbuiltWhere,
+  updateTitle,
+  waitingForChannel,
+} from './status.js';
 import { store } from './store.js';
 import {
   archivedText,

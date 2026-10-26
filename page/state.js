@@ -5,13 +5,13 @@
 // selects, the search) and draws the page from it. Other parameters
 // (owner, repo) are left alone. And the rules that follow the selected
 // platform.
+import { NAME_STATUSES } from './logic.js';
+import { maintainersParam, parseMaintainers, parseTeams, teamsParam } from './people.js';
 import {
   buildsWith as buildsOn,
   hasFailure as failureOn,
-  NAME_STATUSES,
   attentionRank as rankOn,
-} from './logic.js';
-import { maintainersParam, parseMaintainers, parseTeams, teamsParam } from './people.js';
+} from './status.js';
 import { store } from './store.js';
 
 // The page's tables (FILTERS, SORTS, PLATFORMS, REFINES, AGES), by their

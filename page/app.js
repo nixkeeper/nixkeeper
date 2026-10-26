@@ -15,14 +15,11 @@ import {
   wireList,
 } from './list.js';
 import {
-  attentionPrint,
-  computeStatus,
   decodeFacets,
   foldFamilies,
   inPickedSet,
   matchFacets,
   NAME_STATUSES,
-  prPrint,
   TOP_LEVEL,
   themeFor,
 } from './logic.js';
@@ -57,6 +54,7 @@ import {
   state,
   writeState,
 } from './state.js';
+import { attentionPrint, computeStatus, prPrint } from './status.js';
 import { store } from './store.js';
 import { timer } from './timing.js';
 import { fmt } from './ui.js';

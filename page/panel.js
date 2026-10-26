@@ -2,8 +2,8 @@
 // its vulnerabilities, builds and what's on GitHub. Pure: a package in, HTML
 // out (tests/js/panel.test.mjs).
 import { shortAge } from './dates.js';
-import { onMaster, targetVersion, vulnFixes } from './logic.js';
 import { html, raw, safeUrl } from './markup.js';
+import { onMaster, targetVersion, vulnFixes } from './status.js';
 import { BUILD_FAILED, fmt, GH_ICONS, icon, longDate, shortDay } from './ui.js';
 import { compareVersions } from './versions.js';
 import { cvePieces, VULN_COUNTED } from './vulns.js';

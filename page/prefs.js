@@ -1,7 +1,7 @@
 // What this browser keeps for the page (localStorage: nothing is sent
 // anywhere): read and written, quietly doing without when storage is
 // blocked.
-import { attentionPrint } from './logic.js';
+import { attentionPrint } from './status.js';
 import { store } from './store.js';
 
 export const stored = (key) => {

@@ -5,14 +5,17 @@
 // The state says which are picked; app.js draws the list.
 
 import { VIEWS } from './address.js';
+import { inPickedSet, nameSet } from './logic.js';
+import { maintainersKeep, matchesSearch, searchHandle, teamsKeep } from './people.js';
+import { isHidden } from './prefs.js';
+import { searchText } from './search.js';
+import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } from './state.js';
 import {
   botWontUpdate,
   buildFailedBecause,
   computeStatus,
   failedBecause,
-  inPickedSet,
   NEVER_BUILT,
-  nameSet,
   olderThan,
   onBranch,
   onPlatform,
@@ -21,11 +24,7 @@ import {
   unbuiltOn,
   unbuiltWhere,
   waitingForChannel,
-} from './logic.js';
-import { maintainersKeep, matchesSearch, searchHandle, teamsKeep } from './people.js';
-import { isHidden } from './prefs.js';
-import { searchText } from './search.js';
-import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } from './state.js';
+} from './status.js';
 import { store } from './store.js';
 import { failingSince } from './ui.js';
 import { versionGap } from './versions.js';
