@@ -1,6 +1,6 @@
 """How the data's files are named: shared by the writer and its checks.
 
-Both datastore.py, which writes the data, and shape.py, which checks it,
+Both datastore/, which writes the data, and shape.py, which checks it,
 need the same rules. Keeping them here, in one place, means a change to
 a rule reaches both.
 """

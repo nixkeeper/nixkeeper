@@ -159,7 +159,7 @@ order changes. The steps, and the modules they use:
 | where nixpkgs marks them broken, and Hydra's builds | `sources/nixpkgs.py`, `sources/hydra.py` |
 | the nixpkgs-update bot's latest attempts | `sources/nixpkgs_update.py` |
 | open PR and issue counts, and update PRs | `sources/github.py` |
-| check `data/` against its shape, then write it | `shape.py`, `datastore.py` |
+| check `data/` against its shape, then write it | `shape.py`, `datastore/` |
 | rewrite the status issue, commenting on what's newly wrong | `notify.py`, `changes.py` |
 
 Around that:
@@ -184,24 +184,34 @@ Around that:
   (`_Found`), changing the row in place; the order matters, as each reads
   the row the ones before it left. A new correction is a new function,
   listed in `CORRECTIONS` (a test checks each one is)
-- `datastore.py`: writing and reading `data/`. A full sync builds a new
-  folder and swaps it in (`write`); the hourly checks rewrite only the
-  files that changed and remove those under `rows/` and `views/` they no
-  longer write (`update`). A file the daily sync keeps there besides
-  those (`sync.kept_files`, such as `views/merge.json`) must be listed in
-  `SYNC_ONLY`, or the hourly checks would delete it: `write` refuses one
-  that isn't, and a test checks every file `sync.kept_files` keeps. With
-  every package, `views` builds the views, `names.json`, `facets.json`,
-  `maintainers.json` and the manifest's counts in one pass, with one
-  collector per output (`_Views`, `_Counts`, `_Sets`, ...): each takes
-  every row and decides whether it counts. A new output is a new collector
+- `datastore/`: writing and reading `data/`, through the names its
+  `__init__.py` gives (`datastore.write`, `datastore.load`, ...), in five
+  modules:
+  - `shards.py`: the rows' shards and the summary entry each row has
+  - `facts.py`: what each row says (its status letter, highlights, facets,
+    the counts)
+  - `trends.py`: the history, fixed and events records, kept run to run
+  - `view_files.py`: the views the overview reads, with every package
+  - `folder.py`: writing, swapping and reading `data/`
+
+  A full sync builds a new folder and swaps it in (`write`); the hourly
+  checks rewrite only the files that changed and remove those under `rows/`
+  and `views/` they no longer write (`update`). A file the daily sync keeps
+  there besides those (`sync.kept_files`, such as `views/merge.json`) must
+  be listed in `SYNC_ONLY`, or the hourly checks would delete it: `write`
+  refuses one that isn't, and a test checks every file `sync.kept_files`
+  keeps. With every package, `views` builds the views, `names.json`,
+  `facets.json`, `maintainers.json` and the manifest's counts in one pass,
+  with one collector per output (`_Views`, `_Counts`, `_Sets`, ...): each
+  takes every row and decides whether it counts. A new output is a new
+  collector
 - `lock.py`: one run at a time on a data folder (`<data dir>.lock`), for
   every command that writes or copies the data. Holding it is also when a
   swap a run didn't finish is tidied up (`datastore.restore_interrupted_swap`):
   reading the data (`datastore.load`) never changes the folder
 - `naming.py`: how the data's files are named (`slug` for a team's or list's
   view, `shard_of` and `SHARD_FILE` for a row's shard), shared by
-  `datastore.py`, which writes them, and `shape.py`, which checks them
+  `datastore/`, which writes them, and `shape.py`, which checks them
 - `log.py`: what the commands say as they run, on standard error: `info`,
   and `notice` and `warn` (GitHub Actions' annotations there, escaped;
   `notice: ` and `warning: ` lines elsewhere, at those priorities in a

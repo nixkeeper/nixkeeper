@@ -42,7 +42,7 @@ export function pageLinks(current, total) {
 }
 
 // A row with the dates the data leaves out when they're the sync's own
-// (restored in nixkeeper/datastore.py): each build's and its update check's
+// (restored in nixkeeper/datastore/shards.py): each build's and its update check's
 // checkedAt, its countedAt. Each is always there otherwise, so a missing one
 // was `run` (index.json's checkedAt). Changes row in place, and returns it.
 export function withRunStamps(row, run) {
@@ -54,9 +54,9 @@ export function withRunStamps(row, run) {
 }
 
 // With every package (a community instance), the page loads one view of the
-// data at a time (nixkeeper/datastore.py, views): which one the address
+// data at a time (nixkeeper/datastore/view_files.py, views): which one the address
 // asks for, narrowest first. A team's or list's name as its file's
-// (slug in datastore.py): "Security review" -> "security-review".
+// (slug in nixkeeper/naming.py): "Security review" -> "security-review".
 export const viewSlug = (name) =>
   name
     .toLowerCase()
@@ -155,7 +155,7 @@ export function dayPosition(points, day) {
   return (100 * (t - first)) / span;
 }
 
-// The names index's status letters (status in datastore.py) as the dot
+// The names index's status letters (status in nixkeeper/datastore/facts.py) as the dot
 // they stand for.
 export const NAME_DOTS = { f: 'missing', m: 'merged', o: 'warn', u: 'ok', n: 'neutral' };
 
@@ -186,7 +186,7 @@ export function nameMatches(names, query, shown, limit = 50) {
 }
 
 // The shard (data/rows/<n>.json) holding a package's full row: a hash of its
-// name (shard_of in nixkeeper/datastore.py).
+// name (shard_of in nixkeeper/naming.py).
 export const shardOf = (name, count) => crc32(name) % count;
 
 // Whether pkg is available on key: a family ("linux", "darwin") or a system

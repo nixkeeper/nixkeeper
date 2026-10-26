@@ -122,7 +122,7 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 - The views, counts and lists the overview reads (with every package) are
   built by one small collector each, `_Views`, `_Counts`, `_Sets` and six
-  more in `datastore.py`, where one 326-line loop built them all; each is
+  more in `datastore/`, where one 326-line loop built them all; each is
   tested on its own. Nothing they write changes: two syncs with every
   package, before and after, wrote the same 5,401 files.
 

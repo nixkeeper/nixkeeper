@@ -444,7 +444,7 @@ export function fillDetail(pkg, el, entries, page) {
 
   const others = loaded ? comparedRepos(entries.filter((e) => e.repo !== NIX_REPO)) : [];
   // With every package, a row no list has keeps the newest repositories
-  // only (nixkeeper/datastore.py, kept_entries): the rest are on Repology.
+  // only (nixkeeper/datastore/shards.py, kept_entries): the rest are on Repology.
   const notKept =
     store.community && !pkg.lists?.length && pkg.repoCount > others.length
       ? pkg.repoCount - others.length
