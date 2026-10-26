@@ -149,7 +149,7 @@ export function writeState(st, query, params, { FILTERS, PLATFORMS }, page = st.
   return out ? `?${out}` : '';
 }
 
-// The rules that follow the platform filter (logic.js), on the selected one.
+// The rules that follow the platform filter (status.js), on the selected one.
 export const hasFailure = (pkg) => failureOn(pkg, state.platformFilter);
 
 export const buildsWith = (pkg, status) => buildsOn(pkg, status, state.platformFilter);
@@ -197,7 +197,7 @@ export function scopeHref({ set = null, pkg = null, view = null, filter = null, 
 // null, or a nixpkgs team (meta.teams, by its short name; any case):
 // ?team=gaming is a page of the team's packages here.
 // ?team= besides one team: teams left out (-Geospatial), and none (not
-// through a team: logic.js parseTeams).
+// through a team: people.js parseTeams).
 // ?maintainer='s handles left out (-iedame), lowercase.
 export const isTeam = (name) => name.toLowerCase() === state.teamFilter.toLowerCase();
 

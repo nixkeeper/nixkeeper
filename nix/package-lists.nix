@@ -65,7 +65,7 @@ let
       extra = lists.extraPackages or [ ];
     in
     if builtins.isList extra then { inherit extra; } else extra;
-  # The page's palettes (page/logic.js PALETTES), for page.theme.
+  # The page's palettes (page/palette.js PALETTES), for page.theme.
   themes = [
     "classic"
     "catppuccin"

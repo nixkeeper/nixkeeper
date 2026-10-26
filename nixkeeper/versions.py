@@ -3,7 +3,7 @@
 This is Repology's algorithm (libversion, https://github.com/repology/
 libversion, doc/ALGORITHM.md), used for the update checks and for what
 master has, so nixkeeper orders versions as Repology does. The page has the
-same in JavaScript (page/logic.js: compareVersions); both are tested
+same in JavaScript (page/versions.js: compareVersions); both are tested
 against Repology's test suite (tests/data/version-comparison-tests.txt).
 
 A version is split into numeric and alphabetic components (anything else

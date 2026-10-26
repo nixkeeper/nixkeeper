@@ -133,7 +133,7 @@ def restored(row, run):
 
 
 # Repology statuses whose versions can't be compared with others. They sort
-# after the rest, as comparedRepos in page/logic.js does.
+# after the rest, as comparedRepos in page/versions.js does.
 UNCOMPARABLE = {"rolling", "ignored", "incorrect", "noscheme", "untrusted"}
 
 
@@ -142,7 +142,7 @@ def newest_repos(entries, count):
 
     nixpkgs' own entries are kept, and of the other repositories, the count
     with the newest versions, one entry each (its newest). They're ranked as
-    the panel orders them (comparedRepos in page/logic.js): comparable
+    the panel orders them (comparedRepos in page/versions.js): comparable
     versions first, then the newest version first, then by repository.
 
     Args:

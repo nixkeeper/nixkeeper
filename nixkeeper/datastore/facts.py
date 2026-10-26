@@ -139,7 +139,7 @@ def status(row):
     """Return a row's status as the page's dot shows it, in letters.
 
     The first letter is worked out as computeStatus and hasFailure in
-    page/logic.js do: f failing, m outdated but the update is waiting for
+    page/status.js do: f failing, m outdated but the update is waiting for
     the channel, o outdated, u up to date, n not comparable (Repology can't
     say, or doesn't know the package). A v follows when the package is
     vulnerable (flagged by Repology, or marked insecure by nixpkgs).
@@ -193,7 +193,7 @@ def unbuilt_where(row):
     """Return the platforms row is listed for but Hydra doesn't build it on.
 
     These are the page's struck platform tags (unbuiltWhere in
-    page/logic.js). A platform counts when every build of the row there is
+    page/status.js). A platform counts when every build of the row there is
     "notBuilt", usually because a dependency isn't available there, while
     Hydra builds the row elsewhere.
 

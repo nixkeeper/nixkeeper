@@ -395,7 +395,7 @@ class RunStamps(unittest.TestCase):
 
 class Unbuilt(unittest.TestCase):
     """Listed for a platform Hydra doesn't build it on (the page's
-    unbuiltWhere: tests/js/logic.test.mjs has the same cases)."""
+    unbuiltWhere: tests/js/status.test.mjs has the same cases)."""
 
     def row(self, platforms, *builds):
         return {

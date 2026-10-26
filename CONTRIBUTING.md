@@ -9,7 +9,8 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `nixkeeper/`: the sync and the hourly checks, as a Python package (see
   [The code](#the-code))
 - `tests/`: offline tests, one file per module (nothing reaches the network:
-  sources are faked). `tests/js/` tests the page's rules (`page/logic.js`),
+  sources are faked). `tests/js/` tests the page's rules (one file per module,
+  `status.test.mjs` for `page/status.js` and so on),
   a package panel's sections (`page/panel.js`), how it reads its data
   (`page/data.js`, with `fetch` stood in for), its address
   (`page/state.js`), a package's panel (`page/package-view.js`, the parts
@@ -44,41 +45,45 @@ happen. For what nixkeeper does and how to set up your own, see the
   lists them); `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `CHANGELOG.md` and `LICENSE` stay at the root, where GitHub looks for them
 - `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
-  from the `data` branch. `logic.js` holds its rules (statuses, versions,
-  ages, safe links, the tab icon's signals) without the page, so they can be
-  tested; `overview.js` the overview (the cards, trends, causes, sets,
-  fixes, nixpkgs in numbers); `maintainer-view.js` a maintainer's or team's
-  page (You can merge these, Can be closed) and the maintainers page;
-  `package-view.js` a package's panel (Details, Updates, Builds), given what
-  it needs of the page (`panelPage` in `app.js`: a package's address, hiding
-  it, drawing again); `panel.js` its sections (vulnerabilities, builds, On
-  GitHub), from the package alone, tested too; `ui.js` the small pieces of
-  HTML and text they and the list share (numbers, dates, icons, why a build
-  failed); `data.js` where the data is and how it's read (its files as JSON,
-  the shards' rows once each); `state.js` the filters, sort and paging in
-  one object (`state`), read from the address and written back (`readState`,
-  `writeState`), and a view's address (`scopeHref`, with the tables `app.js`
-  gives it in `known`); `list.js` the list (its header with the tiles,
-  refines and facets, Your packages and Your team, each row and its cells,
-  where the data is from); `filters.js` what the list keeps (the tiles'
-  filters, refines, sorts, platforms, and the list worked out with them);
-  `search.js` the search box as a query (`is:builds on:darwin`: parseQuery,
-  writeQuery, needsList: the words that open a list from the overview,
-  matchNote: what status: and ofteam: wait for) and
-  its menu (suggest, wireSearchMenu; the values and counts
-  from list.js's searchValues); `prefs.js` what this browser keeps (localStorage, the rows
-  hidden here); `store.js` what's loaded of the data, in one object
-  (`store`); `timing.js` each redraw's parts, with `?debug=timing`;
-  `app.js` imports them, changes the state, fills the store and
-  draws the page. Each view wires its own controls (`wireList`,
+  from the `data` branch. Its rules are in modules that never touch the
+  page, so they can be tested, and that import only each other: `markup.js`
+  (HTML from data, escaped), `versions.js` (comparing versions), `dates.js`
+  (days and ages), `vulns.js` (vulnerabilities), `status.js` (a package's
+  status), `people.js` (maintainers and teams), `address.js` (the page's
+  addresses), `facets.js` (the names index) and `palette.js` (the palettes
+  and the tab icon's signal); `overview.js` the overview (the cards, trends,
+  causes, sets, fixes, nixpkgs in numbers); `maintainer-view.js` a
+  maintainer's or team's page (You can merge these, Can be closed) and the
+  maintainers page; `package-view.js` a package's panel (Details, Updates,
+  Builds), given what it needs of the page (`panelPage` in `app.js`: a
+  package's address, hiding it, drawing again); `panel.js` its sections
+  (vulnerabilities, builds, On GitHub), from the package alone, tested too;
+  `ui.js` the small pieces of HTML and text they and the list share
+  (numbers, dates, icons, why a build failed); `data.js` where the data is
+  and how it's read (its files as JSON, the shards' rows once each);
+  `state.js` the filters, sort and paging in one object (`state`), read from
+  the address and written back (`readState`, `writeState`), and a view's
+  address (`scopeHref`, with the tables `app.js` gives it in `known`);
+  `list.js` the list (its header with the tiles, refines and facets, Your
+  packages and Your team, each row and its cells, where the data is from);
+  `filters.js` what the list keeps (the tiles' filters, refines, sorts,
+  platforms, and the list worked out with them); `search.js` the search box
+  as a query (`is:builds on:darwin`: parseQuery, writeQuery, needsList: the
+  words that open a list from the overview, matchNote: what status: and
+  ofteam: wait for) and its menu (suggest, wireSearchMenu; the values and
+  counts from list.js's searchValues); `prefs.js` what this browser keeps
+  (localStorage, the rows hidden here); `store.js` what's loaded of the
+  data, in one object (`store`); `timing.js` each redraw's parts, with
+  `?debug=timing`; `app.js` imports them, changes the state, fills the store
+  and draws the page. Each view wires its own controls (`wireList`,
   `wireOverview`, `wireMaintainerView`), given what they need of the page
   (`pageHooks` in `app.js`); `app.js` keeps the search box's listeners, the
   links between views, the theme menu and the keyboard. Native ES modules,
   no build step: `index.html` preloads each (`modulepreload`), so a new
   module goes there too. `favicon*.svg` (the mark, and the live status icons
   the page switches between), `nixkeeper-lockup-tight*.svg` (the header) and
-  `tokens.css` are copies from `assets/brand/`, written by `nix run .#brand`.
-  `logic.js` also holds the page's HTML helpers:
+  `tokens.css` are copies from `assets/brand/`, written by `nix run
+  .#brand`. `markup.js` holds the page's HTML helpers:
   - `html`: a template tag that escapes every value except markup made
     with `html` itself
   - `raw`: markup the page writes itself, never text from the data

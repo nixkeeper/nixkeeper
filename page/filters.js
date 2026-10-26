@@ -37,7 +37,7 @@ export const filtering = { facetBase: [], showHidden: false };
 
 export const inSet = (pkg) => !state.setFilter || pkg.set === state.setFilter;
 
-// ?in=: one package set, by the attribute's first part (logic.js nameSet:
+// ?in=: one package set, by the attribute's first part (facets.js nameSet:
 // python313Packages, vimPlugins, top-level); ?by=: one maintainer's
 // packages within the list shown (a handle, lowercase). Counted, with the
 // platforms, over the list's other filters (facetOptions).

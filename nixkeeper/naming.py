@@ -12,7 +12,7 @@ import zlib
 def slug(name):
     """Turn a team's or list's name into its view's file name.
 
-    The page does the same in viewSlug (page/logic.js).
+    The page does the same in viewSlug (page/address.js).
 
     Args:
         name: The name, such as "Security review".
