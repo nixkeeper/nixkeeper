@@ -171,6 +171,14 @@ order changes. The steps, and the modules they use:
 | check `data/` against its shape, then write it | `shape.py`, `datastore/` |
 | rewrite the status issue, commenting on what's newly wrong | `notify.py`, `changes.py` |
 
+What a run reads or works out belongs to the run, not to a module: the
+`Run` holds nixpkgs' evaluations (`sources/nixpkgs.py`'s `Evaluations`) and
+the previous run (`history.PreviousRun`, its rows indexed once), and the
+sources a sync reports are collected inside `about.collecting()`. The few
+values kept module-level on purpose (`sources/http.py`'s pace, the Repology
+domain that answered, `datastore/`'s read cache, the log's per-thread depth)
+say why where they're defined.
+
 Around that:
 
 - `config.py`: settings (the command's flags set them, over their
