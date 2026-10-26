@@ -25,7 +25,10 @@ class Page(unittest.TestCase):
         os.mkdir(self.data)
         self.put("index.json", {"packages": [{"name": "unciv"}]})
         self.put("unciv.json", [])
-        patcher = mock.patch.object(config, "OUT_DIR", self.data)
+        # main() sets these from the flags; put them back after each test.
+        patcher = mock.patch.multiple(
+            config, LISTS=config.LISTS, OUT_DIR=self.data, NOTIFY=config.NOTIFY
+        )
         patcher.start()
         self.addCleanup(patcher.stop)
         out = mock.patch("sys.stdout", io.StringIO())
@@ -184,7 +187,9 @@ class Commands(unittest.TestCase):
     def test_page_and_serve(self):
         with (
             mock.patch("nixkeeper.lock.held"),
-            mock.patch.multiple(config, LISTS=config.LISTS, OUT_DIR=config.OUT_DIR),
+            mock.patch.multiple(
+                config, LISTS=config.LISTS, OUT_DIR=config.OUT_DIR, NOTIFY=config.NOTIFY
+            ),
             mock.patch.object(page, "write", return_value="/x") as write,
             mock.patch.object(page, "serve") as serve,
             mock.patch("sys.stdout", io.StringIO()),
