@@ -4,6 +4,7 @@
 // from the store, the state and the filters; app.js draws it (render) and
 // handles its controls. Its own state is listView.
 
+import { viewSlug } from './address.js';
 import { daysText, daysUntil, shortAge, timeAgo } from './dates.js';
 import {
   AGES,
@@ -45,7 +46,6 @@ import {
   unbuiltOn,
   unbuiltWhere,
   updateTitle,
-  viewSlug,
   waitingForChannel,
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';

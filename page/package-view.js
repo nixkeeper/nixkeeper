@@ -4,6 +4,7 @@
 // sections from panel.js. What it needs of the page comes in `page`
 // (app.js's panelPage): a package's address, and hiding it.
 
+import { onHost } from './address.js';
 import { daysText, daysUntil, shortAge } from './dates.js';
 import {
   communityCheck,
@@ -13,7 +14,6 @@ import {
   nothingCompared,
   olderVersionKept,
   onBranch,
-  onHost,
   onMaster,
   targetVersion,
   waitingForChannel,

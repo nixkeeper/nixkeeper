@@ -1,3 +1,4 @@
+import { homeHref, pageLinks, VIEWS, viewPath, withRunStamps } from './address.js';
 import { dataUrl, fullRowOf, githubRepo, locateData, readJson } from './data.js';
 import { currentFiltered, FILTERS, KNOWN, PLATFORMS } from './filters.js';
 import {
@@ -18,17 +19,12 @@ import {
   computeStatus,
   decodeFacets,
   foldFamilies,
-  homeHref,
   inPickedSet,
   matchFacets,
   NAME_STATUSES,
-  pageLinks,
   prPrint,
   TOP_LEVEL,
   themeFor,
-  VIEWS,
-  viewPath,
-  withRunStamps,
 } from './logic.js';
 import {
   hiddenPrPrints,

@@ -4,7 +4,16 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
-
+import {
+  githubRepo,
+  homeHref,
+  onHost,
+  pageLinks,
+  viewPath,
+  viewSlug,
+  withRunStamps,
+  withSlash,
+} from '../../page/address.js';
 import {
   dayPosition,
   daysText,
@@ -31,9 +40,7 @@ import {
   faviconKey,
   foldFamilies,
   fromMaster,
-  githubRepo,
   hasFailure,
-  homeHref,
   inPickedSet,
   matchFacets,
   midway,
@@ -42,10 +49,8 @@ import {
   olderThan,
   olderVersionKept,
   onBranch,
-  onHost,
   onMaster,
   onPlatform,
-  pageLinks,
   problemSince,
   prPrint,
   sameRelease,
@@ -55,12 +60,8 @@ import {
   unbuiltOn,
   unbuiltWhere,
   updateTitle,
-  viewPath,
-  viewSlug,
   vulnFixes,
   waitingForChannel,
-  withRunStamps,
-  withSlash,
 } from '../../page/logic.js';
 import {
   appendHtml,

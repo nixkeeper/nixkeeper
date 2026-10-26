@@ -4,6 +4,7 @@
 // worked out with them (currentFiltered) and put in order (sortedList).
 // The state says which are picked; app.js draws the list.
 
+import { VIEWS } from './address.js';
 import {
   botWontUpdate,
   buildFailedBecause,
@@ -19,7 +20,6 @@ import {
   targetVersion,
   unbuiltOn,
   unbuiltWhere,
-  VIEWS,
   waitingForChannel,
 } from './logic.js';
 import { maintainersKeep, matchesSearch, searchHandle, teamsKeep } from './people.js';
