@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from nixkeeper import datastore, shape
+from nixkeeper.naming import shard_of
 
 
 def row(name, **fields):
@@ -114,7 +115,7 @@ class Rows(unittest.TestCase):
         data[other]["packages"].append(row("a"))
         found = shape.problems(data)["rows"]
         self.assertIn("a: appears twice", found)
-        own = datastore.shard_of("a", 2)
+        own = shard_of("a", 2)
         self.assertIn(f"a: in {other}, but its shard is rows/{own}.json", found)
 
 

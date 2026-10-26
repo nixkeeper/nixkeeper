@@ -6,6 +6,7 @@ import unittest.mock
 
 from nixkeeper import datastore, lock
 from nixkeeper.datastore import data_file, write
+from nixkeeper.naming import shard_of
 
 ENTRIES = [{"repo": "nix_unstable", "version": "1.18.5"}]
 
@@ -177,7 +178,7 @@ class Output(unittest.TestCase):
             shard = json.loads(self.read(f"rows/{n}.json"))["packages"]
             self.assertTrue(shard)  # spread out
             for row in shard:
-                self.assertEqual(datastore.shard_of(row["name"], 4), n)
+                self.assertEqual(shard_of(row["name"], 4), n)
             seen += [row["name"] for row in shard]
         self.assertEqual(sorted(seen), sorted(row["name"] for row in rows))
 
@@ -319,7 +320,7 @@ class Output(unittest.TestCase):
         changed = [dict(row) for row in rows]
         changed[0]["nixVersion"] = "2"
         datastore.update({"packages": changed}, {}, self.out)
-        shard = datastore.shard_of("pkg0", 4)
+        shard = shard_of("pkg0", 4)
         for n in range(4):
             after = os.stat(os.path.join(self.out, f"rows/{n}.json")).st_mtime_ns
             self.assertEqual(after != before[n], n == shard, n)
@@ -494,24 +495,24 @@ class Collectors(unittest.TestCase):
     def test_each_collector_under_its_own_name(self):
         # views() reads each by name: a name holding another collector would
         # only show as wrong output.
-        collectors = datastore._Collectors.new()
+        collectors = datastore.view_files._Collectors.new()
         expected = {
-            "view_files": datastore._Views,
-            "counts": datastore._Counts,
-            "names": datastore._Names,
-            "facets": datastore._Facets,
-            "maintainers": datastore._Maintainers,
-            "ages": datastore._Ages,
-            "blockers": datastore._Blockers,
-            "staging": datastore._StagingNextBlockers,
-            "sets": datastore._Sets,
+            "view_files": datastore.view_files._Views,
+            "counts": datastore.view_files._Counts,
+            "names": datastore.view_files._Names,
+            "facets": datastore.view_files._Facets,
+            "maintainers": datastore.view_files._Maintainers,
+            "ages": datastore.view_files._Ages,
+            "blockers": datastore.view_files._Blockers,
+            "staging": datastore.view_files._StagingNextBlockers,
+            "sets": datastore.view_files._Sets,
         }
         self.assertEqual(
             {name: type(c) for name, c in collectors._asdict().items()}, expected
         )
 
     def test_views_leave_a_sets_rows_out_of_most(self):
-        views = datastore._Views()
+        views = datastore.view_files._Views()
         for row in (self.FAILING, self.IN_SET):
             views.add(row, "f")
         files, sizes = views.result()
@@ -525,7 +526,7 @@ class Collectors(unittest.TestCase):
         )
 
     def test_counts_count_a_sets_rows_apart(self):
-        counts = datastore._Counts()
+        counts = datastore.view_files._Counts()
         for row in (self.FAILING, self.IN_SET):
             counts.add(row, "f")
         found = counts.result()
@@ -536,13 +537,13 @@ class Collectors(unittest.TestCase):
         self.assertEqual(found["buildFailuresOn"], {"linux": 1, "x86_64-linux": 1})
 
     def test_maintainers_count_a_sets_rows_as_packages_only(self):
-        maintainers = datastore._Maintainers()
+        maintainers = datastore.view_files._Maintainers()
         for row in (self.FAILING, self.IN_SET):
             maintainers.add(row, "f")
         self.assertEqual(maintainers.result(), {"maintainers": [["Ann", 2, 0, 1]]})
 
     def test_blockers_count_a_stopped_package_with_its_blockers_unknown(self):
-        blockers = datastore._Blockers()
+        blockers = datastore.view_files._Blockers()
         blocker = {"name": "zlib", "row": True}
         blockers.add(
             {"name": "a", "builds": [build("dependency", blockedBy=[blocker])]}, "n"
@@ -554,7 +555,7 @@ class Collectors(unittest.TestCase):
         )
 
     def test_staging_next_blockers_say_which_evaluation(self):
-        staging = datastore._StagingNextBlockers()
+        staging = datastore.view_files._StagingNextBlockers()
         found = {
             "eval": 7,
             "evaluatedAt": "2026-10-25",
@@ -574,7 +575,7 @@ class Collectors(unittest.TestCase):
         )
 
     def test_a_sets_bar_counts_each_package_at_its_worst(self):
-        sets = datastore._Sets()
+        sets = datastore.view_files._Sets()
         sets.add({**self.IN_SET, "markedBroken": True}, "f")  # failing and broken
         sets.add({"name": "t", "set": "rPackages", "markedBroken": True}, "u")
         sets.add(self.FAILING, "f")  # not in a set: not counted

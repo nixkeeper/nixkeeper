@@ -11,6 +11,7 @@ from unittest import mock
 from nixkeeper import config, datastore, history, sync, tracking
 from nixkeeper import rows as rows_module
 from nixkeeper.lookup import collect_projects
+from nixkeeper.naming import slug
 from nixkeeper.rows import build_rows
 from nixkeeper.sources import github, hydra_digest, nixpkgs_update
 from tests.helpers import nix, other, pkg
@@ -319,8 +320,8 @@ class Data(unittest.TestCase):
         self.assertEqual(datastore.status(waiting), "m")
 
     def test_slug(self):
-        self.assertEqual(datastore.slug("Security review"), "security-review")
-        self.assertEqual(datastore.slug("Qt-KDE"), "qt-kde")
+        self.assertEqual(slug("Security review"), "security-review")
+        self.assertEqual(slug("Qt-KDE"), "qt-kde")
 
     def test_views_names_and_counts(self):
         rows = [

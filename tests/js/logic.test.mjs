@@ -971,7 +971,7 @@ describe('withRunStamps', () => {
 });
 
 describe('views (every package)', () => {
-  test('viewSlug as datastore.slug', () => {
+  test('viewSlug as naming.slug', () => {
     assert.equal(viewSlug('Security review'), 'security-review');
     assert.equal(viewSlug('Qt-KDE'), 'qt-kde');
     assert.equal(viewSlug('gaming-team'), 'gaming-team');
