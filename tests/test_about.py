@@ -35,12 +35,15 @@ class About(unittest.TestCase):
             thread.join()
         self.assertEqual(noted, {"hydra": {"used": True}})
 
-    def test_the_innermost_block_collects(self):
-        with about.collecting() as outer:
-            with about.collecting() as inner:
-                about.note("prs", True)
+    def test_one_collection_at_a_time(self):
+        with about.collecting() as noted:
+            with (
+                self.assertRaisesRegex(RuntimeError, "already collecting"),
+                about.collecting(),
+            ):
+                pass
             about.note("hydra", True)
-        self.assertEqual((list(outer), list(inner)), (["hydra"], ["prs"]))
+        self.assertEqual(noted, {"hydra": {"used": True}})
 
     def test_a_long_reason_is_cut(self):
         with about.collecting() as noted:

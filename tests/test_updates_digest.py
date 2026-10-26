@@ -63,14 +63,10 @@ class Load(unittest.TestCase):
             self.noted["updates"],
             {"used": False, "why": "too old", "at": "2026-10-04T15:00:00+00:00"},
         )
-        with (
-            mock.patch.object(config, "UPDATES_DIGEST_URL", ""),
-            about.collecting() as off,
-        ):
+        self.noted.clear()
+        with mock.patch.object(config, "UPDATES_DIGEST_URL", ""):
             self.assertIsNone(updates_digest.load(NOW))
-        self.assertEqual(
-            off, {}
-        )  # turned off: nothing to say  # turned off: nothing to say
+        self.assertEqual(self.noted, {})  # turned off: nothing to say
 
     def test_attempt_only_when_read_with_these_rules(self):
         entry = {"attempt": read("python3Packages.foo")}

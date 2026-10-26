@@ -10,10 +10,10 @@ once it's done.
 import contextlib
 import threading
 
-# The collections open now (collecting), the innermost last; note adds to
-# it. Module-level, not the sync's Run: 26 calls in 14 modules note, Hydra's
-# from its own thread, and only collecting adds or removes one.
-_open: list[dict] = []
+# The collection open now (collecting), which note adds to; None outside
+# one. Module-level, not the sync's Run: notes come from many modules and
+# from Hydra's thread, and only collecting opens or closes it.
+_current: dict | None = None
 _lock = threading.Lock()
 # A reason longer than this is cut: an error's text can be long.
 WHY_LENGTH = 200
@@ -36,8 +36,8 @@ def note(source, used, why=None, **about):
     if why:
         found["why"] = why if len(why) <= WHY_LENGTH else why[: WHY_LENGTH - 1] + "…"
     with _lock:
-        if _open:
-            _open[-1][source] = found
+        if _current is not None:
+            _current[source] = found
 
 
 @contextlib.contextmanager
@@ -47,15 +47,21 @@ def collecting():
     Yields:
         {source: what was noted}, filled as each source notes itself, and
         sorted by source once the block ends.
+
+    Raises:
+        RuntimeError: A collection is already open.
     """
+    global _current
     noted = {}
     with _lock:
-        _open.append(noted)
+        if _current is not None:
+            raise RuntimeError("already collecting")
+        _current = noted
     try:
         yield noted
     finally:
         with _lock:
-            del _open[next(i for i, d in enumerate(_open) if d is noted)]
+            _current = None
             found = sorted(noted.items())
             noted.clear()
             noted.update(found)

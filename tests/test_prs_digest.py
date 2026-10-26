@@ -106,12 +106,10 @@ class Load(unittest.TestCase):
         found = self.load(meta(at="2026-10-09T01:00:00+00:00"))
         self.assertEqual(found, {"open": None, "merged": None, "staging": None})
         self.assertFalse(self.noted["prs"]["used"])
-        with (
-            mock.patch.object(config, "PRS_DIGEST_URL", ""),
-            about.collecting() as off,
-        ):
+        self.noted.clear()
+        with mock.patch.object(config, "PRS_DIGEST_URL", ""):
             self.assertIsNone(prs_digest.load(NOW, "abc"))
-        self.assertEqual(off, {})
+        self.assertEqual(self.noted, {})
 
     def test_unreadable(self):
         self.assertIsNone(self.load({"format": 2}))
