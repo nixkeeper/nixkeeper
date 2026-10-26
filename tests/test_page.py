@@ -4,6 +4,7 @@
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -42,7 +43,10 @@ class Page(unittest.TestCase):
     def test_writes_the_page_and_the_data(self):
         site = os.path.join(self.dir.name, "site")
         cli.main(["page", site, "--data-dir", self.data])
-        for name in ("index.html", "app.js", "style.css", "favicon.svg"):
+        with open(os.path.join(site, "index.html")) as f:
+            sheets = re.findall(r'href="([^"]+\.css)"', f.read())
+        self.assertIn("style-base.css", sheets)
+        for name in ("index.html", "app.js", "favicon.svg", *sheets):
             self.assertTrue(os.path.exists(os.path.join(site, name)), name)
         with open(os.path.join(site, "data", "index.json")) as f:
             self.assertEqual(json.load(f)["packages"][0]["name"], "unciv")

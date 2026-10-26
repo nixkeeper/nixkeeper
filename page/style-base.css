@@ -1,0 +1,125 @@
+/* The page's own variables (:root, and dark, for the system's setting and
+   the forced theme), the body, the scrollbar. */
+:root {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --ink: #14171a;
+  --ink-soft: #565c63;
+  /* Muted text (labels, dates, zeros), still 4.5:1 on --bg and --surface
+     (WCAG AA for small text). */
+  --ink-faint: #6b7177;
+  --hairline: #e3e5e8;
+  --hairline-strong: #d2d5d9;
+  /* Links and key UI: the brand violet (tokens.css, from assets/brand/), which
+     switches to its dark-theme value by itself. */
+  --accent: var(--nk-link-text);
+  /* The sets updated in bulk, beside the accent's fully checked: another
+     shade of the logo's, so the split doesn't read as progress. */
+  --bulk: var(--nk-bulk-fill);
+  /* Statuses: the brand tokens' roles (tokens.css), which switch to their
+     dark-theme values by themselves. Dots use the brighter fill; text uses
+     the darker text value, readable on the page's backgrounds. Outdated and
+     the amber states (can't update, marked broken) still share --warn. */
+  --ok: var(--nk-ok-fill);
+  --ok-soft: var(--nk-ok-bg);
+  --ok-devel: var(--nk-ok-text);
+  --warn: var(--nk-outdated-text);
+  --warn-dot: var(--nk-outdated-fill);
+  --warn-soft: var(--nk-outdated-bg);
+  --warn-devel: var(--nk-outdated-text);
+  --stale: #8b8f94;
+  --stale-soft: #eeeeef;
+  /* Can't update, marked broken, a failed dependency: known problems that
+     need a hand, not failures. */
+  --caution: var(--nk-warn-text);
+  --caution-dot: var(--nk-warn-fill);
+  --danger: var(--nk-failed-text);
+  --danger-dot: var(--nk-failed-fill);
+  --danger-soft: var(--nk-failed-bg);
+  /* "On master" (the update is merged, waiting for the channel): the brand
+     violet. */
+  --merged: var(--nk-merged-text);
+  --merged-dot: var(--nk-merged-fill);
+  --merged-emphasis: var(--nk-merged-badge);
+  --merged-soft: var(--nk-merged-bg);
+  /* Update PR badges: open in the up-to-date green, draft in grey. */
+  --pr-open: var(--nk-ok-badge);
+  --pr-draft: var(--nk-neutral-l55);
+  /* Text on the solid badges (on master, update PRs). */
+  --on-badge: #ffffff;
+  --radius: 8px;
+  color-scheme: light dark;
+}
+/* Dark: by the system's setting, unless the page is set to light, or when
+   it's set to dark (the Theme menu: data-mode on <html>). The Catppuccin
+   palette is in catppuccin.css. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --bg: #16181c;
+    --surface: #1d2025;
+    --ink: #edeff2;
+    --ink-soft: #a3a8b0;
+    --ink-faint: #848990; /* 4.5:1 on --bg and --surface */
+    --hairline: #2b2f35;
+    --hairline-strong: #383d44;
+    --stale: #82868c;
+    --stale-soft: #24262a;
+  }
+}
+:root[data-mode="dark"] {
+  --bg: #16181c;
+  --surface: #1d2025;
+  --ink: #edeff2;
+  --ink-soft: #a3a8b0;
+  --ink-faint: #848990; /* 4.5:1 on --bg and --surface */
+  --hairline: #2b2f35;
+  --hairline-strong: #383d44;
+  --stale: #82868c;
+  --stale-soft: #24262a;
+  color-scheme: dark;
+}
+:root[data-mode="light"] {
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+/* Room for the scrollbar from the start: when the data makes the page
+   taller than the window, the scrollbar doesn't narrow it and shift the
+   centred page sideways (a layout shift). */
+html {
+  scrollbar-gutter: stable;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 20px 80px;
+}
+
+header.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline-strong);
+  flex-wrap: wrap;
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wordmark h1 {
+  margin: 0;
+}

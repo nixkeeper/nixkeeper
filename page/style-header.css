@@ -1,0 +1,303 @@
+/* The header: the lockup, the toolbar, the search box and its menu, the
+   Theme menu, the headings. */
+/* The lockup is the way home: the overview, with no filters. */
+.wordmark .home {
+  display: block;
+  border-radius: 4px;
+}
+.wordmark .home:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* The nixkeeper lockup, the mark and the outlined wordmark
+   (nixkeeper-lockup-tight*.svg, from the brand sources): the light one, or
+   the dark one in dark mode. In the brand's colours in either palette. */
+.wordmark .lockup {
+  display: block;
+  width: auto;
+  height: 28px;
+}
+.wordmark .lockup.on-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) .wordmark .lockup.on-light {
+    display: none;
+  }
+  :root:not([data-mode="light"]) .wordmark .lockup.on-dark {
+    display: block;
+  }
+}
+:root[data-mode="dark"] .wordmark .lockup.on-light {
+  display: none;
+}
+:root[data-mode="dark"] .wordmark .lockup.on-dark {
+  display: block;
+}
+.wordmark .tag {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The toolbar: the filter (an icon, and "/" to jump to it), then icon
+   buttons, all 34px high. */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  width: 220px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-faint);
+  cursor: text;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 14px;
+  background: none;
+  color: var(--ink);
+  outline: none;
+}
+.search input::placeholder {
+  color: var(--ink-faint);
+}
+.search kbd {
+  font-family: var(--nk-font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  color: var(--ink-faint);
+}
+.search:focus-within kbd {
+  display: none;
+}
+/* The box grows with the screen, and more when typed in: room for a
+   query (is:builds on:darwin ...), in the header's free space (beside the
+   wordmark, about 540px with the buttons), so its row doesn't wrap. */
+.search {
+  --search-rest: clamp(220px, 26vw, 340px);
+  position: relative;
+  width: var(--search-rest);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    width 0.15s;
+}
+.search:focus-within {
+  width: max(var(--search-rest), min(580px, 45vw, 100vw - 540px));
+}
+/* What the query couldn't read, under the box. */
+.search:has(input[aria-invalid="true"]) {
+  border-color: var(--danger);
+}
+/* The box's menu: the qualifiers, then their values, each with what it
+   does and (where counted) how many it keeps. */
+.search-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 6;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 14%, transparent);
+}
+/* With a problem said, the menu goes under it. */
+/* What a word waits for (a name): quieter, and only while typed in. */
+.search-problems.note {
+  border-color: var(--hairline-strong);
+  color: var(--ink-soft);
+}
+.search:not(:focus-within) .search-problems.note {
+  display: none;
+}
+.search-problems:not([hidden]) ~ .search-menu {
+  top: calc(100% + 34px);
+}
+.search-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+}
+.search-option[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.so-text {
+  font-family: var(--nk-font-mono);
+}
+.so-label {
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.so-count {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.search-problems {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 4px 8px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.btn {
+  text-decoration: none;
+  display: inline-grid;
+  place-items: center;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.btn:hover {
+  color: var(--ink);
+  background: var(--bg);
+}
+.btn[aria-pressed="true"],
+.btn[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+/* The Theme menu: the palette and light or dark, kept in the browser. */
+.theme {
+  position: relative;
+}
+.theme-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+}
+.theme-panel[hidden] {
+  display: none;
+}
+.theme-panel fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 6px;
+}
+/* Headings (here, the popovers' titles, the details' facts and sections):
+   the size of what they head, in sentence case, set apart by weight and
+   colour; small capitals were a size and a half smaller than their
+   content (2026-10-23). */
+.theme-panel legend {
+  padding: 0 0 6px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.theme-panel .choices {
+  display: flex;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.theme-panel label {
+  flex: 1;
+  position: relative;
+  text-align: center;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.theme-panel label + label {
+  border-left: 1px solid var(--hairline-strong);
+}
+.theme-panel input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.theme-panel label:has(input:checked) {
+  color: var(--ink);
+  background: var(--bg);
+  font-weight: 600;
+}
+.theme-panel label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.btn:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.row:focus-visible,
+.failure-btn:focus-visible,
+button.plat:focus-visible,
+.fold-btn:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.search input:focus-visible {
+  outline: none; /* the field's ring instead */
+}

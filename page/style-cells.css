@@ -1,0 +1,489 @@
+/* The list's cells: the version cell and its badges, vulnerabilities, the
+   update and build cells, the GitHub icons, the chevron. */
+/* The version cell: versions on the left, badges at the right edge (top:
+   the update's PR or master badge; below: the age, devel, vulnerable, ...).
+   Outdated, line 2 is the newest version, its changed part in the
+   outdated orange (the merged violet when it's waiting for the channel). */
+.vcell {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 3px 16px;
+}
+/* Badges wrap under each other rather than widening the column (a long
+   version with "older version" and "vulnerable" beside it). */
+.v-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+}
+.v-tags:empty {
+  display: none;
+}
+.v-tags .badge {
+  margin-left: 0;
+}
+/* Both versions: one button that copies the update's title. */
+.vcopy {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  position: relative;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  cursor: copy;
+}
+.vcopy:hover {
+  text-decoration: underline dotted var(--ink-faint);
+  text-underline-offset: 3px;
+}
+.vcopy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+/* "Copied", for a moment, above the versions. */
+.vcopy[data-copied]::after {
+  content: attr(data-copied);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: var(--nk-font-ui);
+  font-size: 11.5px;
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--surface);
+  pointer-events: none;
+}
+.v-now,
+.v-tags.top {
+  grid-row: 1;
+}
+.v-next,
+.v-tags.bottom {
+  grid-row: 2;
+}
+/* Master partway there: a line between, master's version beside its
+   badge, and the newest below. */
+.v-mid,
+.v-tags.mid {
+  grid-row: 2;
+}
+.v-now,
+.v-mid,
+.v-next {
+  grid-column: 1;
+  white-space: nowrap;
+}
+.v-tags {
+  grid-column: 2;
+}
+/* The update's badge alone: across both lines, so centred between them,
+   level with the row's PR and issue counts. */
+.v-tags.bottom.solo {
+  grid-row: 1 / span 2;
+}
+.vcell.three .vcopy {
+  grid-row: 1 / span 3;
+}
+.vcell.three .v-next,
+.vcell.three .v-tags.bottom {
+  grid-row: 3;
+}
+/* The newest version: the start it shares with nixpkgs' faded, the "→"
+   hanging in the gap to the left, so both versions start in the same
+   column. */
+.v-mid .same,
+.v-next .same {
+  opacity: 0.4;
+}
+.v-mid .arrow,
+.v-next .arrow {
+  display: inline-block;
+  width: 2ch;
+  margin-left: -2ch;
+  color: var(--ink-faint);
+}
+.ver .ref {
+  color: var(--warn);
+}
+.ver .unknown {
+  color: var(--ink-faint);
+  font-family: var(--nk-font-ui);
+  font-size: 12px;
+}
+.ver .ref.merged {
+  color: var(--merged);
+}
+/* How long it's been outdated, after the package's name. */
+/* In the name's text, after its last word (or on a line of its own, under
+   the name, when it doesn't fit): beside a wrapped name, it would sit
+   apart at the right. */
+.pkg-name .age {
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-left: 2px;
+}
+/* Waiting for the channel: the merged violet, like its dot. */
+.pkg-name .age.merged {
+  color: var(--merged);
+}
+/* Failing: how long, in the failure's red. */
+.pkg-name .age.failing {
+  color: var(--danger);
+}
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 500;
+  margin-left: 5px;
+}
+.badge.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.devel.ok {
+  background: var(--ok-soft);
+  color: var(--ok-devel);
+}
+.badge.devel.warn {
+  background: var(--warn-soft);
+  color: var(--warn-devel);
+}
+.badge.missing {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge.vuln {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+/* By the worst severity known: critical and high stay red; medium in the
+   caution colour; low muted. */
+.badge.vuln.sev-medium,
+.badge.vuln.sev-moderate {
+  background: var(--warn-soft);
+  color: var(--caution);
+}
+.badge.vuln.sev-low {
+  background: var(--bg);
+  color: var(--ink-soft);
+}
+/* The panel's CVEs and advisories. */
+.vl-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+/* Under its tracker issue: indented, as its group. */
+.vl-issue + .vl-list {
+  padding-left: 14px;
+}
+/* A line each: id, severity, summary cut short (whole on hover), and what
+   the line above them doesn't say (vulnSection). */
+.vl {
+  margin: 4px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0 6px;
+  white-space: nowrap;
+}
+.vl[hidden],
+.vl-group[hidden] {
+  display: none;
+}
+.vl > * {
+  flex: none;
+}
+.vl-summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-soft);
+}
+/* "24 CVEs: 4 critical, 8 high ... · all affected · still affected on 26.05". */
+.vl-head {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+/* A tracker issue's CVEs, under its link. */
+.vl-issue {
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.vl-more {
+  margin-top: 6px;
+}
+/* Phones: too narrow for a line each; the summary under the id instead. */
+@media (max-width: 640px) {
+  .vl {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+  .vl-summary {
+    flex-basis: 100%;
+  }
+}
+.vl-backport {
+  color: var(--caution);
+}
+/* Its open update PR, under them (vulnSection). */
+.vl-pr {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+}
+.vl-rest summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+.sev {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 20px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.sev.sev-medium,
+.sev.sev-moderate {
+  color: var(--caution);
+}
+.sev.sev-low {
+  background: var(--bg);
+  color: var(--ink-soft);
+}
+/* Outdated, but the update is already on master: a solid violet label with
+   white text, like GitHub's "Merged". */
+.badge.onmaster {
+  background: var(--merged-emphasis);
+  color: var(--on-badge);
+}
+/* An open update PR, like GitHub's "Open" and "Draft" labels. */
+.badge.propen {
+  background: var(--pr-open);
+  color: var(--on-badge);
+}
+.badge.prdraft {
+  background: var(--pr-draft);
+  color: var(--on-badge);
+}
+a.badge {
+  text-decoration: none;
+}
+a.badge:hover {
+  filter: brightness(1.12);
+}
+.master-note {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: var(--merged-soft);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.badge.neutral {
+  background: var(--stale-soft);
+  color: var(--ink-soft);
+}
+
+.failure-btn {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 4px 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.failure-btn:hover {
+  background: var(--bg);
+  border-color: var(--hairline);
+  color: var(--ink);
+}
+.failure-btn.failing {
+  color: var(--danger);
+}
+/* Nothing to report: muted, no dot. */
+.failure-btn.calm {
+  color: var(--ink-faint);
+}
+.failure-btn.calm .status-dot {
+  display: none;
+}
+.failure-btn[aria-expanded="true"] {
+  background: var(--surface);
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+/* The update cell's "auto update in 4 days" (botDueText): the robot's green. */
+.bot-due {
+  color: var(--ok-devel);
+  font-weight: 500;
+}
+.bot-icon {
+  display: block;
+}
+/* A failed update's robot, in place of the dot: red, or the queue's colour
+   when the bot will try again (amber; green when to the newest). A build's
+   hard hat the same: red failing, amber blocked or marked broken. */
+.bot-mark {
+  color: var(--danger);
+}
+.bot-mark.queued {
+  color: var(--caution);
+}
+.bot-mark.match {
+  color: var(--ok-devel);
+}
+.failure-na {
+  color: var(--ink-faint);
+  padding: 4px 9px;
+}
+/* "build:" / "update:" before the text: only on phones, without the column
+   headings. */
+.cell-label {
+  display: none;
+}
+
+/* A source the last sync couldn't refresh: shown, not alarming. */
+.stale-note {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: var(--stale-soft);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+.vuln-note {
+  font-size: 12.5px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+/* nixpkgs' reasons for marking a package insecure. */
+.vuln-reasons {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.stale-tag {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  background: var(--stale-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.log-excerpt {
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gh-links {
+  display: inline-flex;
+  gap: 6px;
+}
+.gh-btn {
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+}
+.gh-btn:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+  background: var(--bg);
+}
+.gh-btn b {
+  font-weight: 600;
+  color: var(--ink);
+}
+/* GitHub's icons (GH_ICONS): in the text's colour, beside their count in
+   the list; before each PR and issue in the details, a merged PR in the
+   violet of "merged" and a draft fainter. */
+.gh-btn {
+  align-items: center;
+}
+.gh-icon {
+  display: block;
+  flex: none;
+}
+.gh-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: bottom;
+}
+.gh-item .gh-icon {
+  color: var(--ink-soft);
+}
+.gh-item.merged .gh-icon {
+  color: var(--merged-dot);
+}
+.gh-item.draft .gh-icon {
+  color: var(--ink-faint);
+}
+/* The expand chevron: a round target that lights up with the row, and
+   turns down when the row is open. */
+.chev {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--ink-faint);
+  transition:
+    transform 0.2s,
+    color 0.15s,
+    background 0.15s;
+}
+tbody tr.row:hover .chev {
+  color: var(--ink);
+  background: var(--bg);
+}
+tbody tr.row.open .chev {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+tr.detail {
+  display: none;
+}
+tr.detail.open {
+  display: table-row;
+}

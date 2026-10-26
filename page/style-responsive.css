@@ -1,0 +1,378 @@
+/* Tablets, phones and touch screens; less motion; and the sort arrows,
+   last. */
+/* Phones and tablets: the list is cards (name, version, build, update
+   stacked), so are its skeleton's rows. */
+@media (max-width: 1080px) {
+  .sk-head {
+    display: none;
+  }
+  .sk-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
+    height: auto;
+    padding: 18px 0;
+  }
+  .sk-row > span:nth-child(3),
+  .sk-row > span:nth-child(n + 6) {
+    display: none;
+  }
+}
+.loading,
+.empty,
+.error {
+  color: var(--ink-faint);
+  font-size: 13px;
+  padding: 30px 4px;
+  text-align: center;
+}
+.error {
+  color: var(--danger);
+}
+.error code {
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
+/* The last line: nixkeeper (and its version) on GitHub, and on a copy, its
+   package lists. Quiet, centred. */
+/* Hidden while the data loads (doneLoading shows it): it appears where the
+   page ends, rather than being pushed down when the page fills in (a layout
+   shift, which a page's speed is also judged by). */
+.colophon[hidden] {
+  display: none;
+}
+.colophon {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.colophon .files-link {
+  color: var(--ink-faint);
+  text-decoration: none;
+}
+.colophon .files-link:hover {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .actions {
+    width: 100%;
+  }
+  /* The box gives up room to the buttons (40px each on a touch screen),
+     rather than pushing the last one past the screen's margin. */
+  .search,
+  .search:focus-within {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+  .search input {
+    min-width: 0;
+  }
+  .search kbd {
+    display: none;
+  }
+}
+
+/* Phones and narrow windows (where even the wrapped table doesn't fit):
+   each package is a card instead of a table row, so nothing scrolls
+   sideways. Line 1: name, platforms, chevron. Line 2: the version and its
+   badges. Line 3: only what needs attention (failures, open PRs/issues);
+   cells with nothing to report are left out. */
+@media (max-width: 1080px) {
+  /* The filters, on phones and tablets: one row that swipes sideways
+     (status, a divider, the lists), fading out at the right edge to show
+     there's more; when the data was checked on a line of its own under
+     them. */
+  .filterbar {
+    display: block;
+    padding: 12px 0 10px;
+  }
+  .filters,
+  .chips {
+    flex-wrap: nowrap;
+  }
+  .filters {
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -20px; /* to the screen's edges */
+    padding: 2px 36px 2px 20px; /* the last chip clears the fade */
+    scroll-padding: 0 20px;
+    scroll-snap-type: x proximity;
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+  .filters::-webkit-scrollbar {
+    display: none;
+  }
+  .stat-btn,
+  .plat-filter {
+    flex: none;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+  /* The ways to narrow a list, in the same sideways row: wrapped, they made
+     a narrow column as tall as the screen's top half (2026-10-14). */
+  .refine {
+    flex-wrap: nowrap;
+  }
+  /* In a team's or a maintainer's box (.scope) rather than the filter bar:
+     that row swipes on its own, faded at its edge like the bar. Unscrolled,
+     it made the page 1,400px wide, and a phone zoomed out to show it. */
+  .scope .refine {
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-right: 28px; /* the last one clears the fade */
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .scope .refine::-webkit-scrollbar {
+    display: none;
+  }
+  .refine-btn,
+  .refine-age {
+    flex: none;
+    white-space: nowrap;
+  }
+  .lists-label {
+    flex: none;
+  }
+  .filterbar .meta {
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+  .filterbar .checked {
+    font-size: 12px;
+  }
+  /* Only the filters stay at the top: the whole header, stacked, would
+     cover a fifth of a phone's screen. */
+  .sticky-top {
+    display: contents;
+  }
+  .filterbar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    border-bottom: 1px solid var(--hairline);
+    /* edge to edge, so nothing shows beside it */
+    margin: 0 -20px;
+    padding: 12px 20px 10px;
+  }
+  /* Once stuck at the top (scrolled past), just the chips: "checked ..."
+     comes back at the top of the page, like the logo. */
+  .filterbar.stuck .meta {
+    display: none;
+  }
+  table,
+  tbody,
+  tbody tr.detail td {
+    display: block;
+  }
+  thead {
+    display: none;
+  }
+  tbody tr.row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    padding: 12px 6px;
+    border-bottom: 1px solid var(--hairline);
+    /* Cards off screen aren't laid out until scrolled near: with thousands
+       of packages, a redraw takes a third of the time. (Real table rows, on
+       wider screens, can't skip their layout this way.) Find in page still
+       finds them. 72px is about a card's height inside its padding, so the
+       scrollbar is about right before they're drawn. */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 72px;
+  }
+  tbody tr.row.open {
+    border-bottom-color: transparent;
+  }
+  tbody tr.row td {
+    display: block;
+    padding: 0;
+    border-bottom: 0;
+  }
+  tbody tr.row td.c-name {
+    order: 0;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  tbody tr.row td.c-chev {
+    order: 1;
+    padding: 0 4px;
+  }
+  tbody tr.row td.c-ver {
+    order: 2;
+    flex-basis: 100%;
+    padding-left: 18px;
+    white-space: normal;
+  }
+  tbody tr.row td.c-build {
+    order: 3;
+  }
+  tbody tr.row td.c-update {
+    order: 4;
+  }
+  tbody tr.row td.c-gh {
+    order: 5;
+  }
+  /* Line 3 lines up with the version (the buttons have 6px of padding). */
+  tbody tr.row td.c-build,
+  tbody tr.row td.c-update {
+    margin-left: 12px;
+  }
+  /* The counts on a line of their own in every card, not beside the build
+     when it happens to fit there. */
+  tbody tr.row td.c-gh {
+    flex-basis: 100%;
+    margin-left: 18px;
+  }
+  /* So nothing to be level with: the update's badge stays beside the
+     newest version. */
+  .v-tags.bottom.solo {
+    grid-row: 2;
+  }
+  /* A version too long for the card (dxx-rebirth's 0.60.0-beta2-unstable-
+     2025-05-24) breaks rather than push its badges past the card's edge;
+     the rest are laid out as on wider screens. */
+  .vcell {
+    grid-template-columns: minmax(0, max-content) 1fr;
+  }
+  .v-now,
+  .v-mid,
+  .v-next {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  tbody tr.row td.quiet,
+  tbody tr.row td:has(> .failure-na),
+  tbody tr.row td:has(> [data-quiet]) {
+    display: none;
+  }
+  .pkg-name .n {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .failure-btn {
+    padding: 2px 6px;
+  }
+  .cell-label {
+    display: inline;
+    color: var(--ink-faint);
+    margin-right: -2px;
+  }
+  tr.detail.open {
+    display: block;
+  }
+  tbody tr.detail td {
+    padding: 4px 6px 18px;
+  }
+  .detail-inner {
+    padding-left: 12px;
+  }
+}
+
+/* Touch screens (a finger, not a mouse pointer): bigger targets, about
+   40px for the toolbar and the filters, as touch guidelines ask. The
+   layout stays the same; only the hit areas grow. */
+@media (pointer: coarse) {
+  .btn {
+    height: 40px;
+    min-width: 40px;
+  }
+  .search {
+    height: 40px;
+  }
+  .stat-btn,
+  .plat-filter {
+    padding: 8px 13px;
+  }
+  .theme-panel label {
+    padding: 10px 12px;
+  }
+  .gh-btn,
+  .more-btn {
+    padding: 6px 10px;
+  }
+  .failure-btn {
+    padding: 6px 9px;
+  }
+  .chev {
+    width: 36px;
+    height: 36px;
+  }
+  .plats {
+    padding: 3px 9px;
+  }
+  /* Everything else a finger taps: at least 24px each way (WCAG 2.2's
+     minimum target size), most of it more. */
+  .plat {
+    padding: 6px 0;
+  }
+  .view-x {
+    display: inline-block;
+    padding: 6px 8px;
+    margin: -6px -8px -6px 0;
+  }
+  .help-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .checked,
+  .hl-mode,
+  .hl-all,
+  .refine-btn,
+  .refine-age select,
+  .refine-age input {
+    min-height: 32px;
+  }
+  /* A badge that's a link: its tap area 32px tall, the pill as it looks
+     elsewhere (made taller, it was an oval with its text at the top). */
+  a.badge {
+    position: relative;
+  }
+  a.badge::after {
+    content: "";
+    position: absolute;
+    inset: -7px -3px;
+  }
+  .files-link {
+    padding-block: 4px;
+  }
+}
+
+/* Less motion for people whose system asks for it (Reduce motion on macOS
+   and iOS, Animation effects off on Windows, ...): changes happen at once
+   instead of animating. Covers anything added later too. */
+/* biome-ignore-start lint/complexity/noImportantStyles: it has to win over every transition on the page, however specific */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* biome-ignore-end lint/complexity/noImportantStyles: - */
+/* ↓/↑ (sortPick): pressed means reversed, not a filter on: no ✕. */
+.refine-btn.sort-dir {
+  min-width: 2.2em;
+}
+.refine-btn.sort-dir[aria-pressed="true"]::after {
+  content: none;
+}

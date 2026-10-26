@@ -1,0 +1,626 @@
+/* An open row's panel: the verdict, the facts, builds and their logs, the
+   sections, the links. */
+/* An open row and its panel: one block, on the card colour. */
+tbody tr.row.open,
+tbody tr.detail.open {
+  background: var(--surface);
+}
+tbody tr.detail td {
+  padding: 4px 10px 18px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+tbody tr.row.open td {
+  border-bottom-color: transparent;
+}
+.detail-inner {
+  padding-left: 18px;
+  /* Takes the width the table gives it, without a say in the column widths:
+     otherwise a long panel (the details' Repology chips) makes the table
+     redistribute its columns, and the rows above shift when it opens. */
+  contain: inline-size;
+}
+.nix-line {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+/* A package's panel: the verdict at a glance, what it means, then
+   sections apart (compared against, people, links). */
+.pd {
+  display: grid;
+  /* As wide as the panel, not its widest content: a long source label
+     ("Heroic-Games-Launcher/HeroicGamesLauncher releases") made it wider
+     than a phone's screen, where it's meant to end in "…". */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding-top: 6px;
+}
+.pd-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+}
+.pd-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pd-verdict.ok {
+  color: var(--ok-devel);
+  background: var(--ok-soft);
+}
+.pd-verdict.warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.pd-verdict.danger {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.pd-verdict.merged {
+  color: var(--merged);
+  background: var(--merged-soft);
+}
+.pd-verdict.neutral {
+  color: var(--ink-soft);
+  background: var(--stale-soft);
+}
+/* The versions and the deciding source, as label over value. */
+.pd-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 26px;
+  margin: 0;
+}
+.pd-facts dt {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+/* Written in lower case ("outdated since"): a sentence's capital. */
+.pd-facts dt::first-letter {
+  text-transform: uppercase;
+}
+.pd-facts dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.pd-newer {
+  color: var(--warn);
+  font-weight: 600;
+}
+.pd-ago {
+  color: var(--ink-faint);
+}
+/* Inline icons (ICONS in app.js): the text's size and colour. */
+.ic {
+  width: 1.1em;
+  height: 1.1em;
+  flex: none;
+}
+/* Which source decided: ours in the accent's tint, Repology grey, master
+   in merged's. */
+.pd-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The label's text in its own box: an inline-flex box doesn't end clipped
+   text in "…" itself. */
+.pd-source-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pd-source.ours {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.pd-source.repology {
+  color: var(--ink-soft);
+  background: var(--stale-soft);
+}
+.pd-source.merged {
+  color: var(--merged);
+  background: var(--merged-soft);
+}
+.pd-foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.pd-verdict.caution {
+  color: var(--caution);
+  background: color-mix(in srgb, var(--caution-dot) 16%, transparent);
+}
+/* The builds panel: a row per system, its status, when it last built and
+   what to open, in columns where there's room. */
+.br-list {
+  display: grid;
+  /* Columns sized to what's in them and shared by every row (subgrid); the
+     detail takes the rest, so the buttons line up at the far edge. */
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  column-gap: 20px;
+  border-top: 1px solid var(--hairline);
+}
+.br {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  row-gap: 6px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.br-sys {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.br-attr {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.br-st {
+  justify-self: start;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.br-st.ok {
+  color: var(--ok-devel);
+  background: var(--ok-soft);
+}
+.br-st.missing {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.br-st.caution {
+  color: var(--caution);
+  background: color-mix(in srgb, var(--caution-dot) 16%, transparent);
+}
+.br-st.neutral {
+  color: var(--ink-soft);
+  background: var(--stale-soft);
+}
+/* The lines from a failed build's log that say why, under the row across
+   its columns. */
+/* The log's lines and their link to the whole log on Hydra. */
+.br-log-wrap {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+.br-full-log {
+  font-size: 12px;
+}
+/* "full log ↗ · the same on all 4" (groupedBuilds). */
+.br-log-foot {
+  justify-self: start;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+/* Failing alike, before the one that shows their log's lines: no line
+   between them, so they read as one group. */
+.br.alike {
+  border-bottom-color: transparent;
+}
+.br-log {
+  margin: 0;
+  padding: 6px 10px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  border-radius: 6px;
+}
+.br-what {
+  color: var(--ink-soft);
+  min-width: 0;
+}
+.br-acts {
+  justify-self: end;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .br-list {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .br-st {
+    justify-self: end;
+  }
+  .br-what,
+  .br-acts {
+    grid-column: 1 / -1;
+  }
+  .br-acts {
+    justify-self: start;
+  }
+}
+.pd-why-body {
+  display: grid;
+  gap: 10px;
+}
+.pd-why-body[hidden] {
+  display: none;
+}
+/* "Hide until it changes" (hideButton), after "Why?". */
+.pd-hide {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 2px 8px;
+  min-height: 24px;
+  cursor: pointer;
+}
+.pd-hide:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+/* The scope's "5 hidden · show them". */
+.hidden-toggle {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.hidden-toggle[aria-pressed="true"] {
+  border-style: solid;
+  color: var(--ink);
+}
+/* "Close all (3)", while several packages are open (syncCloseAll). */
+.close-all {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.close-all:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+/* A hidden package, while "show them" is on. */
+tr.row.is-hidden {
+  opacity: 0.5;
+}
+/* The panel's last buttons ("Hide until it changes"), at the line's end. */
+.pd-links-end {
+  margin-left: auto;
+}
+/* A maintainer's GitHub picture, before their handle. */
+.maint-btn .avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -4px;
+  background: var(--stale-soft);
+}
+a.pd-source {
+  text-decoration: none;
+}
+/* The explanation: readable lines, quieter than the facts. */
+.pd-text {
+  margin: 0;
+  max-width: 78ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.pd-text .mono {
+  color: var(--ink);
+}
+.pd-notes {
+  display: grid;
+  gap: 8px;
+  max-width: 78ch;
+}
+.pd-notes > * {
+  margin: 0;
+}
+/* Each section on its own, a hairline above. */
+.pd-sec {
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+}
+.pd-sec .other-label {
+  margin-top: 0;
+}
+/* What nixkeeper-prs found of a package's PRs and issues (githubSection). */
+.gh-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.gh-fact {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  background: var(--hairline);
+  color: var(--ink-soft);
+  margin-right: 4px;
+}
+.gh-fact.ok {
+  background: var(--ok-soft);
+  color: var(--ok-devel);
+}
+/* Why the update bot fails: a bar per cause (causesHtml). */
+.cause-bars .hl-row .hl-name {
+  flex: none;
+  width: 9.5em;
+}
+.cause-bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.cause-bar span {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--warn-dot);
+}
+button.cause-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.cause-own {
+  margin: 6px 6px 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.cause-line code {
+  font-size: 12px;
+  white-space: normal;
+  word-break: break-word;
+}
+/* How many packages a family's line stands for (familyName). */
+.hl-family {
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0 6px;
+  margin-left: 6px;
+}
+/* Who a recent fix is credited to (fixedHtml). */
+.fixed-by {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-left: auto; /* to the right, the age after it: aligned row to row */
+  flex: none;
+  white-space: nowrap;
+}
+.fixed-by + .hl-age {
+  margin-left: 0;
+}
+.gh-fact.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pd-sec .repo-chips,
+.pd-sec .log-excerpt {
+  margin-bottom: 0;
+}
+/* Maintainers and teams side by side where there's room. */
+.pd-people {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 28px;
+}
+.pd-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pd-pills .pd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--bg);
+}
+.pd-pills button.pd-pill {
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+}
+.pd-pills button.pd-pill:hover,
+.pd-pills .pd-pill:has(.maint-btn:hover) {
+  border-color: var(--hairline-strong);
+}
+.pd-pill .maint-btn:hover {
+  text-decoration: none;
+}
+/* A team a list adds (teamsByList): said, quietly, inside its pill. */
+.pd-pill-note {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+.pd-pill-go {
+  color: var(--ink-faint);
+  text-decoration: none;
+  font-size: 11.5px;
+}
+.pd-pill-go:hover {
+  color: var(--accent);
+}
+/* The package's links, as one row of buttons at the foot. */
+.pd-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  border-top: 1px solid var(--hairline);
+  padding-top: 12px;
+}
+/* Links that leave nixkeeper (Homepage, package.nix; a build's Build and
+   Job): text with ↗, in the accent's colour, no box. What acts on the page
+   is a button (outlined, .pd-hide). Same height as a button, to tap. */
+.pd-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+}
+.pd-link .ic {
+  display: none;
+}
+.pd-link::after {
+  content: "↗";
+}
+.pd-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* A panel's small headings ("Compared against"): like the popovers'. */
+.other-label {
+  margin: 10px 0 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.other-label::first-letter {
+  text-transform: uppercase;
+}
+/* How old the comparison is, when Repology wasn't asked today. */
+.other-label .since {
+  font-weight: 400;
+}
+.repo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.repo-chip {
+  font-size: 12.5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  /* Never wider than the panel: a long version ("5.1.0~20221114gitd55acb1")
+     breaks inside the chip instead of sticking out on a phone. */
+  max-width: 100%;
+}
+.repo-chip[hidden] {
+  display: none;
+}
+.more-btn {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px dashed var(--hairline-strong);
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+.more-btn:hover {
+  border-style: solid;
+  background: var(--bg);
+}
+.repo-chip .v {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.repo-chip.ahead .v {
+  color: var(--warn);
+}
+.detail-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* A package's maintainers: each searches for their packages, with a link to
+   their GitHub profile. */
+.maintainers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.maintainer {
+  display: inline-flex;
+  gap: 3px;
+  align-items: baseline;
+}
+.maint-btn {
+  font: inherit;
+  font-weight: 500;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+.maint-btn:hover {
+  text-decoration: underline;
+}
+.none-note {
+  color: var(--ink-soft);
+}
+.files-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+.files-link:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,263 @@
+/* "You can merge these", the search's matches beyond the view, the
+   maintainers' view, and the package lists' mistakes. */
+/* "You can merge these", in a maintainer's or team's view (mergeHtml). */
+.merge-block {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.merge-block h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.merge-block h3 .scope-hint {
+  font-weight: 400;
+  font-size: 13px;
+}
+.merge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.merge-list .files-link {
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+.merge-n {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+}
+.merge-facts {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+/* "You can merge these"'s Hide (setPrHidden) and its "N hidden" toggle. */
+.merge-hide {
+  margin-left: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 2px 8px;
+  min-height: 24px;
+  cursor: pointer;
+}
+.merge-hide:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.merge-hidden-toggle {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  padding: 1px 9px;
+  cursor: pointer;
+}
+.merge-hidden-toggle[aria-pressed="true"] {
+  border-style: solid;
+  color: var(--ink);
+}
+.merge-list li.is-hidden {
+  opacity: 0.5;
+}
+.merge-warn {
+  color: var(--warn);
+}
+.merge-how {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.merge-how code {
+  font-family: var(--nk-font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.merge-copy,
+.merge-more {
+  position: relative;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 3px 10px;
+  min-height: 24px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.merge-more {
+  margin-top: 8px;
+}
+.merge-copy:hover,
+.merge-more:hover {
+  border-color: var(--accent);
+}
+.merge-copy:focus-visible,
+.merge-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.merge-copy[data-copied]::after {
+  content: attr(data-copied);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  background: var(--ink);
+  color: var(--surface);
+  pointer-events: none;
+}
+.team-pick {
+  margin-left: auto;
+  color: var(--ink-faint);
+}
+.team-pick select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 2px 6px;
+  max-width: 14em;
+}
+.find .team-pick {
+  flex: 1 1 200px;
+  margin: 0;
+}
+.find .team-pick-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.find .team-pick select {
+  width: 100%;
+  max-width: none;
+  height: 44px;
+  font-size: 14px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 12%, transparent);
+  cursor: pointer;
+}
+.find .team-pick select:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+}
+.find .team-pick select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+/* With every package, under a search: matching names beyond the view. */
+.more-matches {
+  margin-top: 18px;
+  font-size: 13px;
+}
+.more-matches ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  columns: 3 16em;
+  column-gap: 24px;
+}
+.more-matches li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  break-inside: avoid;
+}
+/* The matches' own filters (In, Status), and their "Show more". */
+.more-matches .match-filters {
+  margin: 8px 0 4px;
+}
+.more-matches-btn {
+  margin-top: 10px;
+}
+/* With every package: maintainers (under an @ search, and the maintainers
+   page): the handle, then their counts. */
+.maint-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.maint-list a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.maint-n {
+  color: var(--ink-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.maint-page {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  columns: 3 18em;
+  column-gap: 28px;
+  font-size: 13.5px;
+}
+.maint-page li {
+  padding: 3px 0;
+  break-inside: avoid;
+}
+.warn-text {
+  color: var(--warn);
+}
+.danger-text {
+  color: var(--danger);
+}
+.find-more {
+  margin: -2px 0 4px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.fixed-to {
+  flex: none;
+  font-size: 12px;
+  color: var(--ok-devel);
+}
+.list-problems {
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--danger-soft);
+  border-left: 3px solid var(--danger-dot);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 14px;
+}
+.list-problems ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.list-problems li {
+  color: var(--ink);
+}

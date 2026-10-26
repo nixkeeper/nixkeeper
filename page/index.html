@@ -21,7 +21,18 @@
 <link rel="icon" id="favicon" href="favicon.svg" type="image/svg+xml">
 <script src="theme.js"></script>
 <link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="style.css">
+<!-- In this order: later files override earlier ones. Keep new rules in the
+     file for their part of the page. -->
+<link rel="stylesheet" href="style-base.css">
+<link rel="stylesheet" href="style-header.css">
+<link rel="stylesheet" href="style-filters.css">
+<link rel="stylesheet" href="style-overview.css">
+<link rel="stylesheet" href="style-people.css">
+<link rel="stylesheet" href="style-table.css">
+<link rel="stylesheet" href="style-cells.css">
+<link rel="stylesheet" href="style-panel.css">
+<link rel="stylesheet" href="style-pages.css">
+<link rel="stylesheet" href="style-responsive.css">
 <link rel="stylesheet" href="catppuccin.css">
 <!-- app.js's modules, fetched with it rather than once it has loaded. -->
 <link rel="modulepreload" href="app.js">

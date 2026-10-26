@@ -1,0 +1,535 @@
+/* The overview: the cards, the trends, the highlights, the tiles, nixpkgs in
+   numbers. */
+/* With every package: all of nixpkgs in numbers, the tiles (filters of the
+   view shown), the generated sets, and the view shown. */
+.scope {
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  display: grid;
+  /* As wide as the page, not its widest content: the filters' row, which
+     swipes sideways on a phone, had made it (and the page) 1,400px wide. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.scope[hidden] {
+  display: none; /* display: grid above would show it */
+}
+.scope b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.scope-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.scope-label {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+}
+.scope-total {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.scope-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bulk);
+  overflow: hidden;
+}
+.scope-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.scope-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: 0;
+}
+.swatch.full {
+  background: var(--accent);
+}
+.swatch.gen {
+  background: var(--bulk);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.card {
+  /* A column: the cards in a row are as tall as the tallest, so the label
+     and number stay at the top and the trend goes to the bottom (as a grid,
+     the room left over was spread between the rows, so a card without a
+     note or a trend had its number lower). */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.card:hover {
+  border-color: var(--hairline-strong);
+}
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.card-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.card-go {
+  color: var(--ink-faint);
+  font-size: 15px;
+  line-height: 1;
+}
+.card-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.card-n {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.card-change {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.card-change.worse {
+  color: var(--danger);
+}
+.card-change.better {
+  color: var(--ok-devel);
+}
+.card-sub {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.spark {
+  width: 100%;
+  height: 22px;
+  margin-top: 2px;
+}
+.card .spark {
+  margin-top: auto;
+}
+/* The trends' marks: a staging-next merge (grey, solid: the mass rebuilds
+   it lands), a change in how nixkeeper counts (amber, dashed: a step in a
+   count that isn't the packages changing). Told apart by more than colour. */
+.spark-mark {
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.spark-mark.staging-next {
+  stroke: var(--ink-faint);
+  stroke-dasharray: none;
+}
+.spark-mark.counting {
+  stroke: var(--caution);
+}
+.card-note {
+  color: var(--caution);
+}
+.spark-legend {
+  margin: -2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+/* A mark's day: its full description on hover. */
+.spark-day {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
+.spark-key {
+  display: inline-block;
+  width: 0;
+  height: 10px;
+  margin: 0 5px -1px 0;
+  border-left: 1px solid var(--ink-faint);
+}
+.spark-key.counting {
+  border-left-style: dashed;
+  border-left-color: var(--caution);
+}
+/* The overview's section and card titles are headings (to move between
+   with a screen reader), drawn as the labels they were. */
+:where(h2, h3) {
+  margin: 0;
+  font: inherit;
+}
+.scope h2.scope-label {
+  margin: 4px 0 -4px;
+}
+.overview-more {
+  display: grid;
+  gap: 10px;
+}
+.overview-more[hidden] {
+  display: none;
+}
+.hl-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+.hl-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border-radius: 8px;
+  padding: 10px 6px 6px;
+  border-top: 2px solid color-mix(in srgb, var(--hl) 70%, transparent);
+}
+.hl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px 8px;
+}
+.hl-title {
+  display: grid;
+  gap: 1px;
+}
+.hl-label {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.hl-n {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--hl);
+  font-variant-numeric: tabular-nums;
+}
+.hl-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+.hl-mode {
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.hl-mode:hover {
+  color: var(--ink);
+}
+.hl-mode[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 25%, transparent);
+}
+.hl-mode:focus-visible,
+.hl-row:focus-visible,
+.hl-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.hl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hl-list > * + * {
+  border-top: 1px solid color-mix(in srgb, var(--hairline) 60%, transparent);
+}
+.hl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 6px;
+  border-radius: 5px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.hl-row:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.hl-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.hl-row:hover .hl-name {
+  color: var(--accent);
+}
+.hl-age {
+  margin-left: auto;
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--hl);
+  background: color-mix(in srgb, var(--hl) 12%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.hl-unit {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.hl-none {
+  margin: 0;
+  padding: 6px;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+/* "Blocking the most" on staging-next: when, where "Show all" would be. */
+.hl-all.hl-when {
+  color: var(--ink-faint);
+  cursor: help;
+}
+.hl-all.hl-when:hover {
+  background: none;
+}
+.hl-all {
+  justify-self: start;
+  margin: 4px 0 0;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.hl-all:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+/* The overview's team picker, centred under the cards (the top box is the
+   search). */
+.find {
+  display: flex;
+  justify-content: center;
+  width: min(100%, 360px);
+  margin: 14px auto 10px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.tile {
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+}
+.tile:hover {
+  border-color: var(--hairline-strong);
+}
+.tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tile[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.tile-label {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.tile-n {
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* The overview's "nixpkgs in numbers" (numbersHtml). */
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+@media (max-width: 900px) {
+  .numbers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.number {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.number-v {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.number-l {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.number-what {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.set-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .set-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.set-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 9px 12px 10px;
+}
+.set-card:hover {
+  border-color: var(--hairline-strong);
+}
+.set-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.set-name {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-card:hover .set-name {
+  color: var(--accent);
+}
+.set-n {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.set-unit {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+.set-bar {
+  display: flex;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--hairline);
+}
+.set-bar-broken {
+  background: var(--caution-dot);
+}
+.set-bar-failed {
+  background: var(--danger-dot);
+}
+.set-bar-outdated {
+  background: var(--warn-dot);
+}
+.set-meta {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.set-by {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-failed {
+  color: var(--danger);
+}
+.set-outdated {
+  color: var(--warn);
+}
+.set-broken {
+  color: var(--caution);
+}
+.scope-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 10px;
+}
+.view-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.view-x {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.8;
+}
+.view-x:hover {
+  opacity: 1;
+}
+.scope-hint {
+  color: var(--ink-faint);
+}

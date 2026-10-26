@@ -1,0 +1,290 @@
+/* The list's table: its rows, sticky header, name, platforms and folds. */
+
+/* Separate borders (none apart): with collapsed ones, Chrome paints the
+   rows' lines over the sticky headings as they scroll under them. So the
+   lines are on the cells, which stay under the headings. */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+/* Wide enough for the table (narrower: cards), its columns are the same on
+   every list: sized to their content, they moved between Build failures
+   and Update failures, and a long version with its badges pushed the table
+   past the filters' edge (2026-10-23). A version too long for its column
+   wraps, as on phones. */
+@media (min-width: 1081px) {
+  table {
+    table-layout: fixed;
+  }
+  thead th:nth-child(1) {
+    width: 22%;
+  }
+  thead th:nth-child(2) {
+    width: 23%;
+  }
+  thead th:nth-child(3) {
+    width: 13%;
+  }
+  thead th:nth-child(4) {
+    width: 19%;
+  }
+  thead th:nth-child(5) {
+    width: 19%;
+  }
+  thead th:nth-child(6) {
+    width: 48px;
+  }
+  table .vcell {
+    grid-template-columns: minmax(0, max-content) 1fr;
+  }
+  table .v-now,
+  table .v-mid,
+  table .v-next,
+  table .vcell .v {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* A name with no dot or hyphen where it's too long for its column
+     (linuxPackages_xanmod_latest.rtl8821cu) breaks anywhere instead. */
+  table .pkg-name .who {
+    max-width: 100%;
+  }
+  table .pkg-name .n {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* Versions too long to have their badges beside them (tooWide, app.js):
+     the badges on a line under them instead, one after the other. */
+  table .vcell.long {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 5px;
+  }
+  table .vcell.long > .vcopy,
+  table .vcell.long > .v-now {
+    flex-basis: 100%;
+  }
+  table .vcell.long .v-tags {
+    justify-content: flex-start;
+  }
+  /* Every collapsed row the same height: room for a name on two lines (a
+     quarter of the rows) or two versions, so the list doesn't jump about
+     and the loading skeleton's rows match (index.html). Taller only for
+     the rare row that needs more. */
+  tbody tr.row > td {
+    height: 78px;
+  }
+}
+thead th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+/* While scrolling, the header and the filters stay at the top, and the
+   table's column headings just under them (app.js measures the header into
+   --sticky-h). The table needs no scroll box of its own for that: it fits
+   (narrower windows get cards). Phones and tablets: see below. */
+/* Marks where the filters are, to tell when they're stuck (app.js). */
+.stick-mark {
+  height: 1px;
+  margin-bottom: -1px;
+}
+.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  /* room above the logo once it's at the top, without moving it before */
+  padding-top: 14px;
+  margin-top: -14px;
+}
+thead th {
+  position: sticky;
+  top: var(--sticky-h, 0);
+  z-index: 4;
+  background: var(--bg);
+}
+tbody tr.row {
+  cursor: pointer;
+}
+tbody tr.row td {
+  border-bottom: 1px solid var(--hairline);
+}
+tbody tr.row:hover {
+  background: var(--surface);
+}
+tbody tr.row td {
+  padding: 12px 10px;
+  vertical-align: middle;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.status-dot.ok {
+  background: var(--ok);
+}
+.status-dot.warn {
+  background: var(--warn-dot);
+}
+.status-dot.merged {
+  background: var(--merged-dot);
+}
+.status-dot.caution {
+  background: var(--caution-dot);
+}
+.status-dot.missing {
+  background: var(--danger-dot);
+}
+.status-dot.neutral {
+  background: var(--ink-faint);
+}
+
+/* The platforms go under the name, lined up with the name, not the dot:
+   the dot hangs in the padding. */
+.pkg-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding-left: 18px; /* the dot and its gap */
+}
+/* The dot and the name stay together. */
+.pkg-name .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: -18px;
+}
+/* Wraps after a dot or at a hyphen only (breakableName): a long name
+   (home-assistant-custom-components.homematicip_local) would otherwise
+   widen the table past the screen. */
+.pkg-name .n {
+  font-weight: 600;
+  font-size: 14.5px;
+}
+/* The name, a link to the package alone (?pkg=), for a tab of its own:
+   drawn as the name, underlined on hover. */
+a.pkg-link {
+  color: inherit;
+  text-decoration: none;
+}
+a.pkg-link:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 3px;
+}
+/* Secondary to the name: the platforms as one small pill ("Linux ·
+   Darwin"). Each is still a button: a click filters by platform. */
+.plats {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--stale-soft) 70%, transparent);
+  color: var(--ink-soft);
+}
+.plat {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+.plat + .plat::before {
+  content: "·";
+  display: inline-block; /* keeps the hover underline off the dot */
+  padding: 0 4px;
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+button.plat {
+  cursor: pointer;
+}
+/* Listed for the platform, not built there by Hydra (unbuiltOn). */
+.plat.unbuilt {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+  opacity: 0.6;
+}
+button.plat:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.plat[aria-pressed="true"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+/* A fold's lead (foldButton): how many more packages the same update
+   moves, a button showing them; 24 px tall, like every tap target. */
+.fold-btn {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.fold-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+.fold-btn[aria-expanded="true"] {
+  color: var(--accent);
+}
+/* The packages an open fold shows, after its lead: set in under it. */
+.row.fold-member .c-name {
+  box-shadow: inset 3px 0 0 var(--hairline-strong);
+}
+.row.fold-member .pkg-name {
+  padding-left: 32px;
+}
+.plat-filter {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+
+/* Text only screen readers get. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The version column wraps rather than widening the table past the screen
+   (one long version would widen it for every row): only between its parts
+   (before "→ target", before the age and badges), never inside a version. */
+.ver {
+  font-size: 13px;
+}
+.ver .v,
+.ver .ref,
+.ver .badge {
+  white-space: nowrap;
+}

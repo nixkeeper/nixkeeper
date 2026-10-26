@@ -1,0 +1,333 @@
+/* The filter bar, the refines, "Your packages", when the data was checked,
+   the legend, and the "where the data is from" popover. */
+
+/* One bar of filters: the counts (status), then the lists after a divider,
+   then when the data was checked. Each a chip; the active one in the
+   accent's tint, like the toolbar's buttons. */
+.filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 14px 0 16px;
+  flex-wrap: wrap;
+}
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.chips b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chips.lists:empty {
+  display: none;
+}
+.chips.lists {
+  padding-left: 12px;
+  border-left: 1px solid var(--hairline-strong);
+}
+.stat-btn {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.stat-btn:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.stat-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.stat-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.stat-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Narrowing any list: toggles, and how long the problem has lasted. Under
+   the counts (one list), or the tiles (every package). */
+.refine-row[hidden] {
+  display: none;
+}
+.refine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.refine-btn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.refine-btn:hover {
+  color: var(--ink);
+  border-style: solid;
+}
+.refine-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+/* On: ✕ at its end, as the view's chip has (click to remove). */
+.refine-btn[aria-pressed="true"]::after {
+  content: "✕";
+  margin-left: 6px;
+  font-size: 0.85em;
+}
+.refine-btn:focus-visible,
+.refine-age select:focus-visible,
+.refine-age input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.refine-age {
+  margin-left: 4px;
+  color: var(--ink-faint);
+}
+.refine-age select,
+.refine-age input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+/* Fixed widths, the same on every list: sized to their longest option,
+   which counts change from list to list, they moved what follows them
+   ("In any set" was 282px on Build failures, 310px on Update failures,
+   2026-10-23). A long choice is cut short in the closed box; its menu
+   shows it whole. The short ones (any / with one / without) narrower. */
+.refine-age select {
+  width: 11em;
+  text-overflow: ellipsis;
+}
+.refine-age select[data-newer],
+.refine-age select[data-pr-pick] {
+  width: 7.5em;
+}
+/* "By": a maintainer's handle, typed or picked (refineHtml). */
+.refine-age .by-pick {
+  width: 11em;
+}
+/* With every package: "Your packages", the visitor's handle. */
+.mine-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mine-form input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 3px 11px;
+  width: 11em;
+}
+.mine-form select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 3px 9px;
+  max-width: 14em;
+}
+.mine-form select:focus-visible,
+.mine-form input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.mine-edit {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  margin-left: -2px;
+  cursor: pointer;
+}
+.mine-edit:hover {
+  color: var(--ink);
+}
+.lists-label {
+  color: var(--ink-faint);
+  font-size: 12px;
+  margin-right: 2px;
+}
+/* When the data was checked, and the legend's "?". */
+.filterbar .meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.filterbar .checked {
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+/* "checked ... ago" opens where the data is from (a popover, like the
+   legend's). */
+.sources {
+  position: relative;
+}
+button.checked {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+button.checked:hover,
+button.checked[aria-expanded="true"] {
+  color: var(--ink);
+}
+button.checked:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* The legend: a "?" that opens what the dots mean (a popover, like the
+   Theme menu). */
+.legend {
+  position: relative;
+}
+.help-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.help-btn:hover,
+.help-btn[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline-strong));
+}
+.help-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.legend-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 40px));
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.legend-panel[hidden] {
+  display: none;
+}
+.legend-panel .pop-title {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.legend-panel ul {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 7px 8px;
+}
+.legend-panel li {
+  display: contents;
+}
+.legend-panel b {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.legend-panel > a {
+  font-size: 12.5px;
+}
+/* Anchored left of the legend's "?": a little narrower, to stay on a
+   phone's screen. */
+.sources-panel {
+  max-width: min(340px, calc(100vw - 72px));
+}
+.sources-panel ul {
+  grid-template-columns: auto 1fr;
+  /* A name beside the first line of what it says, when that wraps. */
+  align-items: baseline;
+}
+/* Its links below the list, one per line. */
+.sources-panel > .files-link {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+}
+.sources-panel .unused .src-what {
+  color: var(--caution);
+}
+/* A digest's name, its sources below it, indented. */
+.sources-panel .src-digest > a {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  font-weight: 600;
+}
+.sources-panel .in-digest > b {
+  padding-left: 10px;
+  font-weight: 500;
+}
+.filterbar .checked.stale {
+  color: var(--danger);
+}
+
+/* Mistakes in the package lists (a maintainer handle no package lists, ...). */
