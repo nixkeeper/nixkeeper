@@ -1,18 +1,17 @@
-// The list (page/list.js): a package's row and its cells, as HTML. Run:
+// The list's rows and cells (page/row.js), and where the data is from
+// (page/sources.js), as HTML. Run:
 // node --test tests/js/ (part of `nix flake check`, as checks.page).
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-const search = { value: '' };
-globalThis.document = { getElementById: () => search };
-globalThis.location = { pathname: '/', search: '', href: 'https://nixkeeper.test/' };
-globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+import { buildCell, githubLinks, rowHtml, versionCell } from '../../page/row.js';
+import { sourcesHtml } from '../../page/sources.js';
+import { store } from '../../page/store.js';
 
-const { buildCell, githubLinks, rowHtml, sourcesHtml, versionCell } = await import(
-  '../../page/list.js'
-);
-const { store } = await import('../../page/store.js');
+// No browser: what's read of one at call time (a row's links read the page's
+// address), not when the modules load.
+globalThis.location = { pathname: '/', search: '', href: 'https://nixkeeper.test/' };
 
 // The visible text of some HTML, its tags removed until none is left.
 const text = (markup) => {

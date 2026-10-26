@@ -52,6 +52,24 @@ export const state = {
   pageSize: DEFAULT_PAGE_SIZE,
 };
 
+// The list's own state. The visitor's own GitHub handle, for "Your packages"
+// (kept in their browser only, nixkeeper-handle), how many packages list them
+// once their view is loaded, and whether it's being edited; their team
+// (nixkeeper-team), for "Your team", the same. Packages one update moves
+// together, folded into one row (foldFamilies): the folds of the list drawn
+// (lead's name → its fold), and the names shown behind an open one's lead.
+export const listView = {
+  myHandle: null,
+  myCount: null,
+  editingHandle: false,
+  myTeam: null,
+  editingTeam: false,
+  folds: new Map(),
+  inOpenFold: new Set(),
+  // The folds opened (by key, until reload).
+  openFolds: new Set(),
+};
+
 // The state an address says, and the search box's text (query), from its
 // parameters (URLSearchParams). known: the filters, sorts, platforms,
 // refines and ages the page has ({ FILTERS, SORTS, PLATFORMS, REFINES,

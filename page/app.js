@@ -9,19 +9,8 @@ import {
   TOP_LEVEL,
 } from './facets.js';
 import { currentFiltered, FILTERS, KNOWN, PLATFORMS } from './filters.js';
-import {
-  BY_SHOWN,
-  bulkBadge,
-  DOT_TITLE,
-  facetOption,
-  listHeaderHtml,
-  listView,
-  renderLists,
-  renderStats,
-  rowHtml,
-  searchValues,
-  wireList,
-} from './list.js';
+import { renderLists, renderStats, searchValues, wireList } from './list.js';
+import { BY_SHOWN, facetOption, listHeaderHtml } from './list-controls.js';
 import {
   hiddenPrPrints,
   maintainerItem,
@@ -35,6 +24,7 @@ import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
 import { themeFor } from './palette.js';
 import { maintainerMatches, NAME_DOTS, nameMatches } from './people.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
+import { bulkBadge, DOT_TITLE, rowHtml } from './row.js';
 import {
   matchNote,
   needsList,
@@ -48,6 +38,7 @@ import {
 import {
   failedBuilds,
   known,
+  listView,
   PAGE_SIZES,
   readState,
   scopeHref,
