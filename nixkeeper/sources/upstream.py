@@ -135,9 +135,9 @@ def record(row: Row, found):
     ):
         # An up-to-date rule names this very version as not a real release
         # (uptodate.py): a wrong worked-out result is silenced as a wrong
-        # Repology verdict is. Any other version still counts (twinejs: its
-        # rule is about Repology's 7.0.0, another project's; GitHub's 2.12.1
-        # is a real release).
+        # Repology verdict is. Any other version still counts (a rule for
+        # twinejs about Repology's 7.0.0, another project's, leaves GitHub's
+        # 2.12.1 a real release).
         newer = False
     row["upstream"] = {**found, "newer": newer}
 

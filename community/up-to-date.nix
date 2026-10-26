@@ -35,22 +35,10 @@
     reason = "nixpkgs builds a ValHaris/asc-hq commit it versions 2.6.3.0; the other repositories have the 2.6.1.0 release, and Repology flags 2.6.3.0 as incorrect.";
   };
 
-  pacvim = {
-    version = "2018-05-16";
-    newest = "1.1.1";
-    reason = "A snapshot from after the 1.1.1 release; Repology can't compare a date with a release number, so it calls it untrusted.";
-  };
-
   steamtinkerlaunch = {
     version = "12.12-unstable-2025-07-14";
     newest = "12.12";
     reason = "A snapshot from after the 12.12 release; Repology ignores unstable versions.";
-  };
-
-  twinejs = {
-    version = "2.12.0";
-    newest = "7.0.0";
-    reason = "Twine, the story editor: Repology files it under twine, the Python package upload tool, whose 7.0.0 isn't a release of the editor.";
   };
 
   wesnoth-devel = {
