@@ -24,9 +24,7 @@ import contextlib
 import copy
 import functools
 import json
-import math
 import os
-import re
 import shutil
 import traceback
 from datetime import UTC, datetime, timedelta
@@ -44,265 +42,49 @@ from ..changes import (
     waiting_for_channel,
 )
 from ..naming import shard_of, slug
-from ..sources import vulnerabilities_digest
 from ..sources.nixpkgs import available_on
-
-FORMAT = 2
-# About how many rows a shard holds. A shard is what the page loads to show
-# a package's details panel.
-SHARD_ROWS = 500
-# A row's fields that only the details panel uses: they're left out of the
-# row's summary entry.
-PANEL_ONLY = (
-    "dataFile",
-    "feed",
-    "buildFixPR",
-    "buildCausePR",
-    "recentFixes",
-    "fixPRs",
-    "issueChecks",
-    "otherPRs",
-    "vulnerabilities",
-    "homepage",
-    "repoCount",
-    "repologyCheckedAt",
-    # Repology's own verdict, for the next run to decide from (verdict.py):
-    # in the rows only.
-    "repologyVerdict",
-    "source",
+from . import shards
+from .shards import (
+    PANEL_ONLY,
+    data_file,
+    kept_entries,
+    newest_repos,
+    shard_count,
+    summary_entry,
 )
-# The fields of a row's update check ("upstream") that its summary entry
-# keeps: what the list shows (the version, whether it's newer, and whose
-# check it is).
-UPSTREAM_SHOWN = ("community", "inferred", "newer", "version")
 
-
-def data_file(key):
-    """Return the file name for a Repology project's data.
-
-    Project names such as python:requests contain characters that don't
-    belong in file names or URLs; each of them becomes an underscore.
-    """
-    return re.sub(r"[^A-Za-z0-9._+-]", "_", key) + ".json"
-
-
-def dumps(data):
-    """Format data as compact JSON, with its keys sorted.
-
-    Without indentation the files are about a third smaller, and with the
-    keys sorted, the same data always gives the same bytes.
-    """
-    return json.dumps(data, separators=(",", ":"), sort_keys=True)
-
-
-def shard_count(rows):
-    """Return how many shards to split the rows into.
-
-    About SHARD_ROWS rows a shard, rounded up to a power of two: 1 for a few
-    hundred rows, 256 for all of nixpkgs.
-
-    Args:
-        rows: The number of rows.
-    """
-    return 1 << max(0, math.ceil(math.log2(max(1, rows / SHARD_ROWS))))
-
-
-def elided(row, run):
-    """Return row without the timestamps that only repeat the run's time.
-
-    A row's "countedAt", and the "checkedAt" of its update check and of each
-    of its builds, are left out when they equal run. A row that nothing new
-    happened to then keeps the same bytes from one run to the next.
-    restored() puts the timestamps back when the data is read.
-
-    Args:
-        row: The row. It isn't changed.
-        run: The run's time, the index's "checkedAt". When it's empty, row
-            is returned as it is.
-
-    Returns:
-        The row as it's written.
-    """
-    if not run:
-        return row
-    row = dict(row)
-    if row.get("countedAt") == run:
-        del row["countedAt"]
-    if (row.get("upstream") or {}).get("checkedAt") == run:
-        row["upstream"] = {k: v for k, v in row["upstream"].items() if k != "checkedAt"}
-    if "builds" in row:
-        row["builds"] = [
-            {k: v for k, v in b.items() if k != "checkedAt"}
-            if b.get("checkedAt") == run
-            else b
-            for b in row["builds"]
-        ]
-    return row
-
-
-def restored(row, run):
-    """Put back the timestamps elided() left out of row.
-
-    Every build and update check has a "checkedAt", and a row with counts
-    ("openPRs") has a "countedAt", so a missing one was left out because
-    it equalled run.
-
-    Args:
-        row: The row as read from its shard. It's changed in place.
-        run: The time of the run that wrote it, the index's "checkedAt".
-            When it's empty, nothing is changed.
-
-    Returns:
-        row.
-    """
-    if not run:
-        return row
-    for build in row.get("builds") or []:
-        build.setdefault("checkedAt", run)
-    if row.get("upstream"):
-        row["upstream"].setdefault("checkedAt", run)
-    if "openPRs" in row:
-        row.setdefault("countedAt", run)
-    return row
-
-
-# Repology statuses whose versions can't be compared with others. They sort
-# after the rest, as comparedRepos in page/logic.js does.
-UNCOMPARABLE = {"rolling", "ignored", "incorrect", "noscheme", "untrusted"}
-
-
-def newest_repos(entries, count):
-    """Pick the Repology entries a details panel shows.
-
-    nixpkgs' own entries are kept, and of the other repositories, the count
-    with the newest versions, one entry each (its newest). They're ranked as
-    the panel orders them (comparedRepos in page/logic.js): comparable
-    versions first, then the newest version first, then by repository.
-
-    Args:
-        entries: A project's Repology entries.
-        count: How many other repositories to keep.
-
-    Returns:
-        nixpkgs' entries, then the kept ones in that order.
-    """
-    from ..versions import version_key
-
-    def order(e):
-        """Rank an entry: comparable versions first, then the newest first."""
-        return (
-            e.get("status") in UNCOMPARABLE,
-            _Reversed(version_key(e.get("version") or "")),
-        )
-
-    best = {}
-    for e in entries:
-        repo = e.get("repo")
-        if repo == config.NIX_REPO:
-            continue
-        if repo not in best or order(e) < order(best[repo]):
-            best[repo] = e
-    kept = sorted(best.values(), key=lambda e: (*order(e), e.get("repo") or ""))
-    return [e for e in entries if e.get("repo") == config.NIX_REPO] + kept[:count]
-
-
-class _Reversed:
-    """A sort key that orders in reverse, so the newest version comes first."""
-
-    def __init__(self, key):
-        """Hold the key to reverse."""
-        self.key = key
-
-    def __lt__(self, other):
-        return other.key < self.key
-
-    def __eq__(self, other):
-        return self.key == other.key
-
-
-def kept_entries(projects, rows):
-    """Choose the Repology entries to write for each project.
-
-    A project with a row on the package lists keeps all its entries. Every
-    other project (with every package, the rest of nixpkgs) keeps only
-    nixpkgs' own entries and those of the REPOLOGY_ENTRIES_KEPT other
-    repositories with the newest versions: what its details panel shows.
-    The rest can be seen on Repology.
-
-    Args:
-        projects: The Repology projects looked up (by lookup), each with
-            "dataFile" and "entries".
-        rows: The rows made from them.
-
-    Returns:
-        {dataFile: entries}.
-    """
-    listed = {row["dataFile"] for row in rows if row.get("lists")}
-    return {
-        p["dataFile"]: p["entries"]
-        if p["dataFile"] in listed
-        else newest_repos(p["entries"], config.REPOLOGY_ENTRIES_KEPT)
-        for p in projects.values()
-    }
-
-
-def summary_entry(row):
-    """Make row's entry in summary.json and in the views.
-
-    The entry keeps what the list, the counts, the filters, the search and
-    sorting need, and leaves out the fields only the details panel uses
-    (PANEL_ONLY). Builds are reduced to their status and system, the update
-    attempt to its outcome and why it failed, and the update check to
-    UPSTREAM_SHOWN.
-
-    Args:
-        row: The row, as written.
-
-    Returns:
-        The entry, a new dict.
-    """
-    entry = {k: v for k, v in row.items() if k not in PANEL_ONLY}
-    if (row.get("openPR") or {}).get("facts"):
-        # What nixkeeper-prs found about the PR is only shown in the panel.
-        entry["openPR"] = {k: v for k, v in row["openPR"].items() if k != "facts"}
-    if "vulnerabilities" in row:
-        # The vulnerability verdict, worked out once here rather than by
-        # the page. None means no vulnerability counted, and Repology's flag
-        # isn't used either.
-        entry["vuln"] = vulnerabilities_digest.summary(row)
-    if "builds" in row:
-        entry["builds"] = [
-            {"status": b["status"], "system": b["system"]}
-            | ({"blockedBy": b["blockedBy"]} if b.get("blockedBy") else {})
-            # Why it failed, for the list's filter; the log lines are only
-            # in the panel.
-            | ({"failedBecause": b["failedBecause"]} if b.get("failedBecause") else {})
-            for b in row["builds"]
-        ]
-    # null (never tried) and a missing "update" (not in nixpkgs) stay as they
-    # are.
-    if row.get("update"):
-        entry["update"] = {"outcome": row["update"].get("outcome")}
-        if because := row["update"].get("failedBecause"):
-            entry["update"]["failedBecause"] = because  # the list shows why
-    if "upstream" in row:
-        entry["upstream"] = {
-            k: v for k, v in row["upstream"].items() if k in UPSTREAM_SHOWN
-        }
-    # The update bot's queue, for the list's robot icon: the versions it
-    # would update to, whether it runs the package's updateScript, and the
-    # day it's expected to try ("by", shown as "auto update in 4 days"). The
-    # row also has where each version was found; the entry leaves that out.
-    queued = row.get("queued") or {}
-    entry.pop("queued", None)
-    to = list(dict.fromkeys(c[0] for c in queued.get("candidates", [])))
-    if to or queued.get("script"):
-        entry["queued"] = {
-            **({"to": to} if to else {}),
-            **({"script": True} if queued.get("script") else {}),
-            **({"by": queued["by"]} if queued.get("by") else {}),
-        }
-    return entry
+__all__ = [
+    "check_kept",
+    "data_file",
+    "entries",
+    "files",
+    "fixed_summary",
+    "highlights",
+    "kept_entries",
+    "load",
+    "MERGE_VIEW",
+    "newest_repos",
+    "nothing_compared",
+    "numbers",
+    "PANEL_ONLY",
+    "read_events",
+    "read_fixed",
+    "read_history",
+    "restore_interrupted_swap",
+    "saved_entries",
+    "shard_count",
+    "status",
+    "summary_entry",
+    "swap_in",
+    "SYNC_ONLY",
+    "unbuilt_where",
+    "update",
+    "views",
+    "with_events",
+    "with_fixed",
+    "with_split",
+    "write",
+]
 
 
 # How many days of counts history.json keeps (with every package).
@@ -333,18 +115,19 @@ def files(index, entries, history=None, fixed=None, events=None):
     """
     run = index.get("checkedAt")
     rows = sorted(
-        (elided(row, run) for row in index["packages"]), key=lambda row: row["name"]
+        (shards.elided(row, run) for row in index["packages"]),
+        key=lambda row: row["name"],
     )
-    count = shard_count(len(rows))
-    shards = [[] for _ in range(count)]
+    count = shards.shard_count(len(rows))
+    by_shard = [[] for _ in range(count)]
     for row in rows:
         full = dict(row)
         if found := entries.get(row.get("dataFile")):
             full["repology"] = found
-        shards[shard_of(row["name"], count)].append(full)
+        by_shard[shard_of(row["name"], count)].append(full)
     manifest = {
         **index,
-        "format": FORMAT,
+        "format": shards.FORMAT,
         "packageCount": len(rows),
         "shardCount": count,
     }
@@ -363,9 +146,9 @@ def files(index, entries, history=None, fixed=None, events=None):
             }
             manifest["fixed"] = fixed_summary(fixed or [], run)
     else:
-        out["summary.json"] = {"packages": [summary_entry(row) for row in rows]}
+        out["summary.json"] = {"packages": [shards.summary_entry(row) for row in rows]}
     out["index.json"] = manifest
-    for n, shard in enumerate(shards):
+    for n, shard in enumerate(by_shard):
         out[f"rows/{n}.json"] = {"packages": shard}
     return out
 
@@ -451,7 +234,9 @@ def read_fixed(out_dir=None):
     """Return the fixes kept in the last run's history.json, or []."""
     out_dir = config.data_dir(out_dir)
     try:
-        return _load(os.path.join(out_dir, "history.json")).get("fixed") or []
+        return (
+            shards.read_json(os.path.join(out_dir, "history.json")).get("fixed") or []
+        )
     except (OSError, ValueError, AttributeError):
         return []
 
@@ -577,7 +362,9 @@ def read_events(out_dir=None):
     """Return the trend markers kept in the last run's history.json, or []."""
     out_dir = config.data_dir(out_dir)
     try:
-        return _load(os.path.join(out_dir, "history.json")).get("events") or []
+        return (
+            shards.read_json(os.path.join(out_dir, "history.json")).get("events") or []
+        )
     except (OSError, ValueError, AttributeError):
         return []
 
@@ -615,7 +402,9 @@ def read_history(out_dir=None):
     """Return the last run's history.json points, or []."""
     out_dir = config.data_dir(out_dir)
     try:
-        return _load(os.path.join(out_dir, "history.json")).get("points") or []
+        return (
+            shards.read_json(os.path.join(out_dir, "history.json")).get("points") or []
+        )
     except (OSError, ValueError, AttributeError):
         return []
 
@@ -988,7 +777,7 @@ def _causes(rows, out):
     groups = causes.build_groups(rows)
     for group in groups:
         out[f"views/cause/{group['key']}.json"] = {
-            "packages": [summary_entry(row) for row in group["rows"]],
+            "packages": [shards.summary_entry(row) for row in group["rows"]],
             **{k: v for k, v in group.items() if k != "rows"},
         }
     if groups:
@@ -1072,7 +861,7 @@ class _Views:
             view's size, "teams", "lists": {name: packages}}).
         """
         files = {
-            path: {"packages": [summary_entry(row) for row in members]}
+            path: {"packages": [shards.summary_entry(row) for row in members]}
             for path, members in self.files.items()
         }
         sizes = {
@@ -1493,10 +1282,10 @@ def write(
     written = files(index, entries, history, fixed, events)
     _check_shape(written)
     for name, data in written.items():
-        _write_file(os.path.join(tmp_dir, name), dumps(data))
+        _write_file(os.path.join(tmp_dir, name), shards.dumps(data))
     for name, data in (kept or {}).items():
         if data is not None:
-            _write_file(os.path.join(tmp_dir, name), dumps(data))
+            _write_file(os.path.join(tmp_dir, name), shards.dumps(data))
     swap_in(tmp_dir, out_dir)
 
 
@@ -1571,7 +1360,7 @@ def update(index, entries, out_dir=None):
     _check_shape(written)
     for name, data in written.items():
         path = os.path.join(out_dir, name)
-        text = dumps(data)
+        text = shards.dumps(data)
         try:
             with open(path) as f:
                 if f.read() == text:
@@ -1645,12 +1434,6 @@ def _remove_files_no_longer_written(out_dir, written):
                 os.rmdir(root)
 
 
-def _load(path):
-    """Read a JSON file."""
-    with open(path) as f:
-        return json.load(f)
-
-
 @functools.lru_cache(maxsize=64)
 def _cached(path, changed):
     """Read a data file's JSON, once while the file is unchanged.
@@ -1663,7 +1446,7 @@ def _cached(path, changed):
         changed: Its modification time, part of the cache's key, so a file
             that was written again is read again.
     """
-    return _load(path)
+    return shards.read_json(path)
 
 
 def _shared(path):
@@ -1687,10 +1470,10 @@ def load(out_dir=None):
     """
     out_dir = config.data_dir(out_dir)
     try:
-        index = _load(os.path.join(out_dir, "index.json"))
+        index = shards.read_json(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):
         return {"packages": []}
-    if index.get("format") == FORMAT:
+    if index.get("format") == shards.FORMAT:
         # The rows come from the shards. If one can't be read, the rows in
         # index.json are kept (data from 0.12.0 has them, written beside
         # format 1), else there are none.
@@ -1699,15 +1482,15 @@ def load(out_dir=None):
                 (
                     {k: v for k, v in row.items() if k != "repology"}
                     for n in range(index["shardCount"])
-                    for row in _load(os.path.join(out_dir, f"rows/{n}.json"))[
-                        "packages"
-                    ]
+                    for row in shards.read_json(
+                        os.path.join(out_dir, f"rows/{n}.json")
+                    )["packages"]
                 ),
                 key=lambda row: row["name"],
             )
     index.setdefault("packages", [])
     for row in index["packages"]:
-        restored(row, index.get("checkedAt"))
+        shards.restored(row, index.get("checkedAt"))
     return index
 
 
@@ -1724,13 +1507,15 @@ def saved_entries(out_dir=None):
     """
     out_dir = config.data_dir(out_dir)
     try:
-        index = _load(os.path.join(out_dir, "index.json"))
-        if index.get("format") != FORMAT:
+        index = shards.read_json(os.path.join(out_dir, "index.json"))
+        if index.get("format") != shards.FORMAT:
             return {}
         return {
             full["name"]: full.get("repology") or []
             for n in range(index["shardCount"])
-            for full in _load(os.path.join(out_dir, f"rows/{n}.json"))["packages"]
+            for full in shards.read_json(os.path.join(out_dir, f"rows/{n}.json"))[
+                "packages"
+            ]
         }
     except (OSError, ValueError, KeyError, TypeError):
         return {}
@@ -1748,7 +1533,7 @@ def entries(row, out_dir=None):
     out_dir = config.data_dir(out_dir)
     try:
         index = _shared(os.path.join(out_dir, "index.json"))
-        if index.get("format") == FORMAT:
+        if index.get("format") == shards.FORMAT:
             n = shard_of(row["name"], index["shardCount"])
             for full in _shared(os.path.join(out_dir, f"rows/{n}.json"))["packages"]:
                 if full["name"] == row["name"]:

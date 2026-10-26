@@ -237,13 +237,13 @@ class Output(unittest.TestCase):
         rows = [full_row(f"pkg{i}") for i in range(1200)]
         write({"packages": rows}, {r["dataFile"]: ENTRIES for r in rows}, self.out)
         reads = []
-        load = datastore._load
+        load = datastore.shards.read_json
 
         def counting(path):
             reads.append(path)
             return load(path)
 
-        with unittest.mock.patch.object(datastore, "_load", counting):
+        with unittest.mock.patch.object(datastore.shards, "read_json", counting):
             saved = datastore.saved_entries(self.out)
         self.assertEqual(saved["pkg7"], ENTRIES)
         self.assertEqual(len(saved), 1200)
