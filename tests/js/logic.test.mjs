@@ -13,8 +13,6 @@ import {
   buildFailedBecause,
   buildsWith,
   communityCheck,
-  comparedRepos,
-  compareVersions,
   computeStatus,
   crc32,
   cvePieces,
@@ -68,8 +66,6 @@ import {
   unbuiltOn,
   unbuiltWhere,
   updateTitle,
-  versionDiff,
-  versionGap,
   viewPath,
   viewSlug,
   vulnFixes,
@@ -90,6 +86,7 @@ import {
   setHtml,
   withoutLeadingJoiner,
 } from '../../page/markup.js';
+import { comparedRepos, compareVersions, versionDiff, versionGap } from '../../page/versions.js';
 
 const NOW = Date.parse('2026-10-01T12:00:00Z');
 const daysAgo = (n) => new Date(NOW - n * 86400e3).toISOString();

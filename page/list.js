@@ -24,7 +24,6 @@ import {
 import {
   buildFailedBecause,
   communityCheck,
-  compareVersions,
   computeStatus,
   daysText,
   daysUntil,
@@ -50,7 +49,6 @@ import {
   unbuiltOn,
   unbuiltWhere,
   updateTitle,
-  versionDiff,
   viewSlug,
   vulnSources,
   vulnSummary,
@@ -84,6 +82,7 @@ import {
   UNSUPPORTED_TEXT,
   UNVERSIONED_TITLE,
 } from './ui.js';
+import { compareVersions, versionDiff } from './versions.js';
 
 // Its own state. The visitor's own GitHub handle, for "Your packages" (kept
 // in their browser only, nixkeeper-handle), how many packages list them

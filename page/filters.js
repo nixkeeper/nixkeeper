@@ -26,7 +26,6 @@ import {
   unbuiltOn,
   unbuiltWhere,
   VIEWS,
-  versionGap,
   waitingForChannel,
 } from './logic.js';
 import { isHidden } from './prefs.js';
@@ -34,6 +33,7 @@ import { searchText } from './search.js';
 import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } from './state.js';
 import { store } from './store.js';
 import { failingSince } from './ui.js';
+import { versionGap } from './versions.js';
 
 // Its own state: what every filter but the facets kept, the last time the
 // list was worked out (facetBase: the facets count over it, with no second

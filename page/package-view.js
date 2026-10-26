@@ -6,8 +6,6 @@
 
 import {
   communityCheck,
-  comparedRepos,
-  compareVersions,
   computeStatus,
   daysText,
   daysUntil,
@@ -55,6 +53,7 @@ import {
   UNSUPPORTED_TEXT,
   UNVERSIONED_TITLE,
 } from './ui.js';
+import { comparedRepos, compareVersions } from './versions.js';
 
 export const NIX_REPO = 'nix_unstable';
 
