@@ -136,7 +136,8 @@
           };
 
         # A check in nix/checks/, given what every check may use and what it
-        # needs besides.
+        # needs besides. Each takes ... for the shared ones it doesn't use, so a
+        # mistyped extra is ignored there, not refused: check the names.
         callCheck =
           path: extra:
           import path (
@@ -263,21 +264,24 @@
         checks = {
           inherit nixkeeper; # building it runs the tests
           formatting = treefmt.config.build.check self;
+          # The code: linters, the scripts' and the page's tests, the brand files.
           lint = callCheck ./nix/checks/lint.nix { inherit linters; };
           scripts = callCheck ./nix/checks/scripts.nix { };
           page = callCheck ./nix/checks/page.nix { };
           brand = callCheck ./nix/checks/brand.nix { inherit brandCopies isBrandCopy; };
-          community = callCheck ./nix/checks/community.nix { inherit listsChecker nixkeeper; };
-          module-eval = callCheck ./nix/checks/module-eval.nix { inherit nixpkgs; };
+          # The modules, evaluated.
+          module-eval = callCheck ./nix/checks/module-eval.nix { nixpkgsInput = nixpkgs; };
           darwin-module-eval = callCheck ./nix/checks/darwin-module-eval.nix { inherit nix-darwin; };
+          # The lists: this instance's, nixkeeper init's starter ones (valid, and
+          # what the sync can read), notifications/ (handles and teams nixpkgs
+          # has), the community's, and the lists' checker itself.
           package-lists = listsChecker.check (import ./package-lists);
-          # nixkeeper init's starter lists: valid, and what the sync can read.
           init-template = listsChecker.check (import ./nixkeeper/templates/package-lists);
+          notifications = (import ./nix/notifications.nix { inherit pkgs; }).check (import ./notifications);
+          community = callCheck ./nix/checks/community.nix { inherit listsChecker nixkeeper; };
           package-lists-checker = callCheck ./nix/checks/package-lists-checker.nix {
             inherit listsChecker;
           };
-          # notifications/: well formed, for handles and teams nixpkgs has.
-          notifications = (import ./nix/notifications.nix { inherit pkgs; }).check (import ./notifications);
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # The module in a NixOS VM (needs KVM: CI has it).

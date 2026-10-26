@@ -4,11 +4,11 @@
   pkgs,
   lib,
   self,
-  nixpkgs,
+  nixpkgsInput, # the flake input, for its lib.nixosSystem
   ...
 }:
 let
-  nixos = nixpkgs.lib.nixosSystem {
+  nixos = nixpkgsInput.lib.nixosSystem {
     system = "x86_64-linux";
     modules = [
       self.nixosModules.default
