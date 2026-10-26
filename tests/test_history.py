@@ -66,12 +66,14 @@ class PreviousProject(unittest.TestCase):
             "status": "newest",
             "summary": "Civ V clone",
         }
-        previous = {
-            "checkedAt": "2026-10-03T06:00:00+00:00",
-            "packages": [
-                {"name": "unciv", "project": "unciv", "dataFile": "unciv.json"}
-            ],
-        }
+        previous = history.PreviousRun(
+            {
+                "checkedAt": "2026-10-03T06:00:00+00:00",
+                "packages": [
+                    {"name": "unciv", "project": "unciv", "dataFile": "unciv.json"}
+                ],
+            }
+        )
         with tempfile.TemporaryDirectory() as out:
             with open(os.path.join(out, "unciv.json"), "w") as f:
                 json.dump([full, {**full, "binname": "unciv-doc"}], f)
@@ -114,11 +116,6 @@ class PreviousRows(unittest.TestCase):
             )
             self.assertEqual(history.previous_rows(previous, "bee", []), [self.ROWS[1]])
         self.assertEqual(by_key.call_count, 1)
-
-    def test_a_plain_dict_too(self):
-        self.assertEqual(
-            history.previous_rows({"packages": self.ROWS}, "b", []), [self.ROWS[1]]
-        )
 
 
 class NewPackages(unittest.TestCase):

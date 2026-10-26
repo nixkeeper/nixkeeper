@@ -36,15 +36,14 @@ def load_previous_run(out_dir=None):
 def previous_rows(previous, pname, attrs):
     """Return the last run's rows for a tracked pname, in their order there.
 
-    A row matches by its name, or by any of attrs. previous is a
-    PreviousRun, whose index is kept; a plain dict (as tests give) is
-    indexed again on each call.
+    A row matches by its name, or by any of attrs.
+
+    Args:
+        previous: The last run's index, as a PreviousRun.
+        pname: The tracked pname.
+        attrs: Its attributes.
     """
-    if isinstance(previous, PreviousRun):
-        index = previous.by_key
-    else:
-        index = _by_key(previous["packages"])
-    found = {i for key in (pname, *attrs) for i in index.get(key, ())}
+    found = {i for key in (pname, *attrs) for i in previous.by_key.get(key, ())}
     return [previous["packages"][i] for i in sorted(found)]
 
 

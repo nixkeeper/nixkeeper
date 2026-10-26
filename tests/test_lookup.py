@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from unittest import mock
 
 from nixkeeper import lookup, schedule
-from nixkeeper.history import load_previous_run
+from nixkeeper.history import PreviousRun, load_previous_run
 from nixkeeper.lookup import collect_projects
 from nixkeeper.rows import build_rows
 from nixkeeper.sources import about, versions_digest
@@ -54,19 +54,21 @@ class CollectProjects(unittest.TestCase):
                 "wesnoth": (["wesnoth"], "wesnoth"),
                 "wesnoth-devel": (["wesnoth-devel"], "wesnoth-devel"),
             },
-            {"packages": []},
+            PreviousRun({"packages": []}),
             {"wesnoth": ("wesnoth", entries), "wesnoth-devel": ("wesnoth", entries)},
         )
         self.assertEqual(list(projects), ["wesnoth"])
         self.assertEqual(projects["wesnoth"]["attrs"], ["wesnoth", "wesnoth-devel"])
 
     def test_the_last_runs_project_is_passed_on(self):
-        previous = {
-            "packages": [
-                {"name": "wesnoth", "project": "wesnoth", "attrs": ["wesnoth"]},
-                {"name": "nope", "project": None, "attrs": []},
-            ]
-        }
+        previous = PreviousRun(
+            {
+                "packages": [
+                    {"name": "wesnoth", "project": "wesnoth", "attrs": ["wesnoth"]},
+                    {"name": "nope", "project": None, "attrs": []},
+                ]
+            }
+        )
         entries = [nix("wesnoth", "1.18.8", "newest")]
         self.collect(
             {
@@ -87,7 +89,9 @@ class CollectProjects(unittest.TestCase):
 
     def test_unknown_to_repology_keyed_by_name(self):
         projects = self.collect(
-            {"nope": ([], "nope")}, {"packages": []}, {"nope": (None, None)}
+            {"nope": ([], "nope")},
+            PreviousRun({"packages": []}),
+            {"nope": (None, None)},
         )
         self.assertEqual(projects["nope"]["project"], None)
         self.assertEqual(projects["nope"]["entries"], [])
@@ -158,7 +162,7 @@ class CollectProjects(unittest.TestCase):
                 "bbedit": (["bbedit"], "bbedit"),
                 "fzssh": (["fzssh"], "fzssh"),
             },
-            {"packages": []},
+            PreviousRun({"packages": []}),
             {"new": OSError("down"), "bbedit": ("bbedit", []), "fzssh": ("fzssh", [])},
         )
         self.assertEqual(sorted(projects), ["bbedit", "fzssh", "unlisted:new"])
@@ -200,7 +204,7 @@ class CollectProjects(unittest.TestCase):
         # Repology answers: it's asked first, the stale digest left alone.
         projects = collect_projects(
             wanted,
-            {"packages": []},
+            PreviousRun({"packages": []}),
             lambda *_: ("a", [nix("a", "3", "newest")]),
             self.dir.name,
             nixpkgs={"a": {"version": "3"}},
@@ -215,7 +219,7 @@ class CollectProjects(unittest.TestCase):
 
         projects = collect_projects(
             wanted,
-            {"packages": []},
+            PreviousRun({"packages": []}),
             down,
             self.dir.name,
             nixpkgs={"a": {"version": "3"}},
@@ -275,20 +279,22 @@ class QuietLookups(unittest.TestCase):
         with open(os.path.join(self.dir.name, "unciv.json"), "w") as f:
             json.dump(entries, f)
         checked = (datetime.fromisoformat(now) - timedelta(days=1)).isoformat()
-        return {
-            "packages": [
-                {
-                    "name": "unciv",
-                    "attrs": ["unciv"],
-                    "project": "unciv",
-                    "dataFile": "unciv.json",
-                    "nixVersion": "4.22.1",
-                    "nixStatus": "newest",
-                    "repologyCheckedAt": checked,
-                    **row,
-                }
-            ]
-        }
+        return PreviousRun(
+            {
+                "packages": [
+                    {
+                        "name": "unciv",
+                        "attrs": ["unciv"],
+                        "project": "unciv",
+                        "dataFile": "unciv.json",
+                        "nixVersion": "4.22.1",
+                        "nixStatus": "newest",
+                        "repologyCheckedAt": checked,
+                        **row,
+                    }
+                ]
+            }
+        )
 
     def collect(self, previous, now, version="4.22.1", wanted=None):
         """(projects, the pnames looked up)."""
@@ -340,7 +346,7 @@ class QuietLookups(unittest.TestCase):
                 self.assertEqual(projects["unciv"]["checkedAt"], now)
 
     def test_new_packages_are_looked_up(self):
-        _, asked = self.collect({"packages": []}, self.NOW)
+        _, asked = self.collect(PreviousRun({"packages": []}), self.NOW)
         self.assertEqual(asked, ["unciv"])
 
     def test_three_days_on_it_is_looked_up(self):
@@ -388,6 +394,6 @@ class QuietLookups(unittest.TestCase):
         self.assertEqual(asked, ["unciv"])
 
     def test_rows_say_when(self):
-        projects, _ = self.collect({"packages": []}, self.NOW)
+        projects, _ = self.collect(PreviousRun({"packages": []}), self.NOW)
         (row,) = build_rows(projects, {})
         self.assertEqual(row["repologyCheckedAt"], self.NOW)

@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest import mock
 
-from nixkeeper import config, lookup
+from nixkeeper import config, history, lookup
 from nixkeeper.sources import about, http, versions_digest
 
 NOW = "2026-10-05T06:00:00+00:00"
@@ -125,7 +125,7 @@ class CollectProjects(unittest.TestCase):
         with mock.patch("sys.stderr", io.StringIO()):
             projects = lookup.collect_projects(
                 wanted,
-                {"packages": []},
+                history.PreviousRun({"packages": []}),
                 resolve=resolve,
                 nixpkgs=nixpkgs,
                 now=NOW,
