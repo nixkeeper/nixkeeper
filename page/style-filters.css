@@ -329,5 +329,3 @@ button.checked:focus-visible {
 .filterbar .checked.stale {
   color: var(--danger);
 }
-
-/* Mistakes in the package lists (a maintainer handle no package lists, ...). */
