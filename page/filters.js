@@ -10,7 +10,6 @@ import {
   computeStatus,
   failedBecause,
   inPickedSet,
-  isVulnerable,
   maintainersKeep,
   matchesSearch,
   NEVER_BUILT,
@@ -20,7 +19,6 @@ import {
   onPlatform,
   problemSince,
   searchHandle,
-  severityRank,
   targetVersion,
   teamsKeep,
   unbuiltOn,
@@ -34,6 +32,7 @@ import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } fro
 import { store } from './store.js';
 import { failingSince } from './ui.js';
 import { versionGap } from './versions.js';
+import { isVulnerable, severityRank } from './vulns.js';
 
 // Its own state: what every filter but the facets kept, the last time the
 // list was worked out (facetBase: the facets count over it, with no second

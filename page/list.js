@@ -31,7 +31,6 @@ import {
   familyLabel,
   faviconKey,
   inPickedSet,
-  isVulnerable,
   midway,
   NAME_STATUSES,
   nameSet,
@@ -47,8 +46,6 @@ import {
   unbuiltWhere,
   updateTitle,
   viewSlug,
-  vulnSources,
-  vulnSummary,
   waitingForChannel,
 } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
@@ -80,6 +77,7 @@ import {
   UNVERSIONED_TITLE,
 } from './ui.js';
 import { compareVersions, versionDiff } from './versions.js';
+import { isVulnerable, vulnSources, vulnSummary } from './vulns.js';
 
 // Its own state. The visitor's own GitHub handle, for "Your packages" (kept
 // in their browser only, nixkeeper-handle), how many packages list them

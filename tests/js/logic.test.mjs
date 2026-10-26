@@ -24,7 +24,6 @@ import {
   communityCheck,
   computeStatus,
   crc32,
-  cvePieces,
   decodeFacets,
   facetCounts,
   failedBecause,
@@ -36,7 +35,6 @@ import {
   hasFailure,
   homeHref,
   inPickedSet,
-  isVulnerable,
   maintainerMatches,
   maintainersKeep,
   maintainersParam,
@@ -60,7 +58,6 @@ import {
   prPrint,
   sameRelease,
   searchHandle,
-  severityRank,
   shardOf,
   targetVersion,
   teamsKeep,
@@ -72,8 +69,6 @@ import {
   viewPath,
   viewSlug,
   vulnFixes,
-  vulnSources,
-  vulnSummary,
   waitingForChannel,
   withRunStamps,
   withSlash,
@@ -89,6 +84,13 @@ import {
   withoutLeadingJoiner,
 } from '../../page/markup.js';
 import { comparedRepos, compareVersions, versionDiff, versionGap } from '../../page/versions.js';
+import {
+  cvePieces,
+  isVulnerable,
+  severityRank,
+  vulnSources,
+  vulnSummary,
+} from '../../page/vulns.js';
 
 const NOW = Date.parse('2026-10-01T12:00:00Z');
 const daysAgo = (n) => new Date(NOW - n * 86400e3).toISOString();
