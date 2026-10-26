@@ -28,14 +28,13 @@ import {
   decodeFacets,
   facetCounts,
   familyLabel,
-  faviconKey,
   foldFamilies,
   inPickedSet,
   matchFacets,
   nameSet,
   shardOf,
-  themeFor,
-} from '../../page/logic.js';
+} from '../../page/facets.js';
+import { faviconKey, themeFor } from '../../page/logic.js';
 import {
   appendHtml,
   capitalized,

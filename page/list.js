@@ -7,6 +7,14 @@
 import { viewSlug } from './address.js';
 import { daysText, daysUntil, shortAge, timeAgo } from './dates.js';
 import {
+  facetCounts,
+  familyLabel,
+  inPickedSet,
+  NAME_STATUSES,
+  nameSet,
+  TOP_LEVEL,
+} from './facets.js';
+import {
   AGES,
   byMaintainer,
   FILTERS,
@@ -23,15 +31,7 @@ import {
   SORTS,
   shownHandle,
 } from './filters.js';
-import {
-  facetCounts,
-  familyLabel,
-  faviconKey,
-  inPickedSet,
-  NAME_STATUSES,
-  nameSet,
-  TOP_LEVEL,
-} from './logic.js';
+import { faviconKey } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
 import { html, raw, safeUrl, setHtml } from './markup.js';
 import { isHidden, remember } from './prefs.js';

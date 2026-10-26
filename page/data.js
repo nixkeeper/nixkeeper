@@ -4,7 +4,7 @@
 // draws the page.
 
 import { githubRepo as repoFrom, withSlash } from './address.js';
-import { shardOf } from './logic.js';
+import { shardOf } from './facets.js';
 
 export const githubRepo = (params) => repoFrom(params, location);
 

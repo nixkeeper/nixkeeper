@@ -1,5 +1,13 @@
 import { homeHref, pageLinks, VIEWS, viewPath, withRunStamps } from './address.js';
 import { dataUrl, fullRowOf, githubRepo, locateData, readJson } from './data.js';
+import {
+  decodeFacets,
+  foldFamilies,
+  inPickedSet,
+  matchFacets,
+  NAME_STATUSES,
+  TOP_LEVEL,
+} from './facets.js';
 import { currentFiltered, FILTERS, KNOWN, PLATFORMS } from './filters.js';
 import {
   BY_SHOWN,
@@ -14,15 +22,7 @@ import {
   searchValues,
   wireList,
 } from './list.js';
-import {
-  decodeFacets,
-  foldFamilies,
-  inPickedSet,
-  matchFacets,
-  NAME_STATUSES,
-  TOP_LEVEL,
-  themeFor,
-} from './logic.js';
+import { themeFor } from './logic.js';
 import {
   hiddenPrPrints,
   maintainerItem,

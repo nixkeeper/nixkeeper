@@ -5,7 +5,7 @@
 // The state says which are picked; app.js draws the list.
 
 import { VIEWS } from './address.js';
-import { inPickedSet, nameSet } from './logic.js';
+import { inPickedSet, nameSet } from './facets.js';
 import { maintainersKeep, matchesSearch, searchHandle, teamsKeep } from './people.js';
 import { isHidden } from './prefs.js';
 import { searchText } from './search.js';
