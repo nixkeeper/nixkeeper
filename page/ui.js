@@ -1,6 +1,6 @@
 // The page's shared pieces of HTML: numbers, dates, icons, why a build
 // failed. Used by app.js and panel.js.
-import { daysText } from './logic.js';
+import { daysText } from './dates.js';
 import { html, raw } from './markup.js';
 import { state } from './state.js';
 import { store } from './store.js';

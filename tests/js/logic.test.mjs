@@ -6,6 +6,15 @@ import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 
 import {
+  dayPosition,
+  daysText,
+  daysUntil,
+  shortAge,
+  timeAgo,
+  trendChange,
+  weekChange,
+} from '../../page/dates.js';
+import {
   aheadOnMaster,
   attentionPrint,
   attentionRank,
@@ -16,9 +25,6 @@ import {
   computeStatus,
   crc32,
   cvePieces,
-  dayPosition,
-  daysText,
-  daysUntil,
   decodeFacets,
   facetCounts,
   failedBecause,
@@ -56,13 +62,10 @@ import {
   searchHandle,
   severityRank,
   shardOf,
-  shortAge,
   targetVersion,
   teamsKeep,
   teamsParam,
   themeFor,
-  timeAgo,
-  trendChange,
   unbuiltOn,
   unbuiltWhere,
   updateTitle,
@@ -72,7 +75,6 @@ import {
   vulnSources,
   vulnSummary,
   waitingForChannel,
-  weekChange,
   withRunStamps,
   withSlash,
 } from '../../page/logic.js';

@@ -4,6 +4,7 @@
 // from the store, the state and the filters; app.js draws it (render) and
 // handles its controls. Its own state is listView.
 
+import { daysText, daysUntil, shortAge, timeAgo } from './dates.js';
 import {
   AGES,
   byMaintainer,
@@ -25,8 +26,6 @@ import {
   buildFailedBecause,
   communityCheck,
   computeStatus,
-  daysText,
-  daysUntil,
   facetCounts,
   failedBecause,
   familyLabel,
@@ -42,10 +41,8 @@ import {
   onBranch,
   onMaster,
   onPlatform,
-  shortAge,
   TOP_LEVEL,
   targetVersion,
-  timeAgo,
   unbuiltOn,
   unbuiltWhere,
   updateTitle,

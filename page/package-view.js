@@ -4,11 +4,10 @@
 // sections from panel.js. What it needs of the page comes in `page`
 // (app.js's panelPage): a package's address, and hiding it.
 
+import { daysText, daysUntil, shortAge } from './dates.js';
 import {
   communityCheck,
   computeStatus,
-  daysText,
-  daysUntil,
   fromMaster,
   nixkeeperEntry,
   nothingCompared,
@@ -16,7 +15,6 @@ import {
   onBranch,
   onHost,
   onMaster,
-  shortAge,
   targetVersion,
   waitingForChannel,
 } from './logic.js';
