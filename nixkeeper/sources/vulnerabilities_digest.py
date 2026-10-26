@@ -479,11 +479,12 @@ def cve_ids(entry):
     ]
 
 
-def patched(rows, revision, wanted):
+def patched(rows, revision, wanted, evaluations=None):
     """Find the CVEs nixpkgs patches at revision, for the rows wanted picks.
 
     A patch counts when it's named after a CVE: a file CVE-2026-1234.patch,
-    or a fetchpatch's name or URL.
+    or a fetchpatch's name or URL. With the sync's evaluations
+    (nixpkgs.Evaluations), answers are reused.
 
     Returns:
         {row name: {the CVE ids in its patches}}, or {} when nixpkgs can't
@@ -494,7 +495,7 @@ def patched(rows, revision, wanted):
         return {}
     attrs = {a for row in picked for a in row.get("attrs") or [row["name"]]}
     try:
-        found = nixpkgs.patches(attrs, revision)
+        found = nixpkgs.patches(attrs, revision, evaluations)
     except nixpkgs.EvalError as e:
         log.warn(f"Patches at {revision[:12]}: not read ({e})")
         return {}
@@ -508,7 +509,7 @@ def patched(rows, revision, wanted):
     return out
 
 
-def add(rows, digest, revision=None):
+def add(rows, digest, revision=None, evaluations=None):
     """Give each row its vulnerabilities, and what's to backport.
 
     Each row gets "vulnerabilities" (only when the digest has any for it),
@@ -521,6 +522,7 @@ def add(rows, digest, revision=None):
         rows: The rows, changed in place.
         digest: load's result, or None (then nothing changes).
         revision: The channel's commit, for the patches.
+        evaluations: The sync's nixpkgs.Evaluations, or None.
 
     Returns:
         How many rows got vulnerabilities.
@@ -540,7 +542,7 @@ def add(rows, digest, revision=None):
         """Return whether row has a counted vulnerability."""
         return any(v["verdict"] in COUNTED for v in row.get("vulnerabilities") or [])
 
-    on_unstable = patched(rows, revision, counted)
+    on_unstable = patched(rows, revision, counted, evaluations)
     for row in rows:
         for v in row.get("vulnerabilities") or []:
             if v["verdict"] in COUNTED and set(cve_ids(v)) & on_unstable.get(
@@ -554,7 +556,10 @@ def add(rows, digest, revision=None):
             if ids := to_backport(row["vulnerabilities"], newest):
                 row["backport"] = ids
     on_stable = patched(
-        rows, digest.get("stableRevision"), lambda row: row.get("backport")
+        rows,
+        digest.get("stableRevision"),
+        lambda row: row.get("backport"),
+        evaluations,
     )
     for row in rows:
         if not row.get("backport"):

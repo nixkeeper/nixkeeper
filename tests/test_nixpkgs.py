@@ -4,10 +4,12 @@ import os
 import re
 import subprocess
 import tempfile
+import types
 import unittest
 import urllib.error
 from unittest import mock
 
+from nixkeeper import sync
 from nixkeeper.sources import nixpkgs
 from tests.helpers import response
 
@@ -28,7 +30,6 @@ class KeptAnswers(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
-        self.addCleanup(nixpkgs.stop_keeping)
         self.asked = []
 
     def run_eval(self, cmd, **kwargs):
@@ -38,30 +39,37 @@ class KeptAnswers(unittest.TestCase):
             cmd, 0, stdout=json.dumps([a == "broken-one" for a in attrs])
         )
 
+    def next_sync(self, evaluations):
+        """Write what a sync's Run used, as the sync keeps it (kept_files), and
+        read it as the next sync's start does."""
+        run = types.SimpleNamespace(now="NOW", evaluations=evaluations)
+        kept = sync.kept_files(run, None)[nixpkgs.EVALUATIONS]
+        with open(os.path.join(self.dir.name, nixpkgs.EVALUATIONS), "w") as f:
+            json.dump(kept, f)
+        return nixpkgs.Evaluations.read(self.dir.name)
+
     def test_the_same_commit_evaluated_once(self):
         with mock.patch("subprocess.run", side_effect=self.run_eval):
-            self.assertEqual(nixpkgs.keep_answers(self.dir.name), 0)
-            first = nixpkgs.broken({"a", "broken-one"}, "abc123")
-            # Written for the next sync, which reads them back.
-            kept = nixpkgs.kept_answers()
-            with open(os.path.join(self.dir.name, nixpkgs.EVALUATIONS), "w") as f:
-                json.dump(kept, f)
-            self.assertEqual(nixpkgs.keep_answers(self.dir.name), 6)
+            first_sync = nixpkgs.Evaluations.read(self.dir.name)
+            self.assertEqual(first_sync.count(), 0)
+            first = nixpkgs.broken({"a", "broken-one"}, "abc123", first_sync)
+            evaluations = self.next_sync(first_sync)
+            self.assertEqual(evaluations.count(), 6)
             self.asked.clear()
-            again = nixpkgs.broken({"a", "broken-one"}, "abc123")
+            again = nixpkgs.broken({"a", "broken-one"}, "abc123", evaluations)
             self.assertEqual(again, first)
             self.assertEqual(self.asked, [])  # nothing evaluated again
             # A package new to the lists: only it, once per platform.
-            nixpkgs.broken({"a", "new"}, "abc123")
+            nixpkgs.broken({"a", "new"}, "abc123", evaluations)
             self.assertEqual(self.asked, [["new"]] * 3)
             # The channel moved: evaluated again; the old commit's answers
             # aren't written any more.
             self.asked.clear()
-            nixpkgs.keep_answers(self.dir.name)
-            nixpkgs.broken({"a"}, "def456")
+            moved = self.next_sync(evaluations)
+            nixpkgs.broken({"a"}, "def456", moved)
             self.assertEqual(self.asked, [["a"]] * 3)
             self.assertTrue(
-                all(k.startswith("def456 ") for k in nixpkgs.kept_answers()["answers"])
+                all(k.startswith("def456 ") for k in moved.used()["answers"])
             )
 
     def test_not_kept_unless_the_sync_asks(self):
@@ -69,7 +77,11 @@ class KeptAnswers(unittest.TestCase):
             nixpkgs.broken({"a"}, "abc123")
             nixpkgs.broken({"a"}, "abc123")
         self.assertEqual(len(self.asked), 6)
-        self.assertIsNone(nixpkgs.kept_answers())
+
+    def test_a_file_that_cant_be_read_is_none(self):
+        with open(os.path.join(self.dir.name, nixpkgs.EVALUATIONS), "w") as f:
+            f.write("not json")
+        self.assertEqual(nixpkgs.Evaluations.read(self.dir.name).count(), 0)
 
 
 class Broken(unittest.TestCase):

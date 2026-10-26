@@ -199,7 +199,7 @@ class WorkOut(unittest.TestCase):
     def test_works_out_checks(self):
         worked, get_sources = self.work_out()
         # Packages nixpkgs doesn't have aren't evaluated.
-        get_sources.assert_called_once_with({"a", "b", "c", "d"}, "abc123")
+        get_sources.assert_called_once_with({"a", "b", "c", "d"}, "abc123", None)
         self.assertEqual(sorted(worked.checks), ["a", "b", "d"])
         self.assertEqual(dict(worked.not_worked), {"not from GitHub": 1})
         self.assertEqual(worked.repology, dict.fromkeys("abcd"))

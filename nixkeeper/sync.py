@@ -73,7 +73,9 @@ from .sources import nixpkgs as nixpkgs_source
 FEEDS = (typst_digest, emacs_digest, stackage_digest, cran_digest)
 
 
-def ask_hydra(attrs, nixpkgs, revision, previous, now, bulk=frozenset()):
+def ask_hydra(
+    attrs, nixpkgs, revision, previous, now, bulk=frozenset(), evaluations=None
+):
     """Collect Hydra's build results for the tracked attributes.
 
     Runs in the background from the start of the sync (main), as Hydra is
@@ -91,6 +93,7 @@ def ask_hydra(attrs, nixpkgs, revision, previous, now, bulk=frozenset()):
         bulk: The attributes only the digest answers (with every package,
             those not on the lists). Their meta.broken comes from the
             package index, for x86_64-linux, rather than being evaluated.
+        evaluations: The run's nixpkgs evaluations, for meta.broken.
 
     Returns:
         (broken, fetched), for hydra.add_builds: broken maps an attribute
@@ -99,7 +102,7 @@ def ask_hydra(attrs, nixpkgs, revision, previous, now, bulk=frozenset()):
     """
     started = time.monotonic()
     deep = [a for a in attrs if a not in bulk]
-    broken = nixpkgs_source.broken(deep, revision) if deep else {}
+    broken = nixpkgs_source.broken(deep, revision, evaluations) if deep else {}
     for attr in bulk:
         if nixpkgs[attr]["meta"].get("broken"):
             broken.setdefault(attr, ["x86_64-linux"])
@@ -192,6 +195,9 @@ class Run:
         tracked: The nixpkgs attributes of both, sorted.
         bulk_attrs: The attributes of the others, which only the digests
             answer.
+        evaluations: nixpkgs' evaluations (meta.broken, sources, patches),
+            reused from the last sync while the channel's commit hasn't
+            moved, and written for the next (kept_files).
     """
 
     now: str
@@ -204,6 +210,7 @@ class Run:
     bulk: dict
     tracked: list
     bulk_attrs: set
+    evaluations: nixpkgs_source.Evaluations
 
 
 @dataclasses.dataclass(frozen=True)
@@ -243,6 +250,7 @@ def main():
         run.previous,
         run.now,
         run.bulk_attrs,
+        run.evaluations,
     )
     projects, index_rows = repology(run)
     phases.lap("Repology")
@@ -303,7 +311,8 @@ def start():
     revision = nixpkgs_source.channel_revision()
     # nixpkgs' evaluations (meta.broken, sources, patches) are reused from
     # the last sync while the channel's commit hasn't moved.
-    if kept := nixpkgs_source.keep_answers():
+    evaluations = nixpkgs_source.Evaluations.read()
+    if kept := evaluations.count():
         log.info(f"nixpkgs evaluations: {kept:,} answers kept")
     # When the channel's commit couldn't be read, links use the branch.
     if revision == config.NIXPKGS_BRANCH:
@@ -323,6 +332,7 @@ def start():
             {a for attrs, _ in wanted.values() for a in attrs if a in nixpkgs}
         ),
         bulk_attrs={a for attrs, _ in bulk.values() for a in attrs if a in nixpkgs},
+        evaluations=evaluations,
     )
 
 
@@ -442,6 +452,7 @@ def update_checks(run, scope, index_rows):
         [row for row in scope.on_lists if row["name"] not in answered_by_releases],
         checks,
         run.revision,
+        run.evaluations,
     )
     to_run = worked.to_run(checks) if worked else {}
     checks_failed = upstream.add_checks(
@@ -607,7 +618,10 @@ def vulnerabilities_and_fixes(run, scope, index_rows, prs):
         prs_digest.build_fix_prs(scope.shown, prs["merged"], run.previous)
     # Each package's CVEs and advisories, with nixkeeper's verdicts.
     vulnerabilities_digest.add(
-        index_rows, vulnerabilities_digest.load(run.now), run.revision
+        index_rows,
+        vulnerabilities_digest.load(run.now),
+        run.revision,
+        run.evaluations,
     )
     # The open PRs patching them.
     if prs.get("raw") is not None:
@@ -669,7 +683,6 @@ def write(run, projects, index_rows, problems, prs, found_fixes):
         events=events,
         kept=kept_files(run, merge),
     )
-    nixpkgs_source.stop_keeping()
 
 
 def kept_files(run, merge):
@@ -687,7 +700,7 @@ def kept_files(run, merge):
         {path in data/: data}, with None for a file to leave out.
     """
     return {
-        nixpkgs_source.EVALUATIONS: nixpkgs_source.kept_answers(),
+        nixpkgs_source.EVALUATIONS: run.evaluations.used(),
         # The maintainer and team views' "You can merge these".
         datastore.MERGE_VIEW: {"checkedAt": run.now, "prs": merge}
         if merge is not None

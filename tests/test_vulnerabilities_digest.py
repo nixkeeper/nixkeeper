@@ -244,7 +244,7 @@ class Patched(unittest.TestCase):
     channel has the patch too."""
 
     def add(self, rows, unstable=(), stable=(), stable_version="1.5"):
-        def patches(attrs, revision):
+        def patches(attrs, revision, evaluations=None):
             names = {"unstable": unstable, "stable": stable}[revision]
             return {a: list(names) for a in attrs}
 

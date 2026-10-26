@@ -188,7 +188,7 @@ class WorkedOut:
         return {n: c for n, c in self.checks.items() if n not in rules}
 
 
-def work_out(lists, rows, rules, revision):
+def work_out(lists, rows, rules, revision, evaluations=None):
     """Work out the update checks for rows.
 
     Args:
@@ -196,6 +196,7 @@ def work_out(lists, rows, rules, revision):
         rows: The rows.
         rules: The update checks the lists and the community give.
         revision: The nixpkgs revision to evaluate the sources at.
+        evaluations: The sync's nixpkgs.Evaluations, or None.
 
     Returns:
         A WorkedOut, or None when the checks are turned off, or (with the
@@ -210,7 +211,7 @@ def work_out(lists, rows, rules, revision):
     rows = [row for row in rows if row.get("nixVersion")]
     try:
         attrs = {a for row in rows for a in row.get("attrs") or [row["name"]]}
-        sources = nixpkgs_source.sources(attrs, revision)
+        sources = nixpkgs_source.sources(attrs, revision, evaluations)
     except nixpkgs_source.EvalError as e:
         log.info(f"Worked-out update checks: skipped ({e})")
         return None

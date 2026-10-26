@@ -13,7 +13,7 @@ from nixkeeper import rows as rows_module
 from nixkeeper.lookup import collect_projects
 from nixkeeper.naming import slug
 from nixkeeper.rows import build_rows
-from nixkeeper.sources import github, hydra_digest, nixpkgs_update
+from nixkeeper.sources import github, hydra_digest, nixpkgs, nixpkgs_update
 from tests.helpers import nix, other, pkg
 
 NOW = "2026-10-05T06:00:00+00:00"
@@ -561,6 +561,7 @@ class Data(unittest.TestCase):
             bulk={},
             tracked=[],
             bulk_attrs=set(),
+            evaluations=nixpkgs.Evaluations(),
         )
         datastore.check_kept(sync.kept_files(run, []))
         datastore.write(

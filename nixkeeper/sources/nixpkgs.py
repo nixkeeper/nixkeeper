@@ -98,63 +98,81 @@ BROKEN_EXPR = """pkgs: map (attr:
   in if r.success then r.value else null) {attrs}"""
 
 
-# What evaluate answered, kept between syncs (data/evaluations.json) while
-# nixpkgs' commit hasn't moved: the channel moves once or twice a day, so a
-# sync every few hours would otherwise fetch and evaluate the same commit
-# again for the same answers. Only once the sync turns it on (keep_answers):
-# {"answers": {"<revision> <system> <expression's hash>": {attr: answer}},
-# "used": the keys asked this run}.
 EVALUATIONS = "evaluations.json"
-_kept = None
-_kept_lock = threading.Lock()
 
 
-def keep_answers(out_dir=None):
-    """Start keeping evaluate's answers, from those the last sync wrote.
+class Evaluations:
+    """evaluate's answers kept between syncs (EVALUATIONS), and those this run used.
 
-    They're read from EVALUATIONS in out_dir.
-
-    Returns:
-        How many answers it had.
+    The channel moves once or twice a day, so a sync every few hours would
+    otherwise fetch and evaluate the same commit again for the same answers.
+    The sync makes one (read) and writes what it used for the next (used).
+    Hydra's thread and the main thread both ask, so it holds a lock.
     """
-    global _kept
-    found = {}
-    try:
-        with open(os.path.join(config.data_dir(out_dir), EVALUATIONS)) as f:
-            found = json.load(f).get("answers") or {}
-    except (OSError, ValueError, AttributeError):
-        pass
-    _kept = {"answers": found, "used": set()}
-    return sum(len(v) for v in found.values())
 
+    def __init__(self, answers=None):
+        """Hold answers: {"<revision> <system> <expression's hash>": {attr: answer}}."""
+        self.answers = answers or {}
+        self.asked = set()  # the keys asked this run
+        self.lock = threading.Lock()
 
-def kept_answers():
-    """Return the answers this run used, to write as EVALUATIONS.
+    @classmethod
+    def read(cls, out_dir=None):
+        """Read the answers the last sync wrote, as EVALUATIONS in out_dir.
 
-    Those of commits no longer asked about are dropped.
+        Returns:
+            An Evaluations, with none when there's no file or it can't be
+            read.
+        """
+        found = {}
+        try:
+            with open(os.path.join(config.data_dir(out_dir), EVALUATIONS)) as f:
+                found = json.load(f).get("answers") or {}
+        except (OSError, ValueError, AttributeError):
+            pass
+        return cls(found)
 
-    Returns:
-        {"answers": ...}, or None when answers aren't kept.
-    """
-    if _kept is None:
-        return None
-    with _kept_lock:
-        return {
-            "answers": {
-                key: _kept["answers"][key]
-                for key in sorted(_kept["used"])
-                if key in _kept["answers"]
+    def count(self):
+        """Return how many answers there are."""
+        with self.lock:
+            return sum(len(v) for v in self.answers.values())
+
+    def get(self, key, attrs):
+        """Note key as asked, and return its known answers and the attrs it lacks.
+
+        Returns:
+            (known, missing): {attr: answer} for key, and the attrs (each
+            once) not in it.
+        """
+        with self.lock:
+            self.asked.add(key)
+            known = dict(self.answers.setdefault(key, {}))
+        return known, [a for a in dict.fromkeys(attrs) if a not in known]
+
+    def add(self, key, answers):
+        """Keep answers ({attr: answer}) for key."""
+        with self.lock:
+            self.answers.setdefault(key, {}).update(answers)
+
+    def used(self):
+        """Return the answers this run asked for, to write as EVALUATIONS.
+
+        Those of commits no longer asked about are dropped.
+
+        Returns:
+            {"answers": ...}.
+        """
+        with self.lock:
+            return {
+                "answers": {
+                    key: self.answers[key]
+                    for key in sorted(self.asked)
+                    if key in self.answers
+                }
             }
-        }
 
 
-def stop_keeping():
-    """Stop keeping evaluate's answers (once the sync has written them)."""
-    global _kept
-    _kept = None
-
-
-def evaluate(revision, system, expr, attrs):
+def evaluate(revision, system, expr, attrs, evaluations=None):
     """Evaluate expr at the channel's revision for system.
 
     expr is a function of legacyPackages, with {attrs} where the list of
@@ -163,9 +181,15 @@ def evaluate(revision, system, expr, attrs):
     attribute names (reading a file outside the store takes --impure;
     what's evaluated is still that revision).
 
-    While answers are kept (keep_answers), only the attributes not answered
-    at that revision yet are evaluated: none, most syncs between channel
-    moves. Not for a branch name, which moves.
+    Args:
+        revision: The commit, or a branch's name.
+        system: The system to evaluate for.
+        expr: The expression.
+        attrs: The attributes.
+        evaluations: The sync's Evaluations, or None to keep nothing. With
+            them, only the attributes not answered at that revision yet are
+            evaluated: none, most syncs between channel moves. Not for a
+            branch name, which moves.
 
     Returns:
         The JSON answer, one value per attribute.
@@ -173,17 +197,15 @@ def evaluate(revision, system, expr, attrs):
     Raises:
         EvalError: nix failed; its last line of output says why.
     """
-    if _kept is None or revision == config.NIXPKGS_BRANCH:
+    if evaluations is None or revision == config.NIXPKGS_BRANCH:
         return _evaluate(revision, system, expr, attrs)
     key = f"{revision} {system} {hashlib.sha256(expr.encode()).hexdigest()[:12]}"
-    with _kept_lock:
-        _kept["used"].add(key)
-        known = _kept["answers"].setdefault(key, {})
-        missing = [a for a in dict.fromkeys(attrs) if a not in known]
+    known, missing = evaluations.get(key, attrs)
     if missing:
         values = _evaluate(revision, system, expr, missing)
-        with _kept_lock:
-            known.update(zip(missing, values, strict=True))
+        found = dict(zip(missing, values, strict=True))
+        evaluations.add(key, found)
+        known.update(found)
     return [known[a] for a in attrs]
 
 
@@ -234,12 +256,13 @@ class EvalError(Exception):
     """Raised when nixpkgs doesn't evaluate (evaluate), with nix's reason."""
 
 
-def broken(attrs, revision):
+def broken(attrs, revision, evaluations=None):
     """Find where nixpkgs marks each attribute broken, at the channel's revision.
 
     The index can't say: it's evaluated for x86_64-linux only, and `broken =
     stdenv.hostPlatform.isDarwin;` is false there. So nixpkgs is evaluated
     per platform instead (evaluation only, so darwin works from Linux).
+    With the sync's evaluations (Evaluations), answers are reused.
 
     Returns:
         {attr: [the systems where nixpkgs marks it broken]}, or {} when that
@@ -249,7 +272,7 @@ def broken(attrs, revision):
     result = {}
     for system in config.HYDRA_SYSTEMS:
         try:
-            values = evaluate(revision, system, BROKEN_EXPR, attrs)
+            values = evaluate(revision, system, BROKEN_EXPR, attrs, evaluations)
         except EvalError as e:
             log.warn(f"Couldn't evaluate meta.broken on {system}: {e}")
             return {}
@@ -283,11 +306,12 @@ SOURCES_EXPR = """pkgs: map (attr:
   in if r.success then r.value else null) {attrs}"""
 
 
-def sources(attrs, revision):
+def sources(attrs, revision, evaluations=None):
     """Read where each attribute's source comes from, at the channel's revision.
 
     That's for x86_64-linux: where sources come from doesn't depend on the
-    platform, as a rule.
+    platform, as a rule. With the sync's evaluations (Evaluations), answers
+    are reused.
 
     Returns:
         {attr: {"version", "gitRepoUrl", "tag", "rev", "url"}}; attributes
@@ -297,7 +321,7 @@ def sources(attrs, revision):
         EvalError: nixpkgs doesn't evaluate.
     """
     attrs = sorted(attrs)
-    values = evaluate(revision, "x86_64-linux", SOURCES_EXPR, attrs)
+    values = evaluate(revision, "x86_64-linux", SOURCES_EXPR, attrs, evaluations)
     return {a: v for a, v in zip(attrs, values, strict=True) if v}
 
 
@@ -331,8 +355,10 @@ PATCHES_EXPR = """pkgs: map (attr:
   in if r.success then r.value else null) {attrs}"""
 
 
-def patches(attrs, revision):
+def patches(attrs, revision, evaluations=None):
     """Read each attribute's patches at revision, for x86_64-linux.
+
+    With the sync's evaluations (Evaluations), answers are reused.
 
     Returns:
         {attr: [patch names and URLs]}, for the attrs that have any.
@@ -343,7 +369,7 @@ def patches(attrs, revision):
     attrs = sorted(attrs)
     if not attrs:
         return {}
-    values = evaluate(revision, "x86_64-linux", PATCHES_EXPR, attrs)
+    values = evaluate(revision, "x86_64-linux", PATCHES_EXPR, attrs, evaluations)
     return {a: v for a, v in zip(attrs, values, strict=True) if v}
 
 

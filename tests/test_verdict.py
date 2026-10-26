@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 from nixkeeper import config, datastore, rows, sync, verdict
-from nixkeeper.sources import upstream
+from nixkeeper.sources import nixpkgs, upstream
 from nixkeeper.verdict import decide
 
 
@@ -303,7 +303,9 @@ class OnlyHere(unittest.TestCase):
 
 class Decidable(unittest.TestCase):
     def test_the_sync_says_its_rows_can_be_decided_again(self):
-        run = types.SimpleNamespace(now="NOW", everything=False, lists={})
+        run = types.SimpleNamespace(
+            now="NOW", everything=False, lists={}, evaluations=nixpkgs.Evaluations()
+        )
         with mock.patch.object(datastore, "write") as written:
             sync.write(run, {}, [], [], {}, [])
         index = written.call_args.args[0]
