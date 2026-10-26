@@ -34,7 +34,6 @@ import {
   nameSet,
   shardOf,
 } from '../../page/facets.js';
-import { faviconKey, themeFor } from '../../page/logic.js';
 import {
   appendHtml,
   capitalized,
@@ -45,6 +44,7 @@ import {
   setHtml,
   withoutLeadingJoiner,
 } from '../../page/markup.js';
+import { faviconKey, themeFor } from '../../page/palette.js';
 import {
   maintainerMatches,
   maintainersKeep,

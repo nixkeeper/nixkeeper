@@ -37,7 +37,7 @@ class Page(unittest.TestCase):
 
     def test_the_page_is_there(self):
         self.assertTrue(os.path.exists(os.path.join(page.page_dir(), "index.html")))
-        self.assertTrue(os.path.exists(os.path.join(page.page_dir(), "logic.js")))
+        self.assertTrue(os.path.exists(os.path.join(page.page_dir(), "app.js")))
 
     def test_writes_the_page_and_the_data(self):
         site = os.path.join(self.dir.name, "site")

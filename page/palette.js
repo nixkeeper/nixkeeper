@@ -1,10 +1,6 @@
-// The page's rules, without the page: statuses, versions, ages, links and the
-// tab icon's signals, from a package's data alone. app.js draws the page with
-// them; tests/js/ tests them (node --test, in the flake checks).
-//
-// Where a rule depends on the selected platform, it takes it as an argument
-// (null for all platforms, or 'linux', 'darwin'); times take `now` so tests
-// can fix it.
+// The page's palettes and modes, and the tab icon's signal. page/theme.js
+// is a different thing: the small classic script that sets light or dark
+// before the CSS loads, which can't import this.
 
 import { computeStatus, hasFailure, waitingForChannel } from './status.js';
 import { isVulnerable } from './vulns.js';

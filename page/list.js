@@ -31,9 +31,9 @@ import {
   SORTS,
   shownHandle,
 } from './filters.js';
-import { faviconKey } from './logic.js';
 import { closeHtml, mergeHtml } from './maintainer-view.js';
 import { html, raw, safeUrl, setHtml } from './markup.js';
+import { faviconKey } from './palette.js';
 import { isHidden, remember } from './prefs.js';
 import { REFINE_WORDS, searchText } from './search.js';
 import { buildsWith, failedBuilds, hasFailure, scopeHref, state, teamName } from './state.js';

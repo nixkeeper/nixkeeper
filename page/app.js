@@ -22,7 +22,6 @@ import {
   searchValues,
   wireList,
 } from './list.js';
-import { themeFor } from './logic.js';
 import {
   hiddenPrPrints,
   maintainerItem,
@@ -33,6 +32,7 @@ import {
 import { appendHtml, html, NO_MARKUP, raw, setHtml } from './markup.js';
 import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
+import { themeFor } from './palette.js';
 import { maintainerMatches, NAME_DOTS, nameMatches } from './people.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
 import {
