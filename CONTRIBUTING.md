@@ -44,10 +44,12 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `docs/`: the documentation, one page per topic ([docs/README.md](docs/README.md)
   lists them); `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `CHANGELOG.md` and `LICENSE` stay at the root, where GitHub looks for them
-- `page/`: the page (`index.html`, `app.js`, `style.css`), reading `data/`
-  from the `data` branch. Its rules are in modules that never touch the
-  page, so they can be tested, and that import only each other: `markup.js`
-  (HTML from data, escaped), `versions.js` (comparing versions), `dates.js`
+- `page/`: the page (`index.html`, `app.js`, and `style-*.css`, a file per
+  part of the page, loaded in `index.html`'s order: later files override
+  earlier ones), reading `data/` from the `data` branch. Its rules are in
+  modules that never touch the page, so they can be tested, and that import
+  only each other: `markup.js` (HTML from data, escaped), `versions.js`
+  (comparing versions), `dates.js`
   (days and ages), `vulns.js` (vulnerabilities), `status.js` (a package's
   status), `people.js` (maintainers and teams), `address.js` (the page's
   addresses), `facets.js` (the names index) and `palette.js` (the palettes
@@ -421,8 +423,8 @@ Commit the regenerated files with the change to the scripts. `page/`'s brand
 files are copies, and `nix flake check` fails when one of them, or
 `assets/brand/`'s tokens, differs from what it's made from.
 
-The page's own colours (`page/style.css`) are variables that point at the
-tokens' roles, e.g. `--accent: var(--nk-link-text)`, so a change to the
+The page's own colours (`page/style-base.css`) are variables that point at
+the tokens' roles, e.g. `--accent: var(--nk-link-text)`, so a change to the
 palette reaches the page through `nix run .#brand`.
 
 ## Releasing
