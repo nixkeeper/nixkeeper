@@ -184,7 +184,7 @@ class Run:
         now: This run's time (ISO 8601).
         nixpkgs: The channel's package index.
         lists: The package lists.
-        previous: The last sync's data.
+        previous: The last sync's data (history.PreviousRun).
         revision: The channel's commit, or the branch's name when it
             couldn't be read.
         everything: Whether the instance tracks every package (the community

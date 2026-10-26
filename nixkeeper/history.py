@@ -5,6 +5,7 @@ became outdated or began failing; since when a source couldn't be
 refreshed; and what was fixed since.
 """
 
+import functools
 from datetime import datetime, timedelta
 
 from . import config, datastore
@@ -13,42 +14,52 @@ from .shape import Row
 from .sources import repology
 
 
+class PreviousRun(dict):
+    """The last run's index, as load_previous_run reads it.
+
+    A dict, so its fields read as before (previous["packages"]), with its
+    rows indexed once, on first use (by_key): with every package there are
+    over 100,000 to look through. The index goes with the run's data.
+    """
+
+    @functools.cached_property
+    def by_key(self):
+        """The rows' indexes by name, searchTerm and attribute (built on first use)."""
+        return _by_key(self["packages"])
+
+
 def load_previous_run(out_dir=None):
-    """Return the last successful run's index, or an empty one."""
-    return datastore.load(out_dir)
+    """Return the last successful run's index, or an empty one, as a PreviousRun."""
+    return PreviousRun(datastore.load(out_dir))
 
 
 def previous_rows(previous, pname, attrs):
     """Return the last run's rows for a tracked pname, in their order there.
 
-    A row matches by its name, or by any of attrs.
+    A row matches by its name, or by any of attrs. previous is a
+    PreviousRun, whose index is kept; a plain dict (as tests give) is
+    indexed again on each call.
     """
-    index = _by_key(previous["packages"])
+    if isinstance(previous, PreviousRun):
+        index = previous.by_key
+    else:
+        index = _by_key(previous["packages"])
     found = {i for key in (pname, *attrs) for i in index.get(key, ())}
     return [previous["packages"][i] for i in sorted(found)]
-
-
-_index = (None, None)
 
 
 def _by_key(packages):
     """Index the last run's rows by name, searchTerm and attribute.
 
-    The index is made once per list of rows, as with every package there
-    are over 100,000 to look through.
-
     Returns:
         {key: the indexes of the rows with it}.
     """
-    global _index
-    if _index[0] is not packages:
-        index = {}
-        for i, row in enumerate(packages):
-            keys = {row["name"], row.get("searchTerm"), *(row.get("attrs") or [])}
-            for key in keys - {None}:
-                index.setdefault(key, []).append(i)
-        _index = (packages, index)
-    return _index[1]
+    index = {}
+    for i, row in enumerate(packages):
+        keys = {row["name"], row.get("searchTerm"), *(row.get("attrs") or [])}
+        for key in keys - {None}:
+            index.setdefault(key, []).append(i)
+    return index
 
 
 def new_packages(previous, wanted):

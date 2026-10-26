@@ -2,7 +2,9 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
+from nixkeeper import history
 from nixkeeper.history import add_outdated_since, new_packages, previous_project
 
 
@@ -89,6 +91,34 @@ class PreviousProject(unittest.TestCase):
             ],
         )
         self.assertEqual(since, "2026-10-03T06:00:00+00:00")
+
+
+class PreviousRows(unittest.TestCase):
+    """The last run's rows, found by name, searchTerm or attribute."""
+
+    ROWS = [
+        {"name": "a", "attrs": ["a"]},
+        {"name": "b", "searchTerm": "bee", "attrs": ["b", "b2"]},
+    ]
+
+    def test_the_previous_runs_index_is_made_once(self):
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "index.json"), "w") as f:
+                json.dump({"packages": self.ROWS}, f)
+            previous = history.load_previous_run(out)
+        self.assertIsInstance(previous, history.PreviousRun)
+        with mock.patch.object(history, "_by_key", wraps=history._by_key) as by_key:
+            self.assertEqual(history.previous_rows(previous, "a", []), [self.ROWS[0]])
+            self.assertEqual(
+                history.previous_rows(previous, "x", ["b2"]), [self.ROWS[1]]
+            )
+            self.assertEqual(history.previous_rows(previous, "bee", []), [self.ROWS[1]])
+        self.assertEqual(by_key.call_count, 1)
+
+    def test_a_plain_dict_too(self):
+        self.assertEqual(
+            history.previous_rows({"packages": self.ROWS}, "b", []), [self.ROWS[1]]
+        )
 
 
 class NewPackages(unittest.TestCase):
