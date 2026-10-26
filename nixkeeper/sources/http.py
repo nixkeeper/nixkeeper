@@ -223,6 +223,10 @@ def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False
     """Fetch url as get does, also returning the answer's headers.
 
     Args:
+        url: The URL.
+        accept: The Accept header to send, if any.
+        safe: Safe mode (get's).
+        compressed: Accept a gzipped answer (get's).
         extra: More headers to send (get_page's).
         raw: Whether to return the body's bytes instead of text
             (get_bytes).

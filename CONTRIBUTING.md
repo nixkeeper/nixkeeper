@@ -335,10 +335,12 @@ def row_problems(row):
     """
 ```
 
-All of `nixkeeper/` follows it. `tests/test_docstrings.py` keeps it so:
-every module, class and function has a docstring (dunder methods other
-than `__init__` aside), and each docstring's first line is its whole
-summary.
+All of `nixkeeper/` follows it, and ruff's pydocstyle rules (`D`, with the
+Google convention) check it in `nix flake check` (`checks.lint`): public
+modules, classes and functions have a docstring, and its first line is its
+whole summary. A `_private` or nested helper needs one only when its name
+and arguments don't say enough; that's on purpose, rather than a line that
+repeats the name.
 
 ## Screenshots
 

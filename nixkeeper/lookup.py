@@ -244,6 +244,9 @@ def unlisted(projects, pname, attrs, lookup_failed=False):
     come together.
 
     Args:
+        projects: The projects so far, by key, changed in place.
+        pname: The package's pname.
+        attrs: Its attributes.
         lookup_failed: Whether that's because Repology couldn't be asked,
             rather than because it doesn't list the package.
     """
@@ -266,6 +269,11 @@ def add(projects, pname, project, entries, attrs, checked_at=None, stale_since=N
     and the freshest lookup's entries hold for every row of it.
 
     Args:
+        projects: The projects so far, by key, changed in place.
+        pname: The package's pname.
+        project: The Repology project it was found in, or None.
+        entries: The project's Repology entries.
+        attrs: The package's attributes.
         checked_at: When Repology was asked; None when it wasn't (the
             lookup failed).
         stale_since: Since when the data is stale, for reused data.
