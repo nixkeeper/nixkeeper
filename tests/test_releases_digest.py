@@ -120,6 +120,9 @@ class Apply(unittest.TestCase):
 
 
 class Load(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def serve(self, fetched):
         body = gzip.compress(
             json.dumps(
@@ -142,7 +145,7 @@ class Load(unittest.TestCase):
             found = releases_digest.load(NOW)
         self.assertEqual(list(found), ["whisky"])
         self.assertEqual(
-            about.taken()["releases"],
+            self.noted["releases"],
             {"used": True, "at": "2026-10-09T04:15:39+00:00", "packages": 1},
         )
 
@@ -150,7 +153,7 @@ class Load(unittest.TestCase):
         a, b, c = self.serve("2026-10-06T04:15:39+00:00")
         with a, b, c:
             self.assertIsNone(releases_digest.load(NOW))
-        self.assertFalse(about.taken()["releases"]["used"])
+        self.assertFalse(self.noted["releases"]["used"])
 
 
 if __name__ == "__main__":

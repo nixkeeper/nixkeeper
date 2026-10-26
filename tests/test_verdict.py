@@ -307,7 +307,7 @@ class Decidable(unittest.TestCase):
             now="NOW", everything=False, lists={}, evaluations=nixpkgs.Evaluations()
         )
         with mock.patch.object(datastore, "write") as written:
-            sync.write(run, {}, [], [], {}, [])
+            sync.write(run, {}, [], [], {}, [], {})
         index = written.call_args.args[0]
         self.assertTrue(verdict.decidable(index))
         # Data from before: not.

@@ -7,16 +7,23 @@ loaded, Hydra's from the background thread, and the sync takes them all
 once it's done.
 """
 
+import contextlib
 import threading
 
-_noted: dict[str, dict] = {}
+# The collections open now (collecting), the innermost last; note adds to
+# it. Module-level, not the sync's Run: 26 calls in 14 modules note, Hydra's
+# from its own thread, and only collecting adds or removes one.
+_open: list[dict] = []
 _lock = threading.Lock()
 # A reason longer than this is cut: an error's text can be long.
 WHY_LENGTH = 200
 
 
 def note(source, used, why=None, **about):
-    """Note what a source was this run.
+    """Note what a source was this run, in the collection open now.
+
+    Outside collecting() it does nothing: only a sync reports its sources,
+    and a command or test that doesn't collect them keeps nothing.
 
     Args:
         source: The source's name.
@@ -29,18 +36,26 @@ def note(source, used, why=None, **about):
     if why:
         found["why"] = why if len(why) <= WHY_LENGTH else why[: WHY_LENGTH - 1] + "…"
     with _lock:
-        _noted[source] = found
+        if _open:
+            _open[-1][source] = found
 
 
-def taken():
-    """Return every source noted since the last call, and start over.
+@contextlib.contextmanager
+def collecting():
+    """Collect the sources noted inside the with block.
 
-    Starting over keeps a run's notes its own.
-
-    Returns:
-        {source: what was noted}, sorted by source.
+    Yields:
+        {source: what was noted}, filled as each source notes itself, and
+        sorted by source once the block ends.
     """
+    noted = {}
     with _lock:
-        found = dict(sorted(_noted.items()))
-        _noted.clear()
-    return found
+        _open.append(noted)
+    try:
+        yield noted
+    finally:
+        with _lock:
+            del _open[next(i for i, d in enumerate(_open) if d is noted)]
+            found = sorted(noted.items())
+            noted.clear()
+            noted.update(found)

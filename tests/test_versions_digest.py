@@ -59,6 +59,9 @@ class Answer(unittest.TestCase):
 
 
 class Load(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def load(self, meta, lines=LINES):
         body = gzip.compress("".join(f"{x}\n" for x in lines).encode())
         out = io.StringIO()
@@ -79,7 +82,7 @@ class Load(unittest.TestCase):
         self.assertIn("Versions digest: 119,028 projects", out)
         self.assertIn("2 of 2 tracked attributes in it", out)
         self.assertEqual(
-            about.taken()["versions"],
+            self.noted["versions"],
             {"used": True, "at": "2026-10-05T04:20:00+00:00", "projects": 119028},
         )
 
@@ -89,11 +92,11 @@ class Load(unittest.TestCase):
         self.assertEqual(sorted(found), ["heroic", "tracy"])
         self.assertTrue(found.stale)
         self.assertIn("the digest only where that fails", out)
-        self.assertIn("used only where Repology", about.taken()["versions"]["why"])
+        self.assertIn("used only where Repology", self.noted["versions"]["why"])
         found, out = self.load({"format": 2, "outdatedAt": NOW, "projects": 1})
         self.assertIsNone(found)
         self.assertIn("couldn't use it", out)
-        noted = about.taken()["versions"]
+        noted = self.noted["versions"]
         self.assertFalse(noted["used"])
         self.assertTrue(noted["why"].startswith("couldn't be read (no digest"))
         with mock.patch.object(config, "VERSIONS_DIGEST_URL", ""):

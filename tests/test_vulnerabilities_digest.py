@@ -377,9 +377,10 @@ class Load(unittest.TestCase):
             mock.patch.object(http, "get", side_effect=get),
             mock.patch.object(http, "get_bytes", return_value=body),
             mock.patch("sys.stderr", io.StringIO()),
+            about.collecting() as noted,
         ):
-            about.taken()
-            return vd.load(NOW), about.taken()
+            found = vd.load(NOW)
+        return found, noted
 
     def test_used_when_complete_and_recent(self):
         meta = {

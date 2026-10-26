@@ -17,6 +17,7 @@ from tests.helpers import nix, other
 
 class CollectProjects(unittest.TestCase):
     def setUp(self):
+        self.noted = self.enterContext(about.collecting())
         patcher = mock.patch("sys.stderr", io.StringIO())
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -173,7 +174,6 @@ class CollectProjects(unittest.TestCase):
     def test_repology_down_the_sync_goes_on(self):
         # Every lookup failing (it used to stop the sync): each keeps what it
         # had, and the sources panel says so.
-        about.taken()
         wanted = {n: ([n], n) for n in "abc"}
         previous = self.write_previous(
             [
@@ -190,7 +190,7 @@ class CollectProjects(unittest.TestCase):
         projects = self.collect(wanted, previous, {n: OSError("down") for n in "abc"})
         self.assertEqual(sorted(projects), ["a", "unlisted:b", "unlisted:c"])
         self.assertEqual(projects["a"]["entries"], [nix("a", "1", "newest")])
-        self.assertIn("3 of 3 lookups failed", about.taken()["repology"]["why"])
+        self.assertIn("3 of 3 lookups failed", self.noted["repology"]["why"])
 
     def test_a_stale_digest_answers_where_repology_cant(self):
         stale = versions_digest.Stale(

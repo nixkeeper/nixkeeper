@@ -51,6 +51,9 @@ def meta(at="2026-10-09T10:00:00+00:00", revision="abc", merged_at=None):
 
 
 class Load(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def load(self, info, revision="abc"):
         def get(url, compressed=False):
             name = url.rsplit("/", 1)[1]
@@ -81,7 +84,7 @@ class Load(unittest.TestCase):
         self.assertEqual(issues, [{"number": 7, "title": "wine: crashes"}])
         self.assertEqual([p["number"] for p in found["merged"]], [4])
         self.assertEqual(
-            about.taken()["prs"],
+            self.noted["prs"],
             {
                 "used": True,
                 "at": "2026-10-09T10:00:00+00:00",
@@ -96,20 +99,23 @@ class Load(unittest.TestCase):
         self.assertIsNotNone(found["open"])
         self.assertIsNone(found["merged"])
         self.assertEqual(
-            about.taken()["prs"]["partly"], "merged PRs since another channel commit"
+            self.noted["prs"]["partly"], "merged PRs since another channel commit"
         )
 
     def test_too_old_or_off(self):
         found = self.load(meta(at="2026-10-09T01:00:00+00:00"))
         self.assertEqual(found, {"open": None, "merged": None, "staging": None})
-        self.assertFalse(about.taken()["prs"]["used"])
-        with mock.patch.object(config, "PRS_DIGEST_URL", ""):
+        self.assertFalse(self.noted["prs"]["used"])
+        with (
+            mock.patch.object(config, "PRS_DIGEST_URL", ""),
+            about.collecting() as off,
+        ):
             self.assertIsNone(prs_digest.load(NOW, "abc"))
-        self.assertEqual(about.taken(), {})
+        self.assertEqual(off, {})
 
     def test_unreadable(self):
         self.assertIsNone(self.load({"format": 2}))
-        self.assertIn("couldn't be read", about.taken()["prs"]["why"])
+        self.assertIn("couldn't be read", self.noted["prs"]["why"])
 
     def test_staging(self):
         info = {**meta(), "staging": {"count": 1, "at": "2026-10-09T10:00:00+00:00"}}
@@ -118,7 +124,7 @@ class Load(unittest.TestCase):
             [(p["number"], p["on"]) for p in staging["prs"]], [(9, "staging-next")]
         )
         self.assertEqual(staging["stagingNext"]["open"]["n"], 571813)
-        self.assertEqual(about.taken()["prs"]["staging"], 1)
+        self.assertEqual(self.noted["prs"]["staging"], 1)
         # Too old, or from a digest without it: none.
         old = {**meta(), "staging": {"count": 1, "at": "2026-10-09T01:00:00+00:00"}}
         self.assertIsNone(self.load(old)["staging"])

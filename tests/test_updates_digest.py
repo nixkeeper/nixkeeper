@@ -28,6 +28,9 @@ def read(attr, outcome="failed", day="2026-10-05", parser=nixpkgs_update.PARSER)
 
 
 class Load(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def serve(self, meta, entries):
         body = gzip.compress(
             "".join(json.dumps(e) + "\n" for e in entries).encode(), mtime=0
@@ -47,7 +50,7 @@ class Load(unittest.TestCase):
         self.assertEqual(found, {"wesnoth": {"attempt": read("wesnoth")}})
         # Noted for the page: when it's from, and how many it hasn't read.
         self.assertEqual(
-            about.taken()["updates"],
+            self.noted["updates"],
             {"used": True, "at": "2026-10-05T15:00:00+00:00", "pending": 0},
         )
 
@@ -57,12 +60,17 @@ class Load(unittest.TestCase):
         with patches[0], patches[1], patches[2], patches[3]:
             self.assertIsNone(updates_digest.load(NOW))
         self.assertEqual(
-            about.taken()["updates"],
+            self.noted["updates"],
             {"used": False, "why": "too old", "at": "2026-10-04T15:00:00+00:00"},
         )
-        with mock.patch.object(config, "UPDATES_DIGEST_URL", ""):
+        with (
+            mock.patch.object(config, "UPDATES_DIGEST_URL", ""),
+            about.collecting() as off,
+        ):
             self.assertIsNone(updates_digest.load(NOW))
-        self.assertEqual(about.taken(), {})  # turned off: nothing to say
+        self.assertEqual(
+            off, {}
+        )  # turned off: nothing to say  # turned off: nothing to say
 
     def test_attempt_only_when_read_with_these_rules(self):
         entry = {"attempt": read("python3Packages.foo")}
@@ -176,6 +184,9 @@ QUEUE = {
 
 
 class Queue(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def load(self, queue, now=NOW):
         body = gzip.compress(json.dumps(queue).encode(), mtime=0) if queue else None
         with (
@@ -195,17 +206,17 @@ class Queue(unittest.TestCase):
         self.assertTrue(found["unciv-beta"]["script"])
         self.assertFalse(found["unciv"]["script"])
         self.assertEqual(
-            about.taken()["queue"],
+            self.noted["queue"],
             {"used": True, "at": "2026-10-05T12:00:00+00:00", "cycleDays": 10.0},
         )
 
     def test_none_too_old_or_unreadable(self):
         self.assertIsNone(self.load(None))
-        self.assertEqual(about.taken()["queue"]["used"], False)
+        self.assertEqual(self.noted["queue"]["used"], False)
         self.assertIsNone(self.load(QUEUE, now="2026-10-06T13:00:00+00:00"))
-        self.assertEqual(about.taken()["queue"]["why"], "too old")
+        self.assertEqual(self.noted["queue"]["why"], "too old")
         self.assertIsNone(self.load({"nonsense": True}))
-        self.assertIn("couldn't be read", about.taken()["queue"]["why"])
+        self.assertIn("couldn't be read", self.noted["queue"]["why"])
 
     def test_rows(self):
         found = self.load(QUEUE)

@@ -93,8 +93,10 @@ class HoursSince(unittest.TestCase):
 
 
 class GiveUp(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def test_noted_and_warned(self):
-        about.taken()  # start from no notes
         out = io.StringIO()
         with mock.patch("sys.stderr", out):
             digests.give_up(
@@ -105,13 +107,15 @@ class GiveUp(unittest.TestCase):
             "warning: Hydra digest: couldn't use it (gone); asking Hydra\n",
         )
         self.assertEqual(
-            about.taken(), {"hydra": {"used": False, "why": "couldn't be read (gone)"}}
+            self.noted, {"hydra": {"used": False, "why": "couldn't be read (gone)"}}
         )
 
 
 class TooOld(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def test_noted_and_warned(self):
-        about.taken()
         out = io.StringIO()
         with mock.patch("sys.stderr", out):
             digests.too_old(
@@ -122,7 +126,7 @@ class TooOld(unittest.TestCase):
             "warning: Hydra digest: not used, read 2026-10-25 (evaluation 7)\n",
         )
         self.assertEqual(
-            about.taken(),
+            self.noted,
             {"hydra": {"used": False, "why": "too old", "at": "2026-10-25", "eval": 7}},
         )
 

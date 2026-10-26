@@ -183,6 +183,9 @@ class Answer(unittest.TestCase):
 
 
 class Load(unittest.TestCase):
+    def setUp(self):
+        self.noted = self.enterContext(about.collecting())
+
     def serve(self, meta, rows=(), evals=EVALS):
         """A fake http.get / get_bytes: the digest at config's URL, and
         Hydra's list of evaluations (evals: its page, or an error)."""
@@ -220,7 +223,7 @@ class Load(unittest.TestCase):
         self.assertEqual(list(rows), [("a", "x86_64-linux")])
         self.assertIn("Hydra digest: 1 jobs, evaluation 1829817, Hydra's newest", out)
         self.assertEqual(
-            about.taken()["hydra"],
+            self.noted["hydra"],
             {"used": True, "at": "2026-10-04T14:00:00+00:00", "eval": 1829817},
         )
 
@@ -240,7 +243,7 @@ class Load(unittest.TestCase):
         self.assertIsNone(rows)
         self.assertIn("warning: Hydra digest: not used", out)
         self.assertEqual(
-            about.taken()["hydra"],
+            self.noted["hydra"],
             {
                 "used": False,
                 "why": "too old",

@@ -96,7 +96,7 @@ class Apply(unittest.TestCase):
 
 class Load(unittest.TestCase):
     def setUp(self):
-        about.taken()  # start with nothing noted
+        self.noted = self.enterContext(about.collecting())
         patcher = mock.patch("sys.stderr", io.StringIO())
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -119,7 +119,7 @@ class Load(unittest.TestCase):
         }
         with self.serve(body):
             self.assertEqual(typst_digest.load(NOW), PACKAGES)
-        self.assertEqual(about.taken()["typst"]["used"], True)
+        self.assertEqual(self.noted["typst"]["used"], True)
 
     def test_old_missing_or_off(self):
         old = {
@@ -129,10 +129,10 @@ class Load(unittest.TestCase):
         }
         with self.serve(old):
             self.assertIsNone(typst_digest.load(NOW))
-        self.assertEqual(about.taken()["typst"]["why"], "too old")
+        self.assertEqual(self.noted["typst"]["why"], "too old")
         with self.serve(None):
             self.assertIsNone(typst_digest.load(NOW))
-        self.assertIn("couldn't be read", about.taken()["typst"]["why"])
+        self.assertIn("couldn't be read", self.noted["typst"]["why"])
         with mock.patch.object(config, "VERSIONS_DIGEST_URL", ""):
             self.assertIsNone(typst_digest.load(NOW))
 

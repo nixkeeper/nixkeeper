@@ -76,7 +76,7 @@ class Apply(unittest.TestCase):
 
 class Load(unittest.TestCase):
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             # The tests turn the digests off (tests/__init__.py): on, here.
@@ -91,7 +91,7 @@ class Load(unittest.TestCase):
         data = gzip.compress(json.dumps(FOUND).encode())
         with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(stackage_digest.load(NOW)["snapshot"], "lts-24.62")
-        noted = about.taken()["stackage"]
+        noted = self.noted["stackage"]
         self.assertEqual(
             (noted["used"], noted["snapshot"], noted["nixpkgs"], noted["packages"]),
             (True, "lts-24.62", "lts-24.38", 2),

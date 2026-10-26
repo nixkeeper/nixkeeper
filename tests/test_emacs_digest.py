@@ -105,7 +105,7 @@ class Apply(unittest.TestCase):
 
 class Load(unittest.TestCase):
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         patcher = mock.patch("sys.stderr", io.StringIO())
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -125,13 +125,13 @@ class Load(unittest.TestCase):
         data = gzip.compress(json.dumps(body).encode())
         with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(emacs_digest.load(NOW), ARCHIVES)
-        noted = about.taken()["emacs"]
+        noted = self.noted["emacs"]
         self.assertEqual((noted["used"], noted["melpa"], noted["gnu"]), (True, 3, 3))
 
     def test_missing(self):
         with mock.patch.object(http, "get_bytes", return_value=None):
             self.assertIsNone(emacs_digest.load(NOW))
-        self.assertIn("no emacs.json.gz yet", about.taken()["emacs"]["why"])
+        self.assertIn("no emacs.json.gz yet", self.noted["emacs"]["why"])
 
 
 if __name__ == "__main__":

@@ -81,7 +81,7 @@ class Apply(unittest.TestCase):
 
 class Load(unittest.TestCase):
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             # The tests turn the digests off (tests/__init__.py): on, here.
@@ -96,7 +96,7 @@ class Load(unittest.TestCase):
         data = gzip.compress(json.dumps(FOUND).encode())
         with mock.patch.object(http, "get_bytes", return_value=data):
             self.assertEqual(cran_digest.load(NOW)["biocVersion"], "3.23")
-        noted = about.taken()["cran"]
+        noted = self.noted["cran"]
         self.assertEqual(
             (noted["used"], noted["biocVersion"], noted["cran"]), (True, "3.23", 3)
         )

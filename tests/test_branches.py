@@ -38,7 +38,7 @@ DIGEST = {
 
 class Load(unittest.TestCase):
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             # The tests turn the digests off (tests/__init__.py): on, here.
@@ -60,7 +60,7 @@ class Load(unittest.TestCase):
         )
         self.assertEqual(jobs["haskellPackages.Cabal-hooks"]["version"], "3.18")
         self.assertNotIn("haskellPackages.other", jobs)  # not x86_64-linux
-        noted = about.taken()["branch:haskell-updates"]
+        noted = self.noted["branch:haskell-updates"]
         self.assertEqual(
             (noted["used"], noted["eval"], noted["jobs"]), (True, 1829685, 3)
         )
@@ -68,7 +68,7 @@ class Load(unittest.TestCase):
     def test_old_or_missing(self):
         with self.serve({**DIGEST, "fetchedAt": "2026-10-05T00:00:00+00:00"}):
             self.assertIsNone(branches.load("haskell-updates", NOW))
-        self.assertEqual(about.taken()["branch:haskell-updates"]["why"], "too old")
+        self.assertEqual(self.noted["branch:haskell-updates"]["why"], "too old")
         with self.serve(None):
             self.assertIsNone(branches.load("haskell-updates", NOW))
 
@@ -152,7 +152,7 @@ class StagingNext(unittest.TestCase):
     NOW = "2026-10-16T03:00:00+00:00"
 
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         for patcher in (
             mock.patch("sys.stderr", io.StringIO()),
             mock.patch.object(config, "HYDRA_DIGEST_URL", "https://example.org/data/"),
@@ -196,7 +196,7 @@ class StagingNext(unittest.TestCase):
         self.assertEqual([b["status"] for b in openssh["builds"]], ["failed", "ok"])
         self.assertEqual((imagemagick["inEval"], imagemagick["builds"]), (False, []))
         self.assertNotIn("builds", curl)
-        self.assertEqual(about.taken()["branch:staging-next"]["eval"], 1830302)
+        self.assertEqual(self.noted["branch:staging-next"]["eval"], 1830302)
 
     def test_newer_than_the_pr_there(self):
         # harfbuzz, 2026-10-16: the PR to 14.5.0; staging-next has 14.5.1.
@@ -378,7 +378,7 @@ class CurrentStagingNext(unittest.TestCase):
     FOUND = ({}, {"eval": 1830329, "evaluatedAt": "2026-10-16T17:14:44Z"})
 
     def setUp(self):
-        about.taken()
+        self.noted = self.enterContext(about.collecting())
         patcher = mock.patch("sys.stderr", io.StringIO())
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -387,7 +387,7 @@ class CurrentStagingNext(unittest.TestCase):
         # 2026-10-16: #571813 merged at 19:04, two hours after it.
         merged = {"n": 571813, "merged": "2026-10-16T19:04:23Z"}
         self.assertIsNone(branches.current_staging_next(self.FOUND, merged))
-        self.assertFalse(about.taken()["branch:staging-next"]["used"])
+        self.assertFalse(self.noted["branch:staging-next"]["used"])
 
     def test_after_the_merge_or_unknown_used(self):
         # Of the next cycle, or with nothing merged since: used.
