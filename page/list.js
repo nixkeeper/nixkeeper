@@ -1,8 +1,7 @@
-// The list: its header (where it's from, the tiles, the refines and facets,
-// Your packages and Your team), each package's row and its cells (version,
-// builds, updates, GitHub), and the sources it was worked out from. HTML
-// from the store, the state and the filters; app.js draws it (render) and
-// handles its controls. Its own state is listView.
+// The list's drawing and wiring: the counts and lists above it (renderStats,
+// renderLists), the tab icon, the search box's values (searchValues), and its
+// controls' events (wireList). Its markup is list-controls.js's, row.js's and
+// sources.js's; its state is listView, in state.js.
 
 import { timeAgo } from './dates.js';
 import { NAME_STATUSES } from './facets.js';

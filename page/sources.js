@@ -1,5 +1,4 @@
-// The "where the data is from" popover: each source and digest, when it was
-// read, and whether it was used.
+// The "where the data is from" popover.
 
 import { timeAgo } from './dates.js';
 import { html } from './markup.js';
