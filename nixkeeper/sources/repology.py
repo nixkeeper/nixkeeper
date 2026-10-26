@@ -6,7 +6,6 @@ Lookups are retried, and fall back between domains when there are several
 
 import json
 import time
-import types
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,23 +20,24 @@ FIELDS = ("repo", "srcname", "version", "status", "vulnerable")
 # The domain that last answered: tried first for the rest of the run, so an
 # unreachable first domain costs one failed connection, not one per lookup.
 # Process-wide on purpose: it's only which domain to try first.
-_working = types.SimpleNamespace(domain=None)
+_working = None
 
 
 def _domains():
     """Return Repology's domains, the one that last answered first."""
     domains = list(config.REPOLOGY_URLS)
-    if _working.domain in domains:
-        domains.remove(_working.domain)
-        domains.insert(0, _working.domain)
+    if _working in domains:
+        domains.remove(_working)
+        domains.insert(0, _working)
     return domains
 
 
 def _answered(base):
     """Remember base as the domain that answered, for the rest of the run."""
-    if base != _working.domain and base != config.REPOLOGY_URLS[0]:
+    global _working
+    if base != _working and base != config.REPOLOGY_URLS[0]:
         log.info(f"  using {base} for the rest of the run")
-    _working.domain = base
+    _working = base
 
 
 def get(path):
