@@ -134,7 +134,7 @@ a.page-btn:focus-visible {
   height: 317px;
   border-radius: 10px;
 }
-/* The list's rows: its columns (style.css's table widths) and height. */
+/* The list's rows: its columns (style-table.css's table widths) and height. */
 .sk-head,
 .sk-row {
   display: grid;

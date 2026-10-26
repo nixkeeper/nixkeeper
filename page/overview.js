@@ -335,7 +335,7 @@ export const TREND_EVENTS = {
 };
 
 // The kinds drawn on the trends: grey for staging-next, amber for a counting
-// change (style.css).
+// change (style-overview.css).
 export const MARKED = new Set(['staging-next', 'counting']);
 
 // The events on the days the trends show, with where they fall.

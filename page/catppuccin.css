@@ -1,7 +1,7 @@
 /* The Catppuccin palette (https://catppuccin.com, MIT): Latte when light,
    Mocha when dark. Picked in the Theme menu, or as a page's default with
    page.theme = "catppuccin" in the package lists; it sets data-palette on
-   <html>. The same variables as tokens.css and style.css's classic ones.
+   <html>. The same variables as tokens.css and style-base.css's classic ones.
 
    Roles: up to date green, outdated peach, failed red, can't update or
    broken yellow, on master mauve, links blue. Dots use the palette's colour

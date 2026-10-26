@@ -369,6 +369,8 @@
   }
 }
 /* biome-ignore-end lint/complexity/noImportantStyles: - */
+/* TODO: this belongs in style-filters.css, once it's checked against the touch
+   screens' .refine-btn rule above (min-height), which it follows today. */
 /* ↓/↑ (sortPick): pressed means reversed, not a filter on: no ✕. */
 .refine-btn.sort-dir {
   min-width: 2.2em;
