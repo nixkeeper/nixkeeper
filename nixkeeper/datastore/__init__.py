@@ -32,9 +32,9 @@ import traceback
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
-from . import causes, config, log, shape
-from . import rows as rows_module
-from .changes import (
+from .. import causes, config, log, shape
+from .. import rows as rows_module
+from ..changes import (
     broken_builds,
     failed_builds,
     failures,
@@ -43,9 +43,9 @@ from .changes import (
     on_branch,
     waiting_for_channel,
 )
-from .naming import shard_of, slug
-from .sources import vulnerabilities_digest
-from .sources.nixpkgs import available_on
+from ..naming import shard_of, slug
+from ..sources import vulnerabilities_digest
+from ..sources.nixpkgs import available_on
 
 FORMAT = 2
 # About how many rows a shard holds. A shard is what the page loads to show
@@ -186,7 +186,7 @@ def newest_repos(entries, count):
     Returns:
         nixpkgs' entries, then the kept ones in that order.
     """
-    from .versions import version_key
+    from ..versions import version_key
 
     def order(e):
         """Rank an entry: comparable versions first, then the newest first."""
