@@ -10,22 +10,19 @@ import {
   computeStatus,
   failedBecause,
   inPickedSet,
-  maintainersKeep,
-  matchesSearch,
   NEVER_BUILT,
   nameSet,
   olderThan,
   onBranch,
   onPlatform,
   problemSince,
-  searchHandle,
   targetVersion,
-  teamsKeep,
   unbuiltOn,
   unbuiltWhere,
   VIEWS,
   waitingForChannel,
 } from './logic.js';
+import { maintainersKeep, matchesSearch, searchHandle, teamsKeep } from './people.js';
 import { isHidden } from './prefs.js';
 import { searchText } from './search.js';
 import { attentionRank, buildsWith, failedBuilds, hasFailure, known, state } from './state.js';

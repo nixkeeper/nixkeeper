@@ -6,8 +6,8 @@
 
 import { readJson } from './data.js';
 import { dayPosition, shortAge, trendChange } from './dates.js';
-import { NAME_DOTS } from './logic.js';
 import { html, raw } from './markup.js';
+import { NAME_DOTS } from './people.js';
 import { scopeHref } from './state.js';
 import { store } from './store.js';
 import {

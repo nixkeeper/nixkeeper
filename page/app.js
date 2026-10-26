@@ -20,11 +20,8 @@ import {
   foldFamilies,
   homeHref,
   inPickedSet,
-  maintainerMatches,
   matchFacets,
-  NAME_DOTS,
   NAME_STATUSES,
-  nameMatches,
   pageLinks,
   prPrint,
   TOP_LEVEL,
@@ -43,6 +40,7 @@ import {
 import { appendHtml, html, NO_MARKUP, raw, setHtml } from './markup.js';
 import { highlightShown, overviewHtml, wireOverview } from './overview.js';
 import { fillBuilds, fillDetail, fillUpdate } from './package-view.js';
+import { maintainerMatches, NAME_DOTS, nameMatches } from './people.js';
 import { HIDDEN_KEY, hiddenPrints, isHidden, pruneHidden, remember, stored } from './prefs.js';
 import {
   matchNote,

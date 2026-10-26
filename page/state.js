@@ -8,13 +8,10 @@
 import {
   buildsWith as buildsOn,
   hasFailure as failureOn,
-  maintainersParam,
   NAME_STATUSES,
-  parseMaintainers,
-  parseTeams,
   attentionRank as rankOn,
-  teamsParam,
 } from './logic.js';
+import { maintainersParam, parseMaintainers, parseTeams, teamsParam } from './people.js';
 import { store } from './store.js';
 
 // The page's tables (FILTERS, SORTS, PLATFORMS, REFINES, AGES), by their
