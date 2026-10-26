@@ -19,8 +19,8 @@ export function maintainerMatches(list, query, limit = 20) {
   return { found: hits.slice(0, limit), total: hits.length };
 }
 
-// The names index's status letters (status in nixkeeper/datastore/facts.py) as the dot
-// they stand for.
+// The names index's status letters (status in nixkeeper/datastore/facts.py) as
+// the dot they stand for.
 export const NAME_DOTS = { f: 'missing', m: 'merged', o: 'warn', u: 'ok', n: 'neutral' };
 
 // The names index's entries ([name, status, set?]) whose name contains the

@@ -23,9 +23,10 @@ export function pageLinks(current, total) {
 }
 
 // A row with the dates the data leaves out when they're the sync's own
-// (restored in nixkeeper/datastore/shards.py): each build's and its update check's
-// checkedAt, its countedAt. Each is always there otherwise, so a missing one
-// was `run` (index.json's checkedAt). Changes row in place, and returns it.
+// (restored in nixkeeper/datastore/shards.py): each build's and its update
+// check's checkedAt, its countedAt. Each is always there otherwise, so a
+// missing one was `run` (index.json's checkedAt). Changes row in place, and
+// returns it.
 export function withRunStamps(row, run) {
   if (!run) return row;
   for (const b of row.builds || []) b.checkedAt ??= run;
@@ -35,8 +36,8 @@ export function withRunStamps(row, run) {
 }
 
 // With every package (a community instance), the page loads one view of the
-// data at a time (nixkeeper/datastore/view_files.py, views): which one the address
-// asks for, narrowest first. A team's or list's name as its file's
+// data at a time (nixkeeper/datastore/view_files.py, views): which one the
+// address asks for, narrowest first. A team's or list's name as its file's
 // (slug in nixkeeper/naming.py): "Security review" -> "security-review".
 export const viewSlug = (name) =>
   name

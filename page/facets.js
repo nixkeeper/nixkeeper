@@ -144,7 +144,7 @@ export function decodeFacets({ handles = [], teams = [], rows = [] }) {
 }
 
 // The search's matches in all of nixpkgs ([[name, letter, set?]]) narrowed
-// by what's picked: a package set (logic.nameSet's), a status (a
+// by what's picked: a package set (nameSet's), a status (a
 // NAME_STATUSES key), and with facetsOf (an entry's decodeFacets object, or
 // undefined while facets.json loads) a maintainer (lowercase handle), a
 // team and a platform (a PLATFORM_BITS key). {kept, sets, statuses, by,
