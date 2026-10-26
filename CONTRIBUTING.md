@@ -32,6 +32,8 @@ happen. For what nixkeeper does and how to set up your own, see the
 - `nix/package-lists.nix`: `nix flake check` validates the package lists
   against nixpkgs (typos, aliases like `python3Packages`, unknown maintainer
   handles, duplicates, malformed update checks, ignore and up-to-date rules)
+- `nix/checks/`: one file per flake check, each saying in its header what it
+  guards (`package-lists-checker/cases.nix` holds that check's test lists)
 - `package-lists/`: what this instance tracks (see
   [how it works](docs/how-it-works.md#what-gets-tracked))
 - `community/update-checks.nix`: the community update checks, rules anyone

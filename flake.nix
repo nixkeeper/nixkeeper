@@ -135,6 +135,22 @@
             fileset = lib.fileset.unions files;
           };
 
+        # A check in nix/checks/, given what every check may use and what it
+        # needs besides.
+        callCheck =
+          path: extra:
+          import path (
+            {
+              inherit
+                pkgs
+                lib
+                self
+                checkSource
+                ;
+            }
+            // extra
+          );
+
         # The brand files page/ has as copies of assets/brand/'s, as globs: the
         # brand app copies them, checks.brand holds each copy to its source.
         brandCopies = [
@@ -246,335 +262,22 @@
 
         checks = {
           inherit nixkeeper; # building it runs the tests
-          # The darwin module, evaluated in a whole nix-darwin configuration
-          # (on any system, as module-eval below): the agents' launchd plists and
-          # the shell environment.
-          darwin-module-eval =
-            let
-              darwin = nix-darwin.lib.darwinSystem {
-                system = "aarch64-darwin";
-                modules = [
-                  self.darwinModules.default
-                  {
-                    system.stateVersion = 6;
-                    system.primaryUser = "someone";
-                    services.nixkeeper = {
-                      enable = true;
-                      lists.maintainers = [ "iedame" ];
-                      githubTokenFile = "/Users/someone/.config/nixkeeper/github-token";
-                      serve.enable = true;
-                    };
-                  }
-                ];
-              };
-              agents = lib.mapAttrs (_: agent: agent.serviceConfig) (
-                lib.filterAttrs (name: _: lib.hasPrefix "nixkeeper-" name) darwin.config.launchd.user.agents
-              );
-              # What shells get, so commands typed by hand use the same lists.
-              shell = lib.filterAttrs (
-                name: _: lib.hasPrefix "NIXKEEPER_" name
-              ) darwin.config.environment.variables;
-            in
-            assert shell ? NIXKEEPER_LISTS;
-            pkgs.writeText "nixkeeper-darwin-module-eval" (
-              builtins.unsafeDiscardStringContext (
-                builtins.seq darwin.system.drvPath (builtins.toJSON { inherit agents shell; })
-              )
-            );
-          # The NixOS module, evaluated in a whole NixOS configuration (on any
-          # system: nothing is built, so this runs on macOS too).
-          module-eval =
-            let
-              nixos = nixpkgs.lib.nixosSystem {
-                system = "x86_64-linux";
-                modules = [
-                  self.nixosModules.default
-                  {
-                    boot.isContainer = true;
-                    system.stateVersion = lib.trivial.release;
-                    services.nixkeeper = {
-                      enable = true;
-                      lists.maintainers = [ "iedame" ];
-                      githubTokenFile = "/run/secrets/github-token";
-                      notify = "github-issue";
-                      githubRepo = "nixkeeper/nixkeeper";
-                      nginx.virtualHost = "nixkeeper.example.org";
-                    };
-                  }
-                ];
-              };
-              unit = nixos.config.systemd.units."nixkeeper-sync.service".text;
-            in
-            # The text only: its store paths are Linux builds, not this system's.
-            pkgs.writeText "nixkeeper-module-eval" (
-              builtins.unsafeDiscardStringContext (builtins.seq nixos.config.system.build.toplevel.drvPath unit)
-            );
           formatting = treefmt.config.build.check self;
-          lint =
-            let
-              src = checkSource [
-                ./nixkeeper
-                ./tests
-                ./scripts
-                ./page
-                ./.github/workflows
-                # deadnix and statix: every Nix file, wherever it is.
-                (lib.fileset.fileFilter (f: f.hasExt "nix") ./.)
-                ./pyproject.toml # ruff's and mypy's settings
-                ./biome.json
-                ./biome-plugins # its rules for the page (no-raw-html.grit)
-              ];
-            in
-            pkgs.runCommand "nixkeeper-lint" { nativeBuildInputs = linters; } ''
-              cd ${src}
-              export HOME=$TMPDIR
-              ruff check --no-cache .
-              mypy --cache-dir "$TMPDIR/mypy"
-              deadnix --fail .
-              statix check .
-              # Named explicitly: on its own actionlint looks for .git, which the
-              # flake source (CI's view of the repo) doesn't include.
-              actionlint .github/workflows/*.yml
-              shellcheck scripts/*.sh tests/sh/*.sh
-              biome lint page tests/js
-              touch $out
-            '';
-          # The scripts' own logic (tests/sh/), for now the Cloudflare deploy's
-          # retry, against a fake wrangler.
-          scripts =
-            let
-              src = checkSource [
-                ./scripts/cloudflare.sh # the one script tests/sh/ runs
-                ./tests/sh
-              ];
-            in
-            pkgs.runCommand "nixkeeper-script-tests" { nativeBuildInputs = [ pkgs.git ]; } ''
-              cd ${src}
-              export HOME=$TMPDIR
-              bash tests/sh/cloudflare.sh
-              touch $out
-            '';
-          # page/'s brand files match assets/brand/, and assets/brand/'s tokens
-          # match what tokens.py writes.
-          brand =
-            let
-              copies = lib.concatStringsSep " " brandCopies;
-              src = checkSource [
-                ./scripts/brand/tokens.py
-                ./scripts/brand/geometry.py
-                ./assets/brand/tokens.json
-                (lib.fileset.fileFilter (f: isBrandCopy f.name) ./assets/brand)
-                (lib.fileset.fileFilter (f: isBrandCopy f.name) ./page)
-              ];
-            in
-            pkgs.runCommand "nixkeeper-brand-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-              drift() {
-                echo "$1: $2" >&2
-                exit 1
-              }
-              cd ${src}
-              PYTHONDONTWRITEBYTECODE=1 python3 scripts/brand/tokens.py "$TMPDIR/tokens" > /dev/null
-              for f in tokens.css tokens.json; do
-                cmp -s "$TMPDIR/tokens/$f" "assets/brand/$f" ||
-                  drift "assets/brand/$f" "differs from what scripts/brand/tokens.py writes: edit that, then run nix run .#brand"
-              done
-              # A glob that matches nothing is left out, not taken as a name.
-              shopt -s nullglob
-              cd ${src}/assets/brand
-              for glob in ${lib.concatMapStringsSep " " (g: "'${g}'") brandCopies}; do
-                found=($glob)
-                [ ''${#found[@]} -gt 0 ] ||
-                  drift "assets/brand/$glob" "matches no file: run nix run .#brand"
-              done
-              for f in ${copies}; do
-                cmp -s "$f" "../../page/$f" ||
-                  drift "page/$f" "differs from assets/brand/$f: run nix run .#brand"
-              done
-              cd ${src}/page
-              for f in ${copies}; do
-                [ -e "../assets/brand/$f" ] ||
-                  drift "page/$f" "has no source in assets/brand/: remove it"
-              done
-              touch $out
-            '';
-          # The page's rules (page/logic.js), with Node's own test runner.
-          page =
-            let
-              src = checkSource [
-                ./page
-                ./tests/js
-                ./tests/data/version-comparison-tests.txt # Repology's, for logic.js' order
-              ];
-            in
-            pkgs.runCommand "nixkeeper-page-tests" { nativeBuildInputs = [ pkgs.nodejs-slim ]; } ''
-              cd ${src}
-              node --test 'tests/js/*.test.mjs'
-              touch $out
-            '';
+          lint = callCheck ./nix/checks/lint.nix { inherit linters; };
+          scripts = callCheck ./nix/checks/scripts.nix { };
+          page = callCheck ./nix/checks/page.nix { };
+          brand = callCheck ./nix/checks/brand.nix { inherit brandCopies isBrandCopy; };
+          community = callCheck ./nix/checks/community.nix { inherit listsChecker nixkeeper; };
+          module-eval = callCheck ./nix/checks/module-eval.nix { inherit nixpkgs; };
+          darwin-module-eval = callCheck ./nix/checks/darwin-module-eval.nix { inherit nix-darwin; };
           package-lists = listsChecker.check (import ./package-lists);
-          # notifications/: well formed, for handles and teams nixpkgs has.
-          notifications = (import ./nix/notifications.nix { inherit pkgs; }).check (import ./notifications);
-          # The community rules (community/): well formed, for packages in
-          # nixpkgs; the update checks also within the limits they're held to,
-          # with patterns Python compiles (nixkeeper/community.py).
-          community =
-            let
-              rules = import ./community/update-checks.nix;
-              found =
-                map (p: p // { entry = "update-checks.nix: ${p.entry}"; }) (listsChecker.communityProblems rules)
-                ++ map (p: p // { entry = "ignored-updates.nix: ${p.entry}"; }) (
-                  listsChecker.communityIgnoreProblems (import ./community/ignored-updates.nix)
-                )
-                ++ map (p: p // { entry = "up-to-date.nix: ${p.entry}"; }) (
-                  listsChecker.communityUpToDateProblems (import ./community/up-to-date.nix)
-                );
-            in
-            if found != [ ] then
-              throw (
-                "community/ has problems:\n" + lib.concatMapStrings (p: "  - ${p.entry}: ${p.reason}\n") found
-              )
-            else
-              pkgs.runCommand "nixkeeper-community-ok"
-                {
-                  nativeBuildInputs = [ pkgs.python3 ];
-                  rules = builtins.toJSON rules;
-                  passAsFile = [ "rules" ];
-                }
-                ''
-                  PYTHONPATH=${nixkeeper}/${pkgs.python3.sitePackages} python3 - "$rulesPath" <<'EOF'
-                  import json, sys
-                  from nixkeeper import community
-                  found = community.problems(json.load(open(sys.argv[1])))
-                  if found:
-                      sys.exit("community/update-checks.nix has problems:\n  - " + "\n  - ".join(found))
-                  EOF
-                  touch $out
-                '';
           # nixkeeper init's starter lists: valid, and what the sync can read.
           init-template = listsChecker.check (import ./nixkeeper/templates/package-lists);
-          # The checker itself, against lists with known problems.
-          package-lists-checker =
-            let
-              found = map (p: p.entry) (
-                listsChecker.problems {
-                  maintainers = [
-                    "iedame"
-                    "IEDAME"
-                    "no-such-handle-nixkeeper"
-                  ];
-                  extraPackages = [
-                    "opentyrian"
-                    "haskellPackages.pandoc"
-                    "python313Packages.requests"
-                    "python3Packages.requests"
-                    "nosuchpkg-nixkeeper"
-                    "cataclysmDDA" # a set of packages, not a package
-                    "opentyrian"
-                  ];
-                  updateChecks = {
-                    opentyrian = {
-                      github = "opentyrian/opentyrian"; # listed: fine
-                      tags = "^v(.+)$";
-                    };
-                    wesnoth = {
-                      github = "wesnoth/wesnoth"; # maintained by iedame: fine
-                      tags = "^(1\\.18\\.[0-9]+)$";
-                    };
-                    hello = {
-                      github = "not a repo";
-                      tag = "typo";
-                    };
-                    "haskellPackages.pandoc" = {
-                      github = "jgm/pandoc";
-                      url = "https://pandoc.org";
-                    };
-                    lincity = {
-                      url = "ftp://example.org";
-                      pattern = "([0-9.]+)";
-                    };
-                  };
-                  ignoredUpdates = {
-                    opentyrian."2.1.1" = "never released"; # fine
-                    hello."1.0" = "not tracked";
-                    wesnoth."1.18.9" = "";
-                    lincity = { };
-                  };
-                  upToDate = {
-                    opentyrian = {
-                      version = "2.1.20220318";
-                      reason = "fine";
-                    };
-                    hello = {
-                      version = "1";
-                      reason = "not tracked";
-                    };
-                    wesnoth = "1.18.8"; # the old format
-                    lincity = {
-                      version = "1";
-                      newest = "";
-                      why = "typo";
-                    };
-                  };
-                }
-              );
-              expected = [
-                "no-such-handle-nixkeeper"
-                "opentyrian"
-                "python3Packages.requests"
-                "nosuchpkg-nixkeeper"
-                "cataclysmDDA"
-                "updateChecks.haskellPackages.pandoc" # both github and url
-                "updateChecks.hello" # not tracked
-                "updateChecks.hello" # github isn't owner/repo
-                "updateChecks.hello" # no tags
-                "updateChecks.hello" # unknown field "tag"
-                "updateChecks.lincity" # url isn't http(s); tracked via iedame
-                "ignoredUpdates.hello" # not tracked
-                "ignoredUpdates.lincity" # no versions
-                "ignoredUpdates.wesnoth" # empty reason
-                "upToDate.hello" # not tracked
-                "upToDate.lincity" # no reason
-                "upToDate.lincity" # empty newest
-                "upToDate.lincity" # unknown field "why"
-                "upToDate.wesnoth" # not { version, reason }
-              ];
-              # Named lists: on two lists is fine, twice in one isn't, and
-              # "maintained" is taken.
-              foundNamed = map (p: p.entry) (
-                listsChecker.problems {
-                  maintainers = [ "iedame" ];
-                  extraPackages = {
-                    extra = [ "opentyrian" ];
-                    gaming-team = [
-                      "opentyrian"
-                      "freedink"
-                      "freedink"
-                    ];
-                    maintained = [ ];
-                  };
-                }
-              );
-              expectedNamed = [
-                "freedink"
-                "extraPackages.maintained"
-              ];
-            in
-            assert lib.assertMsg (found == expected) "package-lists checker found ${builtins.toJSON found}";
-            # A set of packages says what's wrong (it passed this check before, and
-            # the sync found nothing: nixkeeper/nixkeeper's cataclysmDDA).
-            assert lib.assertMsg (
-              (lib.findFirst (p: p.entry == "cataclysmDDA") { } (
-                listsChecker.problems {
-                  maintainers = [ ];
-                  extraPackages = [ "cataclysmDDA" ];
-                }
-              )).reason or ""
-              == "a set of packages, not a package: list the one you mean (its attribute or pname)"
-            ) "package-lists checker: a set of packages should say so";
-            assert lib.assertMsg (
-              foundNamed == expectedNamed
-            ) "package-lists checker found ${builtins.toJSON foundNamed} (named lists)";
-            pkgs.runCommand "package-lists-checker-ok" { } "touch $out";
+          package-lists-checker = callCheck ./nix/checks/package-lists-checker.nix {
+            inherit listsChecker;
+          };
+          # notifications/: well formed, for handles and teams nixpkgs has.
+          notifications = (import ./nix/notifications.nix { inherit pkgs; }).check (import ./notifications);
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # The module in a NixOS VM (needs KVM: CI has it).
