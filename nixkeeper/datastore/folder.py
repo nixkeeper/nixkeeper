@@ -330,7 +330,7 @@ def _cached(path, changed):
         changed: Its modification time, part of the cache's key, so a file
             that was written again is read again.
     """
-    return shards.read_json(path)
+    return shards.load_json(path)
 
 
 def _shared(path):
@@ -354,7 +354,7 @@ def load(out_dir=None):
     """
     out_dir = config.data_dir(out_dir)
     try:
-        index = shards.read_json(os.path.join(out_dir, "index.json"))
+        index = shards.load_json(os.path.join(out_dir, "index.json"))
     except (OSError, ValueError):
         return {"packages": []}
     if index.get("format") == shards.FORMAT:
@@ -366,7 +366,7 @@ def load(out_dir=None):
                 (
                     {k: v for k, v in row.items() if k != "repology"}
                     for n in range(index["shardCount"])
-                    for row in shards.read_json(
+                    for row in shards.load_json(
                         os.path.join(out_dir, f"rows/{n}.json")
                     )["packages"]
                 ),
@@ -391,13 +391,13 @@ def saved_entries(out_dir=None):
     """
     out_dir = config.data_dir(out_dir)
     try:
-        index = shards.read_json(os.path.join(out_dir, "index.json"))
+        index = shards.load_json(os.path.join(out_dir, "index.json"))
         if index.get("format") != shards.FORMAT:
             return {}
         return {
             full["name"]: full.get("repology") or []
             for n in range(index["shardCount"])
-            for full in shards.read_json(os.path.join(out_dir, f"rows/{n}.json"))[
+            for full in shards.load_json(os.path.join(out_dir, f"rows/{n}.json"))[
                 "packages"
             ]
         }

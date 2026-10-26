@@ -93,7 +93,7 @@ def read_fixed(out_dir=None):
     out_dir = config.data_dir(out_dir)
     try:
         return (
-            shards.read_json(os.path.join(out_dir, "history.json")).get("fixed") or []
+            shards.load_json(os.path.join(out_dir, "history.json")).get("fixed") or []
         )
     except (OSError, ValueError, AttributeError):
         return []
@@ -221,7 +221,7 @@ def read_events(out_dir=None):
     out_dir = config.data_dir(out_dir)
     try:
         return (
-            shards.read_json(os.path.join(out_dir, "history.json")).get("events") or []
+            shards.load_json(os.path.join(out_dir, "history.json")).get("events") or []
         )
     except (OSError, ValueError, AttributeError):
         return []
@@ -261,7 +261,7 @@ def read_history(out_dir=None):
     out_dir = config.data_dir(out_dir)
     try:
         return (
-            shards.read_json(os.path.join(out_dir, "history.json")).get("points") or []
+            shards.load_json(os.path.join(out_dir, "history.json")).get("points") or []
         )
     except (OSError, ValueError, AttributeError):
         return []

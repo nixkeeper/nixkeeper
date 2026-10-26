@@ -3,7 +3,7 @@
 Each row goes into a shard (rows/<n>.json) by a hash of its name, with its
 Repology entries; the summary's entry (and each view's) is a short form of
 it. A row's fields that only the last run's data has (elided) are put back
-when it's read (restored). read_json and dumps read and write every file.
+when it's read (restored). load_json and dumps read and write every file.
 """
 
 import json
@@ -271,7 +271,7 @@ def summary_entry(row):
     return entry
 
 
-def read_json(path):
+def load_json(path):
     """Read a JSON file."""
     with open(path) as f:
         return json.load(f)
