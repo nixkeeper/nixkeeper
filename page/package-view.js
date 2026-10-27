@@ -50,6 +50,7 @@ import {
   staleText,
   UNSUPPORTED_TEXT,
   UNVERSIONED_TITLE,
+  upstreamRepoText,
 } from './ui.js';
 import { comparedRepos, compareVersions } from './versions.js';
 
@@ -673,6 +674,9 @@ export function fillDetail(pkg, el, entries, page) {
       ? html`<div class="nix-line">${UNVERSIONED_TITLE}.</div>`
       : '';
   const archived = pkg.archived ? html`<div class="stale-note">${archivedText(pkg)}</div>` : '';
+  const upstreamRepo = pkg.upstreamRepo
+    ? html`<div class="stale-note">${upstreamRepoText(pkg.upstreamRepo)}.</div>`
+    : '';
   // The verdict at a glance: what it is, the versions, since when, and
   // which source decided (the chain: a check, a version
   // source, an up-to-date rule, master, or Repology), as a badge: ours in
@@ -756,7 +760,7 @@ export function fillDetail(pkg, el, entries, page) {
       ],
   ].filter(Boolean);
   // Notes that call for something first; then the rest, the context.
-  const urgent = html`${unloaded}${archived}${checkNote}${insecureNote(pkg)}${backportNote(pkg)}${
+  const urgent = html`${unloaded}${archived}${upstreamRepo}${checkNote}${insecureNote(pkg)}${backportNote(pkg)}${
     pkg.nixVulnerable
       ? html`<div class="vuln-note">⚠ Repology flags nixpkgs' version <span class="mono">${pkg.nixVersion}</span> as vulnerable.${
           pkg.project

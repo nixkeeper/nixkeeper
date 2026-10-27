@@ -26,6 +26,10 @@ It isn't used:
 A package on the lists that the digest read over LISTS_MAX_DAYS ago, or
 that it can't answer, gets the sync's own worked-out check instead, as
 before.
+
+The digest also says when a package's repository is archived, has moved
+(GitHub redirects nixpkgs' name to another), or is gone: mark_repos gives
+those rows "upstreamRepo", for the page.
 """
 
 from datetime import datetime, timedelta
@@ -94,6 +98,39 @@ def result(entry):
     if release and tag and is_newer(tag, release):
         found["tagged"] = tag
     return found
+
+
+def mark_repos(rows: list[Row], digest):
+    """Mark the rows whose GitHub repository is archived, moved or gone.
+
+    Each gets "upstreamRepo": {"repo", "archived"?, "movedTo"?, "gone"?},
+    only where the digest's version is the row's nixpkgs version: the
+    package may have moved its source since the digest's weekly evaluation.
+
+    Args:
+        rows: The rows, changed in place.
+        digest: load's result, or None.
+
+    Returns:
+        How many rows were marked.
+    """
+    if not digest:
+        return 0
+    marked = 0
+    for row in rows:
+        entry = next((digest[a] for a in row.get("attrs") or [] if a in digest), None)
+        if not entry or entry.get("version") != row.get("nixVersion"):
+            continue
+        state = {k: entry[k] for k in ("archived", "movedTo", "gone") if entry.get(k)}
+        if state:
+            row["upstreamRepo"] = {"repo": entry["repo"], **state}
+            marked += 1
+    if marked:
+        log.info(
+            f"GitHub releases: {marked:,} packages' repositories archived, "
+            "moved or gone"
+        )
+    return marked
 
 
 def apply(rows: list[Row], digest, rules, now):

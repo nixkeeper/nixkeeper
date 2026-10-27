@@ -90,6 +90,7 @@ class Row(TypedDict, total=False):
     upToDate: dict
     keptBeside: dict
     archived: bool
+    upstreamRepo: dict
     searchShowsMore: list
     outdatedSince: str
     nixVulnerable: bool

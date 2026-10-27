@@ -440,13 +440,10 @@ def update_checks(run, scope, index_rows):
     # (releases_digest); the sync works out its own check only for the
     # lists' other packages. They run with the rest, and are compared with
     # Repology in the log, before master or the follows change the rows.
-    answered_by_releases = (
-        releases_digest.apply(
-            index_rows, releases_digest.load(run.now), checks, run.now
-        )
-        if inferred.enabled(run.lists)
-        else set()
-    )
+    releases = releases_digest.load(run.now) if inferred.enabled(run.lists) else None
+    # Which packages' repositories are archived, moved or gone, for the page.
+    releases_digest.mark_repos(index_rows, releases)
+    answered_by_releases = releases_digest.apply(index_rows, releases, checks, run.now)
     worked = inferred.work_out(
         run.lists,
         [row for row in scope.on_lists if row["name"] not in answered_by_releases],

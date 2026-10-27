@@ -182,6 +182,19 @@ export const ARCHIVED_TITLE =
 export const archivedText = (pkg) =>
   `${ARCHIVED_TITLE}. ${pkg.markedBroken ? 'nixpkgs marks it broken.' : "nixpkgs doesn't mark it broken: likely broken anyway, or due for removal."}`;
 
+// A package's GitHub repository that's archived, has moved or is gone (the
+// row's "upstreamRepo", sources/releases_digest.py): its badge, and what it
+// means.
+export const upstreamRepoLabel = (u) =>
+  u.gone ? 'upstream gone' : u.archived ? 'upstream archived' : 'upstream moved';
+
+export const upstreamRepoText = (u) =>
+  u.gone
+    ? `Its GitHub repository, ${u.repo}, is gone: GitHub doesn't know it any more (deleted, or made private). Its source can't be downloaded from GitHub; builds use the copy nixpkgs' binary cache already has`
+    : u.archived
+      ? `Its GitHub repository, ${u.repo}, is archived: read-only, its owner's way of saying it's no longer worked on${u.movedTo ? `. It has also moved, to ${u.movedTo}` : ''}`
+      : `Its GitHub repository has moved: nixpkgs fetches ${u.repo}, which GitHub now redirects to ${u.movedTo}. The source still downloads; nixpkgs should use the new name`;
+
 export const LOOKUP_FAILED =
   "Repology couldn't be reached on the last sync, and there's no earlier data";
 

@@ -55,6 +55,42 @@ class Result(unittest.TestCase):
         self.assertIsNone(releases_digest.result(entry("2.1.0")))
 
 
+class MarkRepos(unittest.TestCase):
+    def test_archived_moved_or_gone(self):
+        rows = [
+            row("whisky", "2.3.5"),
+            row("rename", "1.0"),
+            row("python-whois", "0.9.6"),
+            row("fine", "3.0"),
+        ]
+        digest = {
+            "whisky": {**entry("2.3.5", release="2.3.5"), "archived": True},
+            "rename": {**entry("1.0", tag="1.0", repo="old/r"), "movedTo": "new/r"},
+            "python-whois": {
+                **entry("0.9.6", repo="DannyCork/python-whois"),
+                "gone": True,
+            },
+            "fine": entry("3.0", tag="3.0"),
+        }
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(releases_digest.mark_repos(rows, digest), 3)
+        whisky, rename, whois, fine = rows
+        self.assertEqual(whisky["upstreamRepo"], {"repo": "o/r", "archived": True})
+        self.assertEqual(rename["upstreamRepo"], {"repo": "old/r", "movedTo": "new/r"})
+        self.assertEqual(
+            whois["upstreamRepo"], {"repo": "DannyCork/python-whois", "gone": True}
+        )
+        self.assertNotIn("upstreamRepo", fine)
+
+    def test_only_for_nixpkgs_version_and_with_a_digest(self):
+        # The source may have moved since the digest's weekly evaluation.
+        rows = [row("whisky", "2.4.0")]
+        digest = {"whisky": {**entry("2.3.5"), "archived": True}}
+        self.assertEqual(releases_digest.mark_repos(rows, digest), 0)
+        self.assertEqual(releases_digest.mark_repos(rows, None), 0)
+        self.assertNotIn("upstreamRepo", rows[0])
+
+
 class Apply(unittest.TestCase):
     def test_adds_a_newer_version_never_takes_one_away(self):
         digest = {

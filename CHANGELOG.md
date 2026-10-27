@@ -11,6 +11,16 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **When a package's GitHub repository is archived, has moved or is gone**,
+  its row says so: "upstream archived" (read-only, its owner's way of saying
+  it's no longer worked on), "upstream moved" (GitHub redirects the name
+  nixpkgs fetches to another: nixpkgs should use the new one) or "upstream
+  gone" (GitHub doesn't know it any more, so its source can't be downloaded
+  from there), with what it means in the package's panel. From
+  nixkeeper-versions' digest, which reads every package fetched from GitHub
+  every 12 hours (`upstreamRepo` in the rows, docs/data.md). On 2026-10-27,
+  39 repositories were gone.
+
 - **Where the time goes**: a sync's log ends with how long each of its
   phases took, the longest first (`Phases: 1 min 17 s in all`, then
   `41 s 54% vulnerabilities, fixes, families`...), where only Hydra's time
