@@ -17,8 +17,9 @@ happen. For what nixkeeper does and how to set up your own, see the
   (`page/overview.js`), a maintainer's page (`page/maintainer-view.js`),
   what the list keeps (`page/filters.js`), the list's rows and cells
   (`page/row.js`), where the data is from (`page/sources.js`), the views'
-  controls (wired onto stand-in elements) and the search box's query
-  (`page/search.js`) with Node's own test runner. `tests/sh/` tests the
+  controls (wired onto stand-in elements), the search box's query
+  (`page/search.js`) and the text the views share (`page/ui.js`) with
+  Node's own test runner. `tests/sh/` tests the
   scripts' own logic: the Cloudflare deploy's retry
   (`scripts/cloudflare.sh`), against a fake wrangler
 - `nix/package.nix`: nixkeeper's package, in nixpkgs' by-name style (the
