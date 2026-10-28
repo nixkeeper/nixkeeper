@@ -166,7 +166,9 @@ what Repology said. A package without one of its own (or a community
 rule) gets one worked out from nixpkgs: fetched from a GitHub tag, it's
 checked against that repository's tags, in the scheme nixpkgs' tag shows
 (`v1.2.3`, ...), plain versions only, and is left to Repology when that
-check fails. One fetched from a tag on a GitLab instance (gitlab.com,
+check fails. One fetched from a commit with a release's version (`2.0`, not
+`0-unstable-2024-05-01` nor a date) is checked against the tags `v2.0` or
+`2.0`, as no tag shows its scheme. One fetched from a tag on a GitLab instance (gitlab.com,
 freedesktop, GNOME, KDE, Debian's salsa) or on Codeberg is checked the
 same way against its repository's tags there, through that forge's API
 (no token); `workedOutChecks = false;` turns these off. These checks come

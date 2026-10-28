@@ -103,6 +103,32 @@ class GithubCheck(unittest.TestCase):
         for (attr, version), expected in cases.items():
             self.assertEqual(inferred.series(attr, version), expected, attr)
 
+    def test_a_commit_with_a_release_version(self):
+        # envoy 1.36.10, fetched from a commit: "v" or no prefix.
+        check, _ = self.check(
+            src("1.36.10", gitRepoUrl="https://github.com/a/b.git", rev="a" * 40)
+        )
+        regex = re.compile(check["tags"])
+        self.assertEqual(regex.search("v1.40.2").group(1), "1.40.2")
+        self.assertEqual(regex.search("1.40.2").group(1), "1.40.2")
+        for tag in ("upstream/1.40.2", "release-1.40.2", "v1.40.2-rc1", "20240214"):
+            self.assertIsNone(regex.search(tag), tag)
+        # Its series, for a versioned attribute, as with a tag.
+        kept, _ = inferred.github_check(
+            src("0.11.1", gitRepoUrl="https://github.com/a/b.git", rev="a" * 40),
+            "tracy_0_11",
+        )
+        self.assertIsNone(re.search(kept["tags"], "v0.14.1"))
+        # A snapshot's version isn't looked for: a date, a single number.
+        for version in ("2020-01-23", "2021.09.08", "20180405", "0"):
+            self.assertEqual(
+                self.check(
+                    src(version, gitRepoUrl="https://github.com/a/b.git", rev="a" * 40)
+                ),
+                (None, "a commit (unstable version)"),
+                version,
+            )
+
     def test_not_worked_out(self):
         gh = "https://github.com/a/b.git"
         cases = {

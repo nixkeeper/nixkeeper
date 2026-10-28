@@ -4,7 +4,9 @@ A package fetched from a GitHub tag (fetchFromGitHub, a release download)
 is checked against that repository's tags, with the tag scheme its own tag
 shows ("v" + version, ...); one fetched from a tag on a GitLab instance
 (GITLAB_HOSTS) or on Codeberg (FORGEJO_HOSTS) the same way, against its
-repository's tags there. These checks run with the other update checks
+repository's tags there. One fetched from a commit is checked too when its
+version is a release's (2.0, not 0-unstable-2024-05-01), against the tags
+"v" + version or the version alone. These checks run with the other update checks
 (upstream.py), for packages without a rule of their own or the
 community's (which win), unless the lists turn them off
 (`workedOutChecks = false;`). Each daily sync also logs how they compare
@@ -45,6 +47,8 @@ ARCHIVE = re.compile(r"/archive/(?:refs/tags/)?(.+?)\.(?:tar\.gz|zip)$")
 # worked out this way looks for. Others (betas, unstable versions) are left
 # to Repology for now.
 PLAIN = re.compile(r"[0-9]+(?:[._-][0-9]+)*")
+# A date as a version (2020-01-23, 2021.09.08): a snapshot's, not a release's.
+DATE = re.compile(r"(?:19|20)[0-9]{2}[._-][0-9]{2}[._-][0-9]{2}")
 # A versioned attribute, kept for one series of its program: its name ends in
 # that series' numbers (tracy_0_11, gcc13, python313).
 SUFFIX = re.compile(r"(?<![0-9])([0-9]+(?:_[0-9]+)*)$")
@@ -151,7 +155,8 @@ def tags_pattern(src, attr=None):
     The tags it takes look like nixpkgs' version: the same prefix and
     separators, and, for a version with separators (1.2.3), at least one
     (not 20240214, a date). For a versioned attribute (series), only that
-    series' tags count.
+    series' tags count. A source fetched from a commit has no tag to show
+    the prefix: "v" or none, when its version is a release's (released).
 
     Args:
         src: The package's source, as nixpkgs evaluates it.
@@ -163,11 +168,12 @@ def tags_pattern(src, attr=None):
     version, tag = src.get("version") or "", tag_of(src)
     if not tag:
         return None, "no tag"
-    if COMMIT.match(tag):
+    commit = bool(COMMIT.match(tag))
+    if commit and not (PLAIN.fullmatch(version) and released(version)):
         return None, "a commit (unstable version)"
     if not PLAIN.fullmatch(version):
         return None, "not a plain version"
-    if not tag.endswith(version):
+    if not commit and not tag.endswith(version):
         return None, "tag doesn't end with the version"
     # The separators the version uses (dots, as a rule), so 1.2.3 doesn't
     # match 1_2_3-style tags of another scheme.
@@ -178,8 +184,27 @@ def tags_pattern(src, attr=None):
         number = f"{re.escape(kept)}(?:[{re.escape(seps)}][0-9]+)+"
     else:
         number = f"[0-9]+(?:[{re.escape(seps)}][0-9]+)+"
-    prefix = re.escape(tag.removesuffix(version))
+    # A commit has no tag to take the prefix from: "v" or none, the most
+    # common schemes.
+    prefix = "(?:v)?" if commit else re.escape(tag.removesuffix(version))
     return f"^{prefix}({number})$", None
+
+
+def released(version):
+    """Tell whether a version fetched from a commit looks like a release's.
+
+    A release's has separators (2.0, 1.8.1), and isn't a date (2020-01-23,
+    2021.09.08) or a single number (20180405), which are a snapshot's.
+
+    Args:
+        version: nixpkgs' version, a plain one.
+
+    Returns:
+        True when its tags can be looked for.
+    """
+    if not re.search(r"[._-]", version):
+        return False
+    return not DATE.fullmatch(version)
 
 
 def for_row(row, sources):

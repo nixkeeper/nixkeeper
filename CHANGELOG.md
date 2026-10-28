@@ -11,6 +11,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Worked-out update checks for packages fetched from a commit** whose
+  version is a release's (envoy 1.36.10, not 0-unstable-2024-05-01, nor a
+  date): checked against their repository's tags "v" + version or the
+  version alone, as no tag shows the scheme. 808 packages in nixpkgs could
+  have one (2026-10-28), 713 on GitHub; of 80 tried, 31 had matching tags,
+  6 of them newer than nixpkgs (envoy, mictray, wavegain), all real
+  releases. Most of the rest have no tags at all, and are left to
+  Repology, as before.
+
 - **Worked-out update checks on GitLab and Codeberg**: a package on the
   lists fetched from a tag on a GitLab instance (gitlab.com, freedesktop,
   GNOME, KDE, Debian's salsa) or on Codeberg, without an update check of
