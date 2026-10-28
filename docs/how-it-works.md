@@ -166,7 +166,10 @@ what Repology said. A package without one of its own (or a community
 rule) gets one worked out from nixpkgs: fetched from a GitHub tag, it's
 checked against that repository's tags, in the scheme nixpkgs' tag shows
 (`v1.2.3`, ...), plain versions only, and is left to Repology when that
-check fails; `workedOutChecks = false;` turns these off. These checks come
+check fails. One fetched from a tag on a GitLab instance (gitlab.com,
+freedesktop, GNOME, KDE, Debian's salsa) or on Codeberg is checked the
+same way against its repository's tags there, through that forge's API
+(no token), for the lists' packages; `workedOutChecks = false;` turns these off. These checks come
 from [nixkeeper-versions](https://github.com/nixkeeper/digest-versions)'
 digest of GitHub releases, which works them out the same way for every
 package in nixpkgs and reads each repository at least weekly (daily when

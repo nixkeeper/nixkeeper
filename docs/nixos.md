@@ -39,7 +39,7 @@ and optionally the page on nginx.
 | `lists` | – (this or `listsPath`) | what to track, as `package-lists/` has it (`maintainers`, `extraPackages`, `updateChecks`, `ignoredUpdates`, `upToDate`) |
 | `listsPath` | – | a `package-lists/` folder or JSON file instead (a folder is evaluated with the system's Nix) |
 | `lists.community.updateChecks`, `.ignoredUpdates`, `.upToDate` | `false`, `false`, `false` | also use the [community rules](community.md) for the packages you track |
-| `lists.workedOutChecks` | `true` | check packages without an update check of their own against the GitHub repository nixpkgs fetches them from ([how it works](how-it-works.md)) |
+| `lists.workedOutChecks` | `true` | check packages without an update check of their own against the repository nixpkgs fetches them from: on GitHub, a GitLab instance or Codeberg ([how it works](how-it-works.md)) |
 | `lists.maxPackages` | `5000` | the most packages a sync may track: above it, the sync refuses to start ([how much it tracks](how-it-works.md#how-much-it-tracks)) |
 | `lists.page.theme` | `"classic"` | the page's colours for visitors who haven't picked any: `"classic"` or `"catppuccin"` |
 | `syncAt` | `"06:00"` | when the sync runs (systemd `OnCalendar`) |

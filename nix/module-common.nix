@@ -96,9 +96,10 @@ rec {
               default = true;
               description = ''
                 Check packages without an update check of their own (or the
-                community's) against the GitHub repository nixpkgs fetches
-                them from, in the tag scheme nixpkgs uses (worked out from
-                its source). false: leave those to Repology.
+                community's) against the repository nixpkgs fetches them
+                from (on GitHub, a GitLab instance or Codeberg), in the tag
+                scheme nixpkgs uses (worked out from its source). false:
+                leave those to Repology.
               '';
             };
             maxPackages = mkOption {

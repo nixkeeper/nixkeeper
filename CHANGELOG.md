@@ -11,6 +11,15 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Worked-out update checks on GitLab and Codeberg**: a package on the
+  lists fetched from a tag on a GitLab instance (gitlab.com, freedesktop,
+  GNOME, KDE, Debian's salsa) or on Codeberg, without an update check of
+  its own, is checked against its repository's tags there, as one from
+  GitHub is (its tag scheme, plain versions only), through each forge's
+  API without a token. 1,346 packages in nixpkgs could have one (2026-10-28);
+  of 30 tried, 11 had a newer tag than nixpkgs (bolt, tellico, enter-tex).
+  The sync's log names the forge each compares ("Worked-out update checks").
+
 - **When a package's GitHub repository is archived, renamed, moved or
   gone**, its row says so: "upstream archived" (read-only, its owner's way
   of saying it's no longer worked on), "upstream renamed" (the same owner,

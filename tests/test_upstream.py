@@ -284,6 +284,89 @@ BBEDIT = {
 }
 
 
+class ForgeChecks(unittest.TestCase):
+    """GitLab's and Forgejo's tags, through their APIs (no token)."""
+
+    def setUp(self):
+        self.stderr = io.StringIO()
+        patcher = mock.patch("sys.stderr", self.stderr)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def run_checks(self, rows, checks, answers):
+        """add_checks with http.get answering {url: body, or an exception}."""
+        asked = []
+
+        def get(url, accept=None, **_):
+            asked.append(url)
+            answer = answers[url]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with mock.patch.object(http, "get", side_effect=get):
+            failed = upstream.add_checks(
+                rows, checks, {"packages": []}, NOW, inferred=set(checks)
+            )
+        return asked, failed
+
+    def test_gitlab_and_codeberg(self):
+        gitlab = {
+            "gitlab": "gitlab.com/cubocore/coreapps/coreaction",
+            "tags": r"^v([0-9]+(?:[.][0-9]+)+)$",
+        }
+        forgejo = {
+            "forgejo": "codeberg.org/gaiasky/gaiasky",
+            "tags": r"^([0-9]+(?:[.][0-9]+)+)$",
+        }
+        lab = (
+            "https://gitlab.com/api/v4/projects/cubocore%2Fcoreapps%2Fcoreaction"
+            "/repository/tags?order_by=version&sort=desc&per_page=100"
+        )
+        berg = "https://codeberg.org/api/v1/repos/gaiasky/gaiasky/tags?limit=100"
+        rows = [
+            row("coreaction", "5.0.1", "newest", "5.0.1"),
+            row("gaiasky", "3.8.0", "newest", "3.8.0"),
+        ]
+        asked, failed = self.run_checks(
+            rows,
+            {"coreaction": gitlab, "gaiasky": forgejo},
+            {
+                lab: json.dumps([{"name": n} for n in ("v5.0.2", "v5.0.1", "nightly")]),
+                berg: json.dumps([{"name": n} for n in ("3.9.2", "3.9.1", "3.8.0")]),
+            },
+        )
+        self.assertEqual((sorted(asked), failed), (sorted([lab, berg]), {}))
+        coreaction, gaiasky = (r["upstream"] for r in rows)
+        self.assertEqual(
+            {k: coreaction[k] for k in ("version", "repo", "label", "url", "newer")},
+            {
+                "version": "5.0.2",
+                "repo": "gitlab.com/cubocore/coreapps/coreaction",
+                "label": "gitlab.com/cubocore/coreapps/coreaction tags",
+                "url": "https://gitlab.com/cubocore/coreapps/coreaction/-/tags",
+                "newer": True,
+            },
+        )
+        self.assertEqual(
+            (gaiasky["version"], gaiasky["url"]),
+            ("3.9.2", "https://codeberg.org/gaiasky/gaiasky/tags"),
+        )
+
+    def test_gone_or_failed_left_to_repology(self):
+        check = {"forgejo": "codeberg.org/o/r", "tags": "^([0-9.]+)$"}
+        url = "https://codeberg.org/api/v1/repos/o/r/tags?limit=100"
+        for answer, why in (
+            (None, "couldn't read the tags of codeberg.org/o/r (renamed or deleted?)"),
+            (OSError("down"), "request to codeberg.org failed (down)"),
+        ):
+            with self.subTest(why=why):
+                rows = [row("r", "1.0", "newest", "1.0")]
+                _, failed = self.run_checks(rows, {"r": check}, {url: answer})
+                self.assertEqual(failed, {"r": why})
+                self.assertNotIn("upstream", rows[0])
+
+
 class PageChecks(unittest.TestCase):
     def setUp(self):
         self.stderr = io.StringIO()

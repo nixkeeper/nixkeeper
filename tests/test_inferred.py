@@ -121,6 +121,72 @@ class GithubCheck(unittest.TestCase):
         for why, source in cases.items():
             self.assertEqual(self.check(source), (None, why), why)
 
+    def test_gitlab_and_codeberg(self):
+        lab = src(
+            "5.0.1",
+            gitRepoUrl="https://gitlab.com/cubocore/coreapps/coreaction.git",
+            tag="v5.0.1",
+        )
+        same = inferred.github_check(
+            {**lab, "gitRepoUrl": "https://github.com/a/b.git"}
+        )[0]
+        self.assertEqual(
+            inferred.forge_check(lab),
+            (
+                {
+                    "gitlab": "gitlab.com/cubocore/coreapps/coreaction",
+                    "tags": same["tags"],
+                },
+                None,
+            ),
+        )
+        fdo = src(
+            "1.36",
+            gitRepoUrl="https://gitlab.freedesktop.org/libevdev/evtest.git",
+            tag="evtest-1.36",
+        )
+        self.assertEqual(
+            inferred.forge_check(fdo)[0]["gitlab"],
+            "gitlab.freedesktop.org/libevdev/evtest",
+        )
+        berg = src(
+            "3.8.0", gitRepoUrl="https://codeberg.org/gaiasky/gaiasky.git", tag="3.8.0"
+        )
+        self.assertEqual(
+            inferred.forge_check(berg)[0]["forgejo"], "codeberg.org/gaiasky/gaiasky"
+        )
+        # GitHub's as before; another host, none.
+        gh = src("1.0", gitRepoUrl="https://github.com/a/b.git", tag="v1.0")
+        self.assertEqual(inferred.forge_check(gh), inferred.github_check(gh))
+        other = src("1.0", gitRepoUrl="https://git.sr.ht/~a/b", tag="v1.0")
+        self.assertEqual(
+            inferred.forge_check(other), (None, "not from GitHub, GitLab or Codeberg")
+        )
+        # The same rules for the tag: a commit isn't checked there either.
+        commit = src(
+            "0-unstable-2024-05-01",
+            gitRepoUrl="https://codeberg.org/a/b.git",
+            rev="a" * 40,
+        )
+        self.assertEqual(
+            inferred.forge_check(commit), (None, "a commit (unstable version)")
+        )
+
+    def test_forge_of(self):
+        self.assertEqual(inferred.forge_of({"github": "o/r"}), ("GitHub", "o/r"))
+        self.assertEqual(
+            inferred.forge_of({"gitlab": "gitlab.com/g/r"}),
+            ("GitLab", "gitlab.com/g/r"),
+        )
+        self.assertEqual(
+            inferred.forge_of({"gitlab": "gitlab.gnome.org/GNOME/x"}),
+            ("gitlab.gnome.org", "gitlab.gnome.org/GNOME/x"),
+        )
+        self.assertEqual(
+            inferred.forge_of({"forgejo": "codeberg.org/o/r"}),
+            ("Codeberg", "codeberg.org/o/r"),
+        )
+
     def test_first_attribute_that_gives_one(self):
         sources = {
             "heroic": src("2.18.1"),
@@ -201,7 +267,9 @@ class WorkOut(unittest.TestCase):
         # Packages nixpkgs doesn't have aren't evaluated.
         get_sources.assert_called_once_with({"a", "b", "c", "d"}, "abc123", None)
         self.assertEqual(sorted(worked.checks), ["a", "b", "d"])
-        self.assertEqual(dict(worked.not_worked), {"not from GitHub": 1})
+        self.assertEqual(
+            dict(worked.not_worked), {"not from GitHub, GitLab or Codeberg": 1}
+        )
         self.assertEqual(worked.repology, dict.fromkeys("abcd"))
 
     def test_rules_win_and_follows_is_left_out(self):
@@ -250,7 +318,7 @@ class WorkOut(unittest.TestCase):
             "from their rule (the rule is used), 1 failed",
             out,
         )
-        self.assertIn("Not worked out: 1 not from GitHub", out)
+        self.assertIn("Not worked out: 1 not from GitHub, GitLab or Codeberg", out)
         self.assertIn("  b 2.0: GitHub 2.1, Repology up to date  (o/b)", out)
         self.assertIn("  a 1.0: 1.0, as its rule  (o/a)", out)
         self.assertIn("Failed (left to Repology):\n  d: couldn't read the tags", out)

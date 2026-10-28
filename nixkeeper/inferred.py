@@ -2,7 +2,9 @@
 
 A package fetched from a GitHub tag (fetchFromGitHub, a release download)
 is checked against that repository's tags, with the tag scheme its own tag
-shows ("v" + version, ...). These checks run with the other update checks
+shows ("v" + version, ...); one fetched from a tag on a GitLab instance
+(GITLAB_HOSTS) or on Codeberg (FORGEJO_HOSTS) the same way, against its
+repository's tags there. These checks run with the other update checks
 (upstream.py), for packages without a rule of their own or the
 community's (which win), unless the lists turn them off
 (`workedOutChecks = false;`). Each daily sync also logs how they compare
@@ -17,6 +19,20 @@ from .sources import github, upstream
 from .sources import nixpkgs as nixpkgs_source
 from .versions import is_newer
 
+# The GitLab instances nixpkgs fetches from (fetchFromGitLab's domains), and
+# the Forgejo ones (fetchFromGitea's, fetchFromCodeberg's): checked through
+# each forge's API, without a token (sources/upstream.py's check_forge_tags).
+GITLAB_HOSTS = (
+    "gitlab.com",
+    "gitlab.freedesktop.org",
+    "gitlab.gnome.org",
+    "invent.kde.org",
+    "salsa.debian.org",
+)
+FORGEJO_HOSTS = ("codeberg.org",)
+# A forge repository's URL: its host and path (GitLab's may be nested in
+# groups: cubocore/coreapps/coreaction).
+FORGE = re.compile(r"^https://([^/]+)/(.+?)(?:\.git)?/?$")
 # A GitHub repository's URL: its owner and name.
 GITHUB = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/|$)")
 # A full commit hash.
@@ -67,13 +83,50 @@ def tag_of(src):
     return rev or None
 
 
+def forge_check(src, attr=None):
+    """Work out the tags check src's package would have, on its forge.
+
+    A GitHub source gets github_check's; one from a GitLab instance or
+    Codeberg the same tags pattern, against its repository there.
+
+    Args:
+        src: The package's source, as nixpkgs evaluates it.
+        attr: The package's attribute.
+
+    Returns:
+        (check, None), the check as an update check ({"github", "tags"},
+        {"gitlab": "host/path", "tags"} or {"forgejo": "host/owner/repo",
+        "tags"}); or (None, why not).
+    """
+    m = FORGE.match(src.get("gitRepoUrl") or "")
+    host = m and m.group(1).lower()
+    if not m or host not in GITLAB_HOSTS + FORGEJO_HOSTS:
+        check, why = github_check(src, attr)
+        return check, (
+            "not from GitHub, GitLab or Codeberg" if why == "not from GitHub" else why
+        )
+    pattern, why = tags_pattern(src, attr)
+    if not pattern:
+        return None, why
+    kind = "gitlab" if host in GITLAB_HOSTS else "forgejo"
+    return {kind: f"{host}/{m.group(2)}", "tags": pattern}, None
+
+
+def forge_of(check):
+    """Return a worked-out check's forge, as the log names it, and its repository."""
+    if "github" in check:
+        return "GitHub", check["github"]
+    if "gitlab" in check:
+        host = check["gitlab"].split("/")[0]
+        return ("GitLab" if host == "gitlab.com" else host), check["gitlab"]
+    host = check["forgejo"].split("/")[0]
+    return ("Codeberg" if host == "codeberg.org" else host), check["forgejo"]
+
+
 def github_check(src, attr=None):
     """Work out the GitHub tags check src's package would have.
 
-    The tags it takes look like nixpkgs' version: the same prefix and
-    separators, and, for a version with separators (1.2.3), at least one
-    (not 20240214, a date). For a versioned attribute (series), only that
-    series' tags count.
+    Its tags pattern is tags_pattern's.
 
     Args:
         src: The package's source, as nixpkgs evaluates it.
@@ -86,6 +139,27 @@ def github_check(src, attr=None):
     m = GITHUB.match(src.get("gitRepoUrl") or "") or GITHUB.match(src.get("url") or "")
     if not m:
         return None, "not from GitHub"
+    pattern, why = tags_pattern(src, attr)
+    if not pattern:
+        return None, why
+    return {"github": f"{m.group(1)}/{m.group(2)}", "tags": pattern}, None
+
+
+def tags_pattern(src, attr=None):
+    """Work out the pattern src's repository's tags would match.
+
+    The tags it takes look like nixpkgs' version: the same prefix and
+    separators, and, for a version with separators (1.2.3), at least one
+    (not 20240214, a date). For a versioned attribute (series), only that
+    series' tags count.
+
+    Args:
+        src: The package's source, as nixpkgs evaluates it.
+        attr: The package's attribute.
+
+    Returns:
+        (pattern, None), its capture group the version; or (None, why not).
+    """
     version, tag = src.get("version") or "", tag_of(src)
     if not tag:
         return None, "no tag"
@@ -105,10 +179,7 @@ def github_check(src, attr=None):
     else:
         number = f"[0-9]+(?:[{re.escape(seps)}][0-9]+)+"
     prefix = re.escape(tag.removesuffix(version))
-    return {
-        "github": f"{m.group(1)}/{m.group(2)}",
-        "tags": f"^{prefix}({number})$",
-    }, None
+    return f"^{prefix}({number})$", None
 
 
 def for_row(row, sources):
@@ -122,7 +193,7 @@ def for_row(row, sources):
     for attr in row.get("attrs") or [row["name"]]:
         if attr not in sources:
             continue
-        check, reason = github_check(sources[attr], attr)
+        check, reason = forge_check(sources[attr], attr)
         if check:
             return check, None
         if why == "no source":
@@ -130,13 +201,19 @@ def for_row(row, sources):
     return None, why
 
 
-def verdict(row, version, rule):
+def verdict(row, version, rule, forge="GitHub"):
     """Compare a worked-out check's version with what the sync has.
 
     It's compared with Repology, or, when the row has an update check of
     its own (rule), with that rule's result. Where those differ, the rule
     is what the row uses (a series the worked-out check can't tell, for
     example), so that's no disagreement.
+
+    Args:
+        row: The row.
+        version: The worked-out check's version.
+        rule: Whether the row has an update check of its own.
+        forge: Where the check read it, for what to say (forge_of).
 
     Returns:
         ("agree", "disagree" or "rule differs", what to say).
@@ -155,10 +232,10 @@ def verdict(row, version, rule):
     if by_github and by_repology:
         if ref == version:
             return "agree", f"outdated, {version}"
-        return "disagree", f"both outdated: GitHub {version}, Repology {ref}"
+        return "disagree", f"both outdated: {forge} {version}, Repology {ref}"
     if by_github:
-        return "disagree", f"GitHub {version}, Repology up to date"
-    return "disagree", f"Repology {ref}, GitHub {version}"
+        return "disagree", f"{forge} {version}, Repology up to date"
+    return "disagree", f"Repology {ref}, {forge} {version}"
 
 
 def enabled(lists):
@@ -262,18 +339,19 @@ def report(worked, rows, rules, failed):
             found[name] = version
 
     ruled = {n: c for n, c in worked.checks.items() if n in rules}
-    if ruled:
+    if on_github := {n: c for n, c in ruled.items() if "github" in c}:
         # The same requests as the tags checks: GITHUB_REPOS_BATCH
         # repositories each.
-        upstream.check_tags(github.token(), ruled, keep_previous, add)
+        upstream.check_tags(github.token(), on_github, keep_previous, add)
+    if elsewhere := {n: c for n, c in ruled.items() if "github" not in c}:
+        upstream.check_forge_tags(elsewhere, keep_previous, add)
     lines = collections.defaultdict(list)
     for name in sorted(found):
         # Repology's view as it was before the update checks.
         row = {**by_name[name], "refVersion": worked.repology.get(name)}
-        kind, what = verdict(row, found[name], name in rules)
-        lines[kind].append(
-            f"  {name} {row['nixVersion']}: {what}  ({worked.checks[name]['github']})"
-        )
+        forge, repo = forge_of(worked.checks[name])
+        kind, what = verdict(row, found[name], name in rules, forge)
+        lines[kind].append(f"  {name} {row['nixVersion']}: {what}  ({repo})")
     agree, disagree = len(lines["agree"]), len(lines["disagree"])
     differ = len(lines["rule differs"])
     used = len(worked.to_run(rules))

@@ -1,8 +1,9 @@
 """Run nixkeeper's own update checks.
 
 The checks (package-lists/update-checks.nix) find the newest upstream
-release of a package: from its GitHub repository's tags, or from a web page
-such as the vendor's release notes; or, for an unstable version
+release of a package: from its GitHub repository's tags (or, worked out
+from nixpkgs, its repository's on a GitLab instance or Codeberg), or from a
+web page such as the vendor's release notes; or, for an unstable version
 ("1.0-unstable-2024-05-01"), the commits on the branch it follows. A
 version only counts as newest on Repology once repositories it trusts
 package it (the AUR alone doesn't), so without these checks a fresh release
@@ -292,6 +293,9 @@ def add_checks(
     if github_checks:
         versions = {n: by_name[n].get("nixVersion") for n in github_checks}
         check_github(github_checks, versions, now, keep_previous, found)
+    forge_checks = {n: c for n, c in wanted.items() if "gitlab" in c or "forgejo" in c}
+    if forge_checks:
+        check_forge_tags(forge_checks, keep_previous, found)
     pages = {n: c for n, c in wanted.items() if "url" in c}
     for name in interleaved(pages):
         last = (before.get(name) or {}).get("upstream")
@@ -362,6 +366,88 @@ def check_tags(token, checks, keep_previous, found):
             repo=repo,
             label=f"{repo} tags",
             url=f"https://github.com/{repo}/tags",
+        )
+
+
+# How many of a repository's tags a forge check reads: the newest, by
+# version on GitLab, by creation on Forgejo.
+FORGE_TAGS = 100
+
+
+def forge_tags_url(check):
+    """Return the API address of a GitLab or Forgejo check's tags, and their page.
+
+    Neither needs a token for a public repository. GitLab answers a renamed
+    project's old path with a redirect to it, which http.get follows.
+
+    Returns:
+        (the API's URL, the tags' web page).
+    """
+    if "gitlab" in check:
+        host, path = check["gitlab"].split("/", 1)
+        project = urllib.parse.quote(path, safe="")
+        return (
+            f"https://{host}/api/v4/projects/{project}/repository/tags"
+            f"?order_by=version&sort=desc&per_page={FORGE_TAGS}",
+            f"https://{host}/{path}/-/tags",
+        )
+    host, path = check["forgejo"].split("/", 1)
+    return (
+        f"https://{host}/api/v1/repos/{path}/tags?limit={FORGE_TAGS}",
+        f"https://{host}/{path}/tags",
+    )
+
+
+def check_forge_tags(checks, keep_previous, found):
+    """Run the checks against a repository's tags on a GitLab instance or Forgejo.
+
+    One request a repository, through http.get (its pace keeps each site
+    asked at most once every SITE_PAUSE_SECONDS).
+
+    Args:
+        checks: The checks, by row name: {"gitlab": "host/path"} or
+            {"forgejo": "host/owner/repo"}, with "tags".
+        keep_previous: add_checks' callback for a check that can't run.
+        found: add_checks' callback for a result.
+    """
+    tags, failed = {}, {}
+    for check in checks.values():
+        url, _ = forge_tags_url(check)
+        if url in tags or url in failed:
+            continue
+        try:
+            body = http.get(url, accept="application/json")
+            tags[url] = None if body is None else [t["name"] for t in json.loads(body)]
+        except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
+            if isinstance(e, urllib.error.HTTPError):
+                e.close()
+            failed[url] = e
+    for name, check in checks.items():
+        url, page = forge_tags_url(check)
+        repo = check.get("gitlab") or check["forgejo"]
+        if url in failed:
+            keep_previous(
+                name, f"request to {repo.split('/')[0]} failed ({failed[url]})"
+            )
+            continue
+        if tags[url] is None:
+            keep_previous(
+                name, f"couldn't read the tags of {repo} (renamed or deleted?)"
+            )
+            continue
+        try:
+            version = latest(tags[url], check["tags"])
+        except re.error as e:
+            keep_previous(name, f"invalid tags pattern ({e})")
+            continue
+        found(
+            name,
+            version,
+            f"the tags of {repo}",
+            check["tags"],
+            repo=repo,
+            label=f"{repo} tags",
+            url=page,
         )
 
 
