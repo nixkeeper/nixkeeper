@@ -219,6 +219,8 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   platform tags; its count in `index.json`'s `views.unbuilt`),
   `superseded.json` (an open update PR nixpkgs is already past, or an
   init PR for a package it has: `supersededPRs`, in such sets too; its count in `views.superseded`),
+  `upstream.json` (its GitHub repository gone, archived, renamed or moved:
+  `upstreamRepo`, in such sets too; its count in `views.upstream`),
   `maintainer/<handle>.json` (the handle in lowercase; `none.json`: no
   maintainer, not in such a set), `team/<slug>.json` and `list/<slug>.json` (the
   name in lowercase, each run of other characters than letters and digits
@@ -232,7 +234,10 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
   too, and of those not built, by kind: their own failure, a dependency's,
   timed out or aborted; together, the counts' `failingBuilds`),
   "behind" (update PRs behind upstream), "unmaintained" (packages outside
-  the sets with no maintainer) }` (`datastore.numbers`).
+  the sets with no maintainer), "upstream" (`{ "gone", "archived",
+  "renamed", "moved" }`: the packages whose GitHub repository is, sets
+  included, `facts.upstream_kind`; renamed when its owner is the same) }`
+  (`datastore.numbers`).
 - `close` in `index.json` (with every package): `{ "prs", "bot", "init" }`,
   the open update PRs nixpkgs is already past, how many are r-ryantm's,
   and the init PRs for a package it has (`prs_digest.mark_superseded`): "nixpkgs in numbers".

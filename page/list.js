@@ -307,6 +307,16 @@ export function wireList(page) {
       state.refines.delete('withpr');
       state.refines.delete('nopr');
       if (e.target.value) state.refines.add(e.target.value);
+    } else if (e.target.matches('select[data-upstream-pick]')) {
+      for (const key of [
+        'upstream',
+        'upstreamgone',
+        'upstreamarchived',
+        'upstreamrenamed',
+        'upstreammoved',
+      ])
+        state.refines.delete(key);
+      if (e.target.value) state.refines.add(e.target.value);
     } else if (e.target.matches('select[data-status]')) state.statusFilter = e.target.value || null;
     else if (e.target.matches('select[data-match-team]')) state.matchTeam = e.target.value || null;
     else if (e.target.matches('input[data-by]')) {

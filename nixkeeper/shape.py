@@ -148,7 +148,15 @@ ROW = {
 # The view the build failures are counted from, as the page counts them.
 ATTENTION = "views/attention.json"
 # The views whose length index.json's "views" states.
-COUNTED_VIEWS = ("attention", "broken", "backport", "blocked", "unbuilt", "superseded")
+COUNTED_VIEWS = (
+    "attention",
+    "broken",
+    "backport",
+    "blocked",
+    "unbuilt",
+    "superseded",
+    "upstream",
+)
 # The counts in index.json's "counts" that must equal the view of the
 # same name in "views".
 COUNTS_OF_VIEWS = ("broken", "backport")

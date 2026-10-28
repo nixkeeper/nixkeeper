@@ -253,6 +253,27 @@ def facet_entry(row, handles, teams):
     return [bits, people] if people else bits
 
 
+def upstream_kind(upstream):
+    """Return what became of a row's GitHub repository ("upstreamRepo").
+
+    The same as upstreamKind in page/ui.js: gone or archived first; else
+    renamed when its owner is the same (case aside), moved when it isn't.
+
+    Returns:
+        "gone", "archived", "renamed", "moved", or None without one.
+    """
+    if not upstream:
+        return None
+    if upstream.get("gone"):
+        return "gone"
+    if upstream.get("archived"):
+        return "archived"
+    if to := upstream.get("movedTo"):
+        same = to.split("/")[0].lower() == upstream["repo"].split("/")[0].lower()
+        return "renamed" if same else "moved"
+    return None
+
+
 def numbers(rows):
     """Count the overview's "nixpkgs in numbers" (with every package).
 
@@ -267,8 +288,11 @@ def numbers(rows):
         were aborted (the counts' failingBuilds, by kind).
         "behind": update PRs behind upstream (prs_digest.cross_check).
         "unmaintained": packages outside the sets with no maintainer.
+        "upstream": the packages whose GitHub repository is gone, archived,
+        renamed or moved ({kind: packages}, upstream_kind), sets included.
     """
     builds = failing = blocked = unfinished = behind = unmaintained = 0
+    upstream = dict.fromkeys(("gone", "archived", "renamed", "moved"), 0)
     for row in rows:
         for b in row.get("builds") or []:
             if b["status"] != "notBuilt":
@@ -280,6 +304,8 @@ def numbers(rows):
             behind += 1
         if not row.get("set") and row.get("maintainers") == []:
             unmaintained += 1
+        if kind := upstream_kind(row.get("upstreamRepo")):
+            upstream[kind] += 1
     return {
         "builds": builds,
         "failing": failing,
@@ -287,4 +313,5 @@ def numbers(rows):
         "unfinished": unfinished,
         "behind": behind,
         "unmaintained": unmaintained,
+        "upstream": upstream,
     }

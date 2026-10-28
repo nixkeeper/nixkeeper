@@ -165,6 +165,23 @@ function prPick() {
   )}</select></label>`;
 }
 
+// "Upstream": any, changed (?refine=upstream), or one kind of change
+// (?refine=upstreamgone, ...): what became of its GitHub repository.
+const UPSTREAM_PICKS = [
+  'upstream',
+  'upstreamgone',
+  'upstreamarchived',
+  'upstreamrenamed',
+  'upstreammoved',
+];
+function upstreamPick() {
+  const picked = UPSTREAM_PICKS.find((key) => state.refines.has(key)) || '';
+  return html`<label class="refine-age" title="What became of its GitHub repository: gone, archived (no longer worked on), renamed or moved to another owner">Upstream <select data-upstream-pick><option value="">any</option>${UPSTREAM_PICKS.map(
+    (key) =>
+      html`<option value="${key}"${picked === key ? raw(' selected') : ''}>${REFINES[key].label}</option>`,
+  )}</select></label>`;
+}
+
 // The facets' choices with how many each would show: each counted over
 // what the list's other filters keep (facetBase), its own left out (the
 // sets as with the maintainer and platform picked). The platforms: of
@@ -215,7 +232,7 @@ export function refineHtml() {
     .map(
       ([key, r]) =>
         html`<button type="button" class="refine-btn" data-refine="${key}" aria-pressed="${state.refines.has(key)}" title="${r.title}${key === 'stagingnext' && stagingNextWhy() ? `. Now: ${stagingNextWhy()}` : ''}${state.refines.has(key) ? ' (on: click to remove)' : ''}">${r.label}</button>`,
-    )}${prPick()}${newerPick()}${sortPick()}${errorsPick()}${
+    )}${prPick()}${upstreamPick()}${newerPick()}${sortPick()}${errorsPick()}${
     // On a maintainer's page: ?team=none.
     shownHandle()
       ? html`<button type="button" class="refine-btn" data-no-team aria-pressed="${state.noTeam}" title="Only packages that list this maintainer themselves: leave out those they maintain only as a member of the package's team (meta.teams)">Not via a team</button>`
@@ -344,7 +361,9 @@ export function listHeaderHtml(loadMerge) {
                       ? 'Update PRs to close'
                       : path === 'views/backport.json'
                         ? 'Fixes to backport'
-                        : 'Needs attention';
+                        : path === 'views/upstream.json'
+                          ? 'Upstream changed'
+                          : 'Needs attention';
   return html`<h2 class="sr-only">${what}</h2>
     <div class="scope-view">
       <span class="scope-label">Showing</span>
@@ -363,7 +382,9 @@ export function listHeaderHtml(loadMerge) {
             ? html`<span class="scope-hint">an open update PR nixpkgs is already past (it has the PR’s version or a newer one): each package’s details link it</span>`
             : path === 'views/unbuilt.json'
               ? html`<span class="scope-hint">listed for a platform Hydra doesn't build them on (struck tags); pick a platform to see its own</span>`
-              : ''
+              : path === 'views/upstream.json'
+                ? html`<span class="scope-hint">their GitHub repository is gone, archived, renamed or moved, up to date or not; pick one kind under Upstream</span>`
+                : ''
       }
       ${
         // "PR to close" on in another list: the whole of nixpkgs' are a view.

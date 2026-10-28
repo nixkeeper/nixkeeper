@@ -61,6 +61,7 @@ export const VIEWS = {
   backport: 'views/backport.json',
   unbuilt: 'views/unbuilt.json',
   superseded: 'views/superseded.json',
+  upstream: 'views/upstream.json',
   maintainers: 'maintainers',
 };
 export function viewPath({

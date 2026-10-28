@@ -17,7 +17,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   a new name) or "upstream moved" (another owner, maybe a new name too:
   GitHub redirects the name nixpkgs fetches, which nixpkgs should update),
   or "upstream gone" (GitHub doesn't know it any more, so its source can't
-  be downloaded from there), with what it means in the package's panel. From
+  be downloaded from there), with what it means in the package's panel.
+  They have their own list, **Upstream changed** (`?view=upstream`, up to
+  date or not), counted by kind in "nixpkgs in numbers" on the overview,
+  each kind opening it; and narrow any list, picked under **Upstream** or
+  typed (`has:upstream`, `is:upstream-gone`, `is:upstream-archived`,
+  `is:upstream-renamed`, `is:upstream-moved`). From
   nixkeeper-versions' digest, which reads every package fetched from GitHub
   every 12 hours (`upstreamRepo` in the rows, docs/data.md). On 2026-10-27,
   39 repositories were gone.

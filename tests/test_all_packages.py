@@ -402,6 +402,7 @@ class Data(unittest.TestCase):
                 "backport": 0,
                 "superseded": 0,
                 "unbuilt": 0,
+                "upstream": 0,
                 "teams": {"Gaming": 1},
                 "lists": {"gaming-team": 1},
                 "sets": {
@@ -486,6 +487,26 @@ class Data(unittest.TestCase):
         names = [p["name"] for p in self.read("views/superseded.json")["packages"]]
         self.assertEqual(names, ["rPackages.u", "t"])
         self.assertEqual(self.read("index.json")["views"]["superseded"], 2)
+
+    def test_upstream_changed(self):
+        """A package whose GitHub repository is gone, archived, renamed or
+        moved: its own view, up to date or not, in a set or not
+        (?view=upstream)."""
+        rows = [
+            row("t", upstreamRepo={"repo": "o/t", "archived": True}),
+            row(
+                "rPackages.u",
+                set="rPackages",
+                upstreamRepo={"repo": "o/u", "gone": True},
+            ),
+            row("v"),
+        ]
+        datastore.write(
+            {"checkedAt": NOW, "allPackages": True, "packages": rows}, {}, self.out
+        )
+        names = [p["name"] for p in self.read("views/upstream.json")["packages"]]
+        self.assertEqual(names, ["rPackages.u", "t"])
+        self.assertEqual(self.read("index.json")["views"]["upstream"], 2)
 
     def test_a_partial_run_removes_a_view_it_no_longer_writes(self):
         """A view that empties between syncs (its last PR to close gone, in

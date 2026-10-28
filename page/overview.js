@@ -480,6 +480,13 @@ export function numbersHtml() {
   const prs = store.sources?.prs;
   const queue = store.sources?.queue;
   const link = (href, text) => html` <a class="files-link" href="${href}">${text} →</a>`;
+  // The list of packages whose upstream changed, one kind picked (or none).
+  const upstreamHref = (kind) => {
+    const href = new URL(scopeHref({ view: 'upstream' }), location.href);
+    href.searchParams.delete('refine');
+    if (kind) href.searchParams.set('refine', `upstream${kind}`);
+    return href.pathname + href.search;
+  };
   const items = [
     prs?.prs != null && [
       fmt(prs.prs),
@@ -522,6 +529,19 @@ export function numbersHtml() {
       'up to date',
       `of the ${fmt(store.manifest.counts.tracked)} packages outside the sets: nixpkgs has the newest version (${fmt(store.manifest.counts.outdated)} outdated)`,
     ],
+    // What became of packages' GitHub repositories (facts.upstream_kind);
+    // each kind opens the list of them, picked under Upstream.
+    n.upstream &&
+      Object.values(n.upstream).some(Boolean) && [
+        fmt(Object.values(n.upstream).reduce((a, b) => a + b, 0)),
+        'upstream changed',
+        html`packages whose GitHub repository is ${['gone', 'archived', 'renamed', 'moved']
+          .filter((kind) => n.upstream[kind])
+          .map(
+            (kind, i) =>
+              html`${i ? ' · ' : ''}<a class="files-link" href="${upstreamHref(kind)}">${fmt(n.upstream[kind])} ${kind}</a>`,
+          )}${link(upstreamHref(null), 'see them')}`,
+      ],
     [
       fmt(n.unmaintained),
       'without a maintainer',

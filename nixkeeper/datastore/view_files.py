@@ -35,6 +35,8 @@ def views(rows, out):
       affects the newest release branch.
     - views/blocked.json: a build not tried because a dependency failed.
       Sets included, as the overview's blockers count them.
+    - views/upstream.json: its GitHub repository is gone, archived, renamed
+      or moved (releases_digest.mark_repos), sets included.
     - views/unbuilt.json: listed for a platform Hydra doesn't build it on
       (unbuilt_where).
     - views/superseded.json: an open update PR that nixpkgs is already past
@@ -171,6 +173,10 @@ class _Views:
         # to date or not.
         if row.get("supersededPRs"):
             self.put("views/superseded.json", row)
+        # Its GitHub repository gone, archived, renamed or moved: every
+        # such row, sets included.
+        if row.get("upstreamRepo"):
+            self.put("views/upstream.json", row)
         if row.get("set"):
             # A set's packages are counted on its set's line: none of the
             # views below.
@@ -194,8 +200,8 @@ class _Views:
 
         Returns:
             ({path: {"packages": [summary entries]}}, {"attention",
-            "broken", "blocked", "backport", "unbuilt", "superseded": each
-            view's size, "teams", "lists": {name: packages}}).
+            "broken", "blocked", "backport", "unbuilt", "superseded",
+            "upstream": each view's size, "teams", "lists": {name: packages}}).
         """
         files = {
             path: {"packages": [shards.summary_entry(row) for row in members]}
@@ -210,6 +216,7 @@ class _Views:
                 "backport",
                 "unbuilt",
                 "superseded",
+                "upstream",
             )
         }
         # Sorted with capitals first, as Python sorts strings; the page

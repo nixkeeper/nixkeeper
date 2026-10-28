@@ -477,7 +477,35 @@ class Numbers(unittest.TestCase):
                 "unfinished": 1,
                 "behind": 1,
                 "unmaintained": 1,
+                "upstream": {"gone": 0, "archived": 0, "renamed": 0, "moved": 0},
             },
+        )
+
+    def test_upstream_by_kind(self):
+        rows = [
+            {"name": "g", "upstreamRepo": {"repo": "o/g", "gone": True}},
+            {
+                "name": "a",
+                "upstreamRepo": {"repo": "o/a", "archived": True, "movedTo": "p/a"},
+            },
+            {
+                "name": "r",
+                "upstreamRepo": {"repo": "Emilazy/autopen", "movedTo": "emilazy/boot"},
+            },
+            {
+                "name": "m",
+                "upstreamRepo": {"repo": "jdx/aube", "movedTo": "aubepkg/aube"},
+            },
+            {
+                "name": "s",
+                "set": "haskellPackages",
+                "upstreamRepo": {"repo": "x/s", "gone": True},
+            },
+            {"name": "plain"},
+        ]
+        self.assertEqual(
+            datastore.numbers(rows)["upstream"],
+            {"gone": 2, "archived": 1, "renamed": 1, "moved": 1},
         )
 
 

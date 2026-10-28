@@ -22,6 +22,11 @@ export const REFINE_WORDS = {
   unbuilt: 'is:unbuilt',
   superseded: 'has:pr-to-close',
   nobot: 'is:bot-wont-update',
+  upstream: 'has:upstream',
+  upstreamgone: 'is:upstream-gone',
+  upstreamarchived: 'is:upstream-archived',
+  upstreamrenamed: 'is:upstream-renamed',
+  upstreammoved: 'is:upstream-moved',
 };
 const REFINE_OF = Object.fromEntries(Object.entries(REFINE_WORDS).map(([k, w]) => [w, k]));
 
