@@ -304,7 +304,10 @@ class ForgeChecks(unittest.TestCase):
                 raise answer
             return answer
 
-        with mock.patch.object(http, "get", side_effect=get):
+        with (
+            mock.patch.object(http, "get", side_effect=get),
+            mock.patch.object(http, "pace") as self.pace,
+        ):
             failed = upstream.add_checks(
                 rows, checks, {"packages": []}, NOW, inferred=set(checks)
             )
@@ -337,6 +340,10 @@ class ForgeChecks(unittest.TestCase):
             },
         )
         self.assertEqual((sorted(asked), failed), (sorted([lab, berg]), {}))
+        # Each site asked at a polite pace, as a web page check is.
+        self.assertEqual(
+            sorted(c.args[0] for c in self.pace.call_args_list), sorted([lab, berg])
+        )
         coreaction, gaiasky = (r["upstream"] for r in rows)
         self.assertEqual(
             {k: coreaction[k] for k in ("version", "repo", "label", "url", "newer")},

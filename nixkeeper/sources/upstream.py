@@ -401,8 +401,8 @@ def forge_tags_url(check):
 def check_forge_tags(checks, keep_previous, found):
     """Run the checks against a repository's tags on a GitLab instance or Forgejo.
 
-    One request a repository, through http.get (its pace keeps each site
-    asked at most once every SITE_PAUSE_SECONDS).
+    One request a repository, each site asked at most once every
+    SITE_PAUSE_SECONDS (http.pace).
 
     Args:
         checks: The checks, by row name: {"gitlab": "host/path"} or
@@ -416,6 +416,7 @@ def check_forge_tags(checks, keep_previous, found):
         if url in tags or url in failed:
             continue
         try:
+            http.pace(url)
             body = http.get(url, accept="application/json")
             tags[url] = None if body is None else [t["name"] for t in json.loads(body)]
         except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
