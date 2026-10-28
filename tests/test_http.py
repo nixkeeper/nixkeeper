@@ -133,6 +133,37 @@ class GitHubRateLimit(Case):
         sleep.assert_not_called()
 
 
+class FailOn(Case):
+    """A code in fail_on is raised at once, its answer kept to read."""
+
+    def test_raised_at_once_with_its_body(self):
+        refused = urllib.error.HTTPError(
+            "https://example.org", 403, "Forbidden", {}, io.BytesIO(b"no token")
+        )
+        with (
+            mock.patch("urllib.request.urlopen", side_effect=refused) as urlopen,
+            mock.patch("time.sleep") as sleep,
+            self.assertRaises(urllib.error.HTTPError) as raised,
+        ):
+            http.get("https://example.org/", fail_on=(403,))
+        self.addCleanup(raised.exception.close)
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+        self.assertEqual(raised.exception.code, 403)
+        self.assertEqual(raised.exception.read(), b"no token")
+
+    def test_other_codes_still_retried(self):
+        with (
+            mock.patch(
+                "urllib.request.urlopen", side_effect=self.slow_down(503)
+            ) as urlopen,
+            mock.patch("time.sleep"),
+            self.assertRaises(urllib.error.HTTPError),
+        ):
+            http.get("https://example.org/", fail_on=(403,))
+        self.assertEqual(urlopen.call_count, 1 + len(config.RETRY_DELAYS))
+
+
 class Headers(unittest.TestCase):
     """What a request sends: gzip for a big page from a trusted source
     (compressed=True), and the headers asked for."""

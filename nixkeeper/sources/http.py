@@ -8,6 +8,7 @@ pages at public addresses, of at most MAX_BYTES.
 import email.utils
 import gzip
 import http.client
+import io
 import ipaddress
 import socket
 import threading
@@ -106,12 +107,12 @@ def retry_wait(planned, err, host):
     return max(planned, asked)
 
 
-def get(url, accept=None, safe=False, compressed=False, headers=None):
+def get(url, accept=None, safe=False, compressed=False, headers=None, fail_on=()):
     """Return url's body as text, or None on a 404.
 
     The request is retried after RETRY_DELAYS seconds. It raises once every
     attempt has failed, or at once when the server asks to wait longer than
-    MAX_RETRY_AFTER (retry_wait).
+    MAX_RETRY_AFTER (retry_wait) or answers with a code in fail_on.
 
     Args:
         url: The URL.
@@ -123,8 +124,11 @@ def get(url, accept=None, safe=False, compressed=False, headers=None):
             nixkeeper trusts (not with safe: MAX_BYTES couldn't hold for
             what it unpacks to).
         headers: More headers to send, such as a token's.
+        fail_on: HTTP status codes not worth retrying, such as a 403 for a
+            token the server refuses: the HTTPError is raised at once, with
+            the answer's body still readable (err.read()).
     """
-    return _fetch(url, accept, safe, compressed, extra=headers)[0]
+    return _fetch(url, accept, safe, compressed, extra=headers, fail_on=fail_on)[0]
 
 
 def get_bytes(url):
@@ -221,7 +225,9 @@ def get_page(url, cached=None, safe=False):
     return text, found
 
 
-def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False):
+def _fetch(
+    url, accept=None, safe=False, compressed=False, extra=None, raw=False, fail_on=()
+):
     """Fetch url as get does, also returning the answer's headers.
 
     Args:
@@ -233,6 +239,7 @@ def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False
         extra: More headers to send (get_page's).
         raw: Whether to return the body's bytes instead of text
             (get_bytes).
+        fail_on: As in get: HTTP status codes raised at once.
 
     Returns:
         (text, headers). text is None on a 404 (headers then None too), or
@@ -271,6 +278,12 @@ def _fetch(url, accept=None, safe=False, compressed=False, extra=None, raw=False
                     raise UnsafeURL(f"{host} answered more than {MAX_BYTES} bytes")
                 return body.decode(errors="replace"), resp.headers
         except urllib.error.HTTPError as e:
+            if e.code in fail_on:
+                body = e.read(MAX_BYTES)
+                e.close()
+                raise urllib.error.HTTPError(
+                    url, e.code, e.reason, e.headers, io.BytesIO(body)
+                ) from None
             e.close()  # an HTTP error is also an open response
             if e.code == 404:
                 return None, None
