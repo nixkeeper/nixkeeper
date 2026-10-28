@@ -106,7 +106,7 @@ def retry_wait(planned, err, host):
     return max(planned, asked)
 
 
-def get(url, accept=None, safe=False, compressed=False):
+def get(url, accept=None, safe=False, compressed=False, headers=None):
     """Return url's body as text, or None on a 404.
 
     The request is retried after RETRY_DELAYS seconds. It raises once every
@@ -122,8 +122,9 @@ def get(url, accept=None, safe=False, compressed=False):
         compressed: Accept a gzipped answer, for big pages from sources
             nixkeeper trusts (not with safe: MAX_BYTES couldn't hold for
             what it unpacks to).
+        headers: More headers to send, such as a token's.
     """
-    return _fetch(url, accept, safe, compressed)[0]
+    return _fetch(url, accept, safe, compressed, extra=headers)[0]
 
 
 def get_bytes(url):

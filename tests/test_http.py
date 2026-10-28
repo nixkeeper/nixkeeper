@@ -133,8 +133,9 @@ class GitHubRateLimit(Case):
         sleep.assert_not_called()
 
 
-class Compressed(unittest.TestCase):
-    """compressed=True: a big page from a trusted source comes gzipped."""
+class Headers(unittest.TestCase):
+    """What a request sends: gzip for a big page from a trusted source
+    (compressed=True), and the headers asked for."""
 
     def fetch(self, body, encoding, **kwargs):
         resp = mock.MagicMock()
@@ -157,6 +158,11 @@ class Compressed(unittest.TestCase):
     def test_not_asked_otherwise(self):
         _, headers = self.fetch(b"index", None)
         self.assertNotIn("Accept-encoding", headers)
+
+    def test_more_headers(self):
+        _, headers = self.fetch(b"tags", None, headers={"Authorization": "Bearer t"})
+        self.assertEqual(headers.get("Authorization"), "Bearer t")
+        self.assertIn("nixkeeper", headers.get("User-agent"))
 
 
 class GetPage(unittest.TestCase):
