@@ -239,39 +239,39 @@ export const REFINES = {
       "Only outdated packages nixpkgs-update won't update by itself: it can't, it skips them on purpose, or it has never tried and they aren't in its queue. No update PR open or merged yet",
     test: (p) => botWontUpdate(p, Boolean(store.sources?.queue?.used)),
   },
-  // Its GitHub repository gone, archived, renamed or moved (the row's
+  // Its repository gone, archived, renamed or moved (the row's
   // upstreamRepo). Picked in the "Upstream" select (pick: 'upstream'), not
   // chips: one or another.
   upstream: {
     label: 'changed (any)',
     pick: 'upstream',
-    title: 'Only packages whose GitHub repository is gone, archived, renamed or moved',
+    title:
+      'Only packages whose repository (on GitHub, GitLab or Codeberg) is gone, archived, renamed or moved',
     test: (p) => upstreamKind(p.upstreamRepo) !== null,
   },
   upstreamgone: {
     label: 'gone',
     pick: 'upstream',
-    title: "Only packages whose GitHub repository is gone: GitHub doesn't know it any more",
+    title: "Only packages whose repository is gone: its forge doesn't know it any more",
     test: (p) => upstreamKind(p.upstreamRepo) === 'gone',
   },
   upstreamarchived: {
     label: 'archived',
     pick: 'upstream',
-    title: 'Only packages whose GitHub repository is archived: no longer worked on',
+    title: 'Only packages whose repository is archived: no longer worked on',
     test: (p) => upstreamKind(p.upstreamRepo) === 'archived',
   },
   upstreamrenamed: {
     label: 'renamed',
     pick: 'upstream',
     title:
-      'Only packages whose GitHub repository was renamed (the same owner): nixpkgs should use the new name',
+      'Only packages whose repository was renamed (the same owner): nixpkgs should use the new name',
     test: (p) => upstreamKind(p.upstreamRepo) === 'renamed',
   },
   upstreammoved: {
     label: 'moved',
     pick: 'upstream',
-    title:
-      'Only packages whose GitHub repository moved to another owner: nixpkgs should use the new name',
+    title: 'Only packages whose repository moved to another owner: nixpkgs should use the new name',
     test: (p) => upstreamKind(p.upstreamRepo) === 'moved',
   },
 };

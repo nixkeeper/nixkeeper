@@ -166,7 +166,7 @@ function prPick() {
 }
 
 // "Upstream": any, changed (?refine=upstream), or one kind of change
-// (?refine=upstreamgone, ...): what became of its GitHub repository.
+// (?refine=upstreamgone, ...): what became of its repository.
 const UPSTREAM_PICKS = [
   'upstream',
   'upstreamgone',
@@ -176,7 +176,7 @@ const UPSTREAM_PICKS = [
 ];
 function upstreamPick() {
   const picked = UPSTREAM_PICKS.find((key) => state.refines.has(key)) || '';
-  return html`<label class="refine-age" title="What became of its GitHub repository: gone, archived (no longer worked on), renamed or moved to another owner">Upstream <select data-upstream-pick><option value="">any</option>${UPSTREAM_PICKS.map(
+  return html`<label class="refine-age" title="What became of its repository (on GitHub, GitLab or Codeberg): gone, archived (no longer worked on), renamed or moved to another owner">Upstream <select data-upstream-pick><option value="">any</option>${UPSTREAM_PICKS.map(
     (key) =>
       html`<option value="${key}"${picked === key ? raw(' selected') : ''}>${REFINES[key].label}</option>`,
   )}</select></label>`;
@@ -383,7 +383,7 @@ export function listHeaderHtml(loadMerge) {
             : path === 'views/unbuilt.json'
               ? html`<span class="scope-hint">listed for a platform Hydra doesn't build them on (struck tags); pick a platform to see its own</span>`
               : path === 'views/upstream.json'
-                ? html`<span class="scope-hint">their GitHub repository is gone, archived, renamed or moved, up to date or not; pick one kind under Upstream</span>`
+                ? html`<span class="scope-hint">their repository (on GitHub, GitLab or Codeberg) is gone, archived, renamed or moved, up to date or not; pick one kind under Upstream</span>`
                 : ''
       }
       ${

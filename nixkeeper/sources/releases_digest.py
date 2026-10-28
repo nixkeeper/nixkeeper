@@ -1,4 +1,4 @@
-"""Read GitHub releases from the nixkeeper-versions digest.
+"""Read releases from nixkeeper-versions' digest: GitHub's, GitLab's, Codeberg's.
 
 The digest's releases.json.gz has, for every nixpkgs package fetched from a
 GitHub tag, the newest version among its repository's tags matching its
@@ -28,8 +28,13 @@ that it can't answer, gets the sync's own worked-out check instead, as
 before.
 
 The digest also says when a package's repository is archived, has moved
-(GitHub redirects nixpkgs' name to another), or is gone: mark_repos gives
-those rows "upstreamRepo", for the page.
+(the forge redirects nixpkgs' name to another), or is gone: mark_repos
+gives those rows "upstreamRepo", for the page.
+
+Packages fetched from a GitLab instance or Codeberg are in the digest's
+"elsewhere" (apart from "packages", which nixkeeper read as GitHub's
+before it knew of others), each with its "forge" ("gitlab", "forgejo")
+and its repository as "host/path": load reads both into one table.
 """
 
 from datetime import datetime, timedelta
@@ -64,9 +69,29 @@ def load(now):
     if found is None:
         return None
     packages = found.get("packages") or {}
-    about.note("releases", True, at=found["fetchedAt"], packages=len(packages))
-    log.info(f"GitHub releases: {len(packages):,} packages")
-    return packages
+    elsewhere = found.get("elsewhere") or {}
+    about.note(
+        "releases",
+        True,
+        at=found["fetchedAt"],
+        packages=len(packages),
+        elsewhere=len(elsewhere) or None,
+    )
+    log.info(
+        f"GitHub releases: {len(packages):,} packages"
+        + (f", {len(elsewhere):,} on GitLab and Codeberg" if elsewhere else "")
+    )
+    return {**packages, **elsewhere}
+
+
+def pages(entry):
+    """Return an entry's releases and tags pages, on its forge."""
+    repo = entry["repo"]
+    if entry.get("forge") == "gitlab":
+        return f"https://{repo}/-/releases", f"https://{repo}/-/tags"
+    if entry.get("forge") == "forgejo":
+        return f"https://{repo}/releases", f"https://{repo}/tags"
+    return f"https://github.com/{repo}/releases", f"https://github.com/{repo}/tags"
 
 
 def result(entry):
@@ -85,11 +110,12 @@ def result(entry):
     if not version:
         return None
     repo = entry["repo"]
+    releases, tags = pages(entry)
     found = {
         "version": version,
         "repo": repo,
         "label": f"{repo} {'releases' if release else 'tags'}",
-        "url": f"https://github.com/{repo}/{'releases' if release else 'tags'}",
+        "url": releases if release else tags,
         "inferred": True,
         "digest": "releases",
     }
@@ -103,7 +129,8 @@ def result(entry):
 def mark_repos(rows: list[Row], digest):
     """Mark the rows whose GitHub repository is archived, moved or gone.
 
-    Each gets "upstreamRepo": {"repo", "archived"?, "movedTo"?, "gone"?},
+    Each gets "upstreamRepo": {"repo", "forge"?, "archived"?, "movedTo"?,
+    "gone"?} ("forge": "gitlab" or "forgejo", repo then "host/path"),
     only where the digest's version is the row's nixpkgs version: the
     package may have moved its source since the digest's weekly evaluation.
 
@@ -122,6 +149,8 @@ def mark_repos(rows: list[Row], digest):
         if not entry or entry.get("version") != row.get("nixVersion"):
             continue
         state = {k: entry[k] for k in ("archived", "movedTo", "gone") if entry.get(k)}
+        if state and entry.get("forge"):
+            state["forge"] = entry["forge"]
         if state:
             row["upstreamRepo"] = {"repo": entry["repo"], **state}
             marked += 1

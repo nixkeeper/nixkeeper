@@ -258,6 +258,8 @@ def upstream_kind(upstream):
 
     The same as upstreamKind in page/ui.js: gone or archived first; else
     renamed when its owner is the same (case aside), moved when it isn't.
+    On another forge than GitHub the repository is "host/path", its owner
+    the path's first part (a GitLab project's top group).
 
     Returns:
         "gone", "archived", "renamed", "moved", or None without one.
@@ -269,7 +271,10 @@ def upstream_kind(upstream):
     if upstream.get("archived"):
         return "archived"
     if to := upstream.get("movedTo"):
-        same = to.split("/")[0].lower() == upstream["repo"].split("/")[0].lower()
+        first = 1 if upstream.get("forge") else 0  # past the host
+        same = (
+            to.split("/")[first].lower() == upstream["repo"].split("/")[first].lower()
+        )
         return "renamed" if same else "moved"
     return None
 

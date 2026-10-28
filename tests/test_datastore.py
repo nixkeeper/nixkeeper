@@ -502,10 +502,27 @@ class Numbers(unittest.TestCase):
                 "upstreamRepo": {"repo": "x/s", "gone": True},
             },
             {"name": "plain"},
+            # On GitLab: the owner is the path's first part, past the host.
+            {
+                "name": "nested",
+                "upstreamRepo": {
+                    "forge": "gitlab",
+                    "repo": "gitlab.com/cubocore/coreapps/a",
+                    "movedTo": "gitlab.com/cubocore/apps/a",
+                },
+            },
+            {
+                "name": "flufl",
+                "upstreamRepo": {
+                    "forge": "gitlab",
+                    "repo": "gitlab.com/warsaw/public",
+                    "movedTo": "gitlab.com/flufl/public",
+                },
+            },
         ]
         self.assertEqual(
             datastore.numbers(rows)["upstream"],
-            {"gone": 2, "archived": 1, "renamed": 1, "moved": 1},
+            {"gone": 2, "archived": 1, "renamed": 2, "moved": 2},
         )
 
 

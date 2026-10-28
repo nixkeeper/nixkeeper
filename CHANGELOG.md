@@ -19,9 +19,13 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   API without a token. 1,346 packages in nixpkgs could have one (2026-10-28);
   of 30 tried, 11 had a newer tag than nixpkgs (bolt, tellico, enter-tex).
   The sync's log names the forge each compares ("Worked-out update checks").
+  For every package in nixpkgs, not only the lists', they come from
+  nixkeeper-versions' digest, as GitHub's do, and their repository being
+  archived, renamed, moved or gone shows too, the page naming the forge
+  ("its repository on GitLab").
 
-- **When a package's GitHub repository is archived, renamed, moved or
-  gone**, its row says so: "upstream archived" (read-only, its owner's way
+- **When a package's repository is archived, renamed, moved or gone**
+  (on GitHub, a GitLab instance or Codeberg), its row says so: "upstream archived" (read-only, its owner's way
   of saying it's no longer worked on), "upstream renamed" (the same owner,
   a new name) or "upstream moved" (another owner, maybe a new name too:
   GitHub redirects the name nixpkgs fetches, which nixpkgs should update),

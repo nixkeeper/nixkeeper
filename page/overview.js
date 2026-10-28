@@ -529,13 +529,18 @@ export function numbersHtml() {
       'up to date',
       `of the ${fmt(store.manifest.counts.tracked)} packages outside the sets: nixpkgs has the newest version (${fmt(store.manifest.counts.outdated)} outdated)`,
     ],
-    // What became of packages' GitHub repositories (facts.upstream_kind);
+    // What became of packages' repositories (facts.upstream_kind);
     // each kind opens the list of them, picked under Upstream.
     n.upstream &&
       Object.values(n.upstream).some(Boolean) && [
         fmt(Object.values(n.upstream).reduce((a, b) => a + b, 0)),
         'upstream changed',
-        html`packages whose GitHub repository is ${['gone', 'archived', 'renamed', 'moved']
+        html`packages whose repository (on GitHub, GitLab or Codeberg) is ${[
+          'gone',
+          'archived',
+          'renamed',
+          'moved',
+        ]
           .filter((kind) => n.upstream[kind])
           .map(
             (kind, i) =>

@@ -55,6 +55,57 @@ class Result(unittest.TestCase):
         self.assertIsNone(releases_digest.result(entry("2.1.0")))
 
 
+class Forges(unittest.TestCase):
+    def test_links_on_each_forge(self):
+        cases = {
+            None: (
+                "o/r",
+                "https://github.com/o/r/releases",
+                "https://github.com/o/r/tags",
+            ),
+            "gitlab": (
+                "gitlab.com/g/sub/r",
+                "https://gitlab.com/g/sub/r/-/releases",
+                "https://gitlab.com/g/sub/r/-/tags",
+            ),
+            "forgejo": (
+                "codeberg.org/o/r",
+                "https://codeberg.org/o/r/releases",
+                "https://codeberg.org/o/r/tags",
+            ),
+        }
+        for forge, (repo, releases, tags) in cases.items():
+            with self.subTest(forge=forge):
+                where = {"forge": forge} if forge else {}
+                released = releases_digest.result(
+                    {**entry("1.0", release="1.1", repo=repo), **where}
+                )
+                tagged = releases_digest.result(
+                    {**entry("1.0", tag="1.1", repo=repo), **where}
+                )
+                self.assertEqual((released["url"], tagged["url"]), (releases, tags))
+
+    def test_marked_with_its_forge(self):
+        rows = [row("evtest", "1.36")]
+        digest = {
+            "evtest": {
+                **entry("1.36", repo="gitlab.freedesktop.org/libevdev/evtest"),
+                "forge": "gitlab",
+                "archived": True,
+            }
+        }
+        with mock.patch("sys.stderr", io.StringIO()):
+            releases_digest.mark_repos(rows, digest)
+        self.assertEqual(
+            rows[0]["upstreamRepo"],
+            {
+                "repo": "gitlab.freedesktop.org/libevdev/evtest",
+                "archived": True,
+                "forge": "gitlab",
+            },
+        )
+
+
 class MarkRepos(unittest.TestCase):
     def test_archived_moved_or_gone(self):
         rows = [
@@ -159,13 +210,14 @@ class Load(unittest.TestCase):
     def setUp(self):
         self.noted = self.enterContext(about.collecting())
 
-    def serve(self, fetched):
+    def serve(self, fetched, elsewhere=None):
         body = gzip.compress(
             json.dumps(
                 {
                     "format": 1,
                     "fetchedAt": fetched,
                     "packages": {"whisky": entry("2.3.5", tag="2.4.0")},
+                    **({"elsewhere": elsewhere} if elsewhere else {}),
                 }
             ).encode()
         )
@@ -184,6 +236,17 @@ class Load(unittest.TestCase):
             self.noted["releases"],
             {"used": True, "at": "2026-10-09T04:15:39+00:00", "packages": 1},
         )
+
+    def test_other_forges_too(self):
+        lab = {
+            **entry("4.2.2", tag="4.3", repo="invent.kde.org/office/tellico"),
+            "forge": "gitlab",
+        }
+        a, b, c = self.serve("2026-10-09T04:15:39+00:00", {"tellico": lab})
+        with a, b, c:
+            found = releases_digest.load(NOW)
+        self.assertEqual(sorted(found), ["tellico", "whisky"])
+        self.assertEqual(self.noted["releases"]["elsewhere"], 1)
 
     def test_too_old(self):
         a, b, c = self.serve("2026-10-06T04:15:39+00:00")
