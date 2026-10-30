@@ -11,6 +11,14 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **`inferred.pin_check`** for packages pinned to a GitHub commit with an
+  unstable version (0-unstable-2024-05-01, 1.2.12-unstable-2026-07-05):
+  the commit and its date, to compare with the default branch, and the
+  release tags to look for (the release the version starts with, or any
+  "v" + numbers). For nixkeeper-versions' digest: 5,111 packages in
+  nixpkgs (2026-10-30), 3,998 repository and commit pairs, 1,992 starting
+  from a release. Nothing on the page changes yet.
+
 - **Worked-out update checks for packages fetched from a commit** whose
   version is a release's (envoy 1.36.10, not 0-unstable-2024-05-01, nor a
   date): checked against their repository's tags "v" + version or the

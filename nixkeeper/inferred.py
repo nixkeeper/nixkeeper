@@ -11,6 +11,11 @@ version is a release's (2.0, not 0-unstable-2024-05-01), against the tags
 community's (which win), unless the lists turn them off
 (`workedOutChecks = false;`). Each daily sync also logs how they compare
 with Repology, and with the packages' rules.
+
+A package fetched from a GitHub commit with an unstable version
+(0-unstable-2024-05-01) has no version to compare; pin_check says what to
+compare it with instead: its commit against the default branch, and the
+repository's release tags against the release its version starts with.
 """
 
 import collections
@@ -49,6 +54,13 @@ ARCHIVE = re.compile(r"/archive/(?:refs/tags/)?(.+?)\.(?:tar\.gz|zip)$")
 PLAIN = re.compile(r"[0-9]+(?:[._-][0-9]+)*")
 # A date as a version (2020-01-23, 2021.09.08): a snapshot's, not a release's.
 DATE = re.compile(r"(?:19|20)[0-9]{2}[._-][0-9]{2}[._-][0-9]{2}")
+# An unstable version: the release it starts from, if any (0 for none), and
+# its commit's date (0-unstable-2024-05-01, 1.2.12-unstable-2026-07-05,
+# unstable-2020-01-23).
+UNSTABLE = re.compile(r"^(?:(.+)-)?unstable-((?:19|20)[0-9]{2}-[0-9]{2}-[0-9]{2})$")
+# The release tags looked for when an unstable version names no release:
+# "v" or no prefix, numbers with dots.
+ANY_RELEASE = r"^(?:v)?([0-9]+(?:[.][0-9]+)+)$"
 # A versioned attribute, kept for one series of its program: its name ends in
 # that series' numbers (tracy_0_11, gcc13, python313).
 SUFFIX = re.compile(r"(?<![0-9])([0-9]+(?:_[0-9]+)*)$")
@@ -205,6 +217,46 @@ def released(version):
     if not re.search(r"[._-]", version):
         return False
     return not DATE.fullmatch(version)
+
+
+def pin_check(src, attr=None):
+    """Work out what src's package, pinned to a GitHub commit, is compared with.
+
+    Its version is an unstable one (UNSTABLE). Its release tags are looked
+    for with the pattern tags_pattern gives the release its version starts
+    with (1.2.12 in 1.2.12-unstable-2026-07-05), or ANY_RELEASE when it
+    names none (0-unstable-...).
+
+    Args:
+        src: The package's source, as nixpkgs evaluates it.
+        attr: The package's attribute.
+
+    Returns:
+        (check, None), the check as {"github", "commit", "date", "tags",
+        "release"?} ("release": the release its version starts with); or
+        (None, why not).
+    """
+    m = GITHUB.match(src.get("gitRepoUrl") or "")
+    if not m:
+        return None, "not from GitHub"
+    rev = src.get("rev") or ""
+    if not COMMIT.match(rev):
+        return None, "not a commit"
+    unstable = UNSTABLE.match(src.get("version") or "")
+    if not unstable:
+        return None, "not an unstable version"
+    start, date = unstable.groups()
+    release = start if start and PLAIN.fullmatch(start) and released(start) else None
+    pattern = None
+    if release:
+        pattern, _ = tags_pattern({"version": release, "rev": rev}, attr)
+    check = {
+        "github": f"{m.group(1)}/{m.group(2)}",
+        "commit": rev,
+        "date": date,
+        "tags": pattern or ANY_RELEASE,
+    }
+    return {**check, **({"release": release} if release else {})}, None
 
 
 def for_row(row, sources):

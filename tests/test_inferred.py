@@ -228,6 +228,61 @@ class GithubCheck(unittest.TestCase):
         )
 
 
+class PinCheck(unittest.TestCase):
+    GH = "https://github.com/a/b.git"
+
+    def test_a_release_it_starts_from(self):
+        # SDL_image 1.2.12-unstable-2026-07-05: its release's tags.
+        check, _ = inferred.pin_check(
+            src("1.2.12-unstable-2026-07-05", gitRepoUrl=self.GH, rev="a" * 40)
+        )
+        self.assertEqual(
+            {k: v for k, v in check.items() if k != "tags"},
+            {
+                "github": "a/b",
+                "commit": "a" * 40,
+                "date": "2026-07-05",
+                "release": "1.2.12",
+            },
+        )
+        regex = re.compile(check["tags"])
+        self.assertEqual(regex.search("v1.2.15").group(1), "1.2.15")
+        self.assertIsNone(regex.search("release-3.2.2"))
+        # Its series, for a versioned attribute.
+        kept, _ = inferred.pin_check(
+            src("0.11.1-unstable-2025-01-02", gitRepoUrl=self.GH, rev="a" * 40),
+            "tracy_0_11",
+        )
+        self.assertIsNone(re.search(kept["tags"], "v0.14.1"))
+
+    def test_no_release(self):
+        for version in ("0-unstable-2024-05-01", "unstable-2020-01-23"):
+            check, _ = inferred.pin_check(
+                src(version, gitRepoUrl=self.GH, rev="a" * 40)
+            )
+            self.assertNotIn("release", check, version)
+            self.assertEqual(check["tags"], inferred.ANY_RELEASE, version)
+        regex = re.compile(inferred.ANY_RELEASE)
+        self.assertEqual(regex.search("v2.0").group(1), "2.0")
+        for tag in ("20240214", "nightly", "v2.0-rc1"):
+            self.assertIsNone(regex.search(tag), tag)
+
+    def test_not_a_pin(self):
+        cases = {
+            "not from GitHub": src(
+                "0-unstable-2024-05-01",
+                gitRepoUrl="https://gitlab.com/a/b.git",
+                rev="a" * 40,
+            ),
+            "not a commit": src(
+                "0-unstable-2024-05-01", gitRepoUrl=self.GH, rev="refs/tags/c3d1610"
+            ),
+            "not an unstable version": src("1.0", gitRepoUrl=self.GH, rev="a" * 40),
+        }
+        for why, source in cases.items():
+            self.assertEqual(inferred.pin_check(source), (None, why), why)
+
+
 class Verdict(unittest.TestCase):
     def test_against_repology(self):
         def v(version, status="newest", ref=None):
