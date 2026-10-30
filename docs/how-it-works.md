@@ -168,7 +168,11 @@ checked against that repository's tags, in the scheme nixpkgs' tag shows
 (`v1.2.3`, ...), plain versions only, and is left to Repology when that
 check fails. One fetched from a commit with a release's version (`2.0`, not
 `0-unstable-2024-05-01` nor a date) is checked against the tags `v2.0` or
-`2.0`, as no tag shows its scheme. One fetched from a tag on a GitLab instance (gitlab.com,
+`2.0`, as no tag shows its scheme. One pinned to a GitHub commit with an
+unstable version (`0-unstable-2024-05-01`) has no version to compare: the
+panel shows how many commits its default branch has had since, and it's
+outdated only once a release is published after it (newer than the
+release its version starts from, if it names one), not on commits alone. One fetched from a tag on a GitLab instance (gitlab.com,
 freedesktop, GNOME, KDE, Debian's salsa) or on Codeberg is checked the
 same way against its repository's tags there, through that forge's API
 (no token); `workedOutChecks = false;` turns these off. These checks come

@@ -206,11 +206,107 @@ class Apply(unittest.TestCase):
         self.assertEqual(releases_digest.apply([row("a", "1")], None, {}, NOW), set())
 
 
+def pin(version, status="behind", behind=3, last="2026-10-20", **found):
+    return {
+        **entry(version, **found),
+        "commit": "b" * 40,
+        "branch": {"status": status, "ahead": 0, "behind": behind, "lastCommit": last},
+    }
+
+
+class Pins(unittest.TestCase):
+    def test_commits_since_are_only_shown(self):
+        found = releases_digest.pin_result(
+            pin("0-unstable-2025-07-27", behind=8, last="2026-03-02"),
+            "0-unstable-2025-07-27",
+        )
+        self.assertEqual(
+            found,
+            {
+                "repo": "o/r",
+                "inferred": True,
+                "digest": "releases",
+                "checkedAt": "2026-10-09T00:00:00+00:00",
+                "version": "0-unstable-2026-03-02",
+                "newer": False,
+                "behind": 8,
+                "label": "o/r default branch",
+                "url": "https://github.com/o/r/commits",
+            },
+        )
+        # The default branch's newest commit: nixpkgs' version.
+        same = releases_digest.pin_result(
+            pin("0-unstable-2022-06-13", "identical", 0, "2022-06-13"),
+            "0-unstable-2022-06-13",
+        )
+        self.assertEqual(
+            (same["version"], same["behind"]), ("0-unstable-2022-06-13", 0)
+        )
+
+    def test_another_branch_or_not_compared(self):
+        for status in ("ahead", "diverged", "unknown"):
+            self.assertIsNone(
+                releases_digest.pin_result(pin("0-unstable-2026-07-05", status), "x"),
+                status,
+            )
+
+    def test_a_release_since(self):
+        cases = {
+            # Newer than the release its version starts from.
+            ("2.5-unstable-2025-01-14", "2.6", "2025-03-18", "behind"): "2.6",
+            # The one it starts from, released after (fsrs4anki-helper).
+            ("26.06.12-unstable-2026-06-08", "26.06.12", "2026-06-12", "behind"): None,
+            # Without one: published after the pin.
+            ("0-unstable-2024-10-16", "0.4.0", "2025-04-08", "behind"): "0.4.0",
+            # Published before it: the pin has it.
+            ("0-unstable-2024-10-16", "0.3.0", "2024-01-02", "behind"): None,
+            ("2.5-unstable-2025-01-14", "2.6", "2024-12-01", "behind"): None,
+            # The pin is the branch's newest commit: it has every release.
+            ("0-unstable-2024-03-26", "0.0.1", "2026-05-20", "identical"): None,
+        }
+        for (version, release, at, status), expected in cases.items():
+            found = {**pin(version, status, release=release), "releasedAt": at}
+            self.assertEqual(releases_digest.release_since(found), expected, version)
+        # A tag alone has no date: it can be older than the pin.
+        tagged = pin("8.3-unstable-2021-12-11", tag="9.5")
+        self.assertIsNone(releases_digest.release_since(tagged))
+
+    def test_outdated_on_a_release_since_only(self):
+        released = {**pin("0-unstable-2024-10-16", release="0.4.0")}
+        released["releasedAt"] = "2025-04-08"
+        digest = {
+            "autoenv": released,
+            "extrakto": pin("0-unstable-2025-07-27", behind=8),
+            "SDL_image": pin("1.2.12-unstable-2026-07-05", "diverged"),
+        }
+        rows = [
+            row("autoenv", "0-unstable-2024-10-16"),
+            row("extrakto", "0-unstable-2025-07-27"),
+            row("SDL_image", "1.2.12-unstable-2026-07-05"),
+        ]
+        answered = releases_digest.apply(rows, digest, {}, NOW)
+        autoenv, extrakto, sdl = rows
+        # Every pin's commits since, on the lists or not.
+        self.assertEqual(answered, {"autoenv", "extrakto"})
+        self.assertTrue(is_outdated(autoenv))
+        self.assertEqual(autoenv["refVersion"], "0.4.0")
+        self.assertEqual(autoenv["upstream"]["label"], "o/r releases")
+        self.assertFalse(is_outdated(extrakto))
+        self.assertEqual(extrakto["upstream"]["behind"], 8)
+        self.assertNotIn("upstream", sdl)
+
+    def test_marked_as_the_others(self):
+        archived = {**pin("0-unstable-2026-07-05"), "archived": True}
+        rows = [row("p", "0-unstable-2026-07-05")]
+        self.assertEqual(releases_digest.mark_repos(rows, {"p": archived}), 1)
+        self.assertEqual(rows[0]["upstreamRepo"], {"repo": "o/r", "archived": True})
+
+
 class Load(unittest.TestCase):
     def setUp(self):
         self.noted = self.enterContext(about.collecting())
 
-    def serve(self, fetched, elsewhere=None):
+    def serve(self, fetched, elsewhere=None, pins=None):
         body = gzip.compress(
             json.dumps(
                 {
@@ -218,6 +314,7 @@ class Load(unittest.TestCase):
                     "fetchedAt": fetched,
                     "packages": {"whisky": entry("2.3.5", tag="2.4.0")},
                     **({"elsewhere": elsewhere} if elsewhere else {}),
+                    **({"pins": pins} if pins else {}),
                 }
             ).encode()
         )
@@ -247,6 +344,14 @@ class Load(unittest.TestCase):
             found = releases_digest.load(NOW)
         self.assertEqual(sorted(found), ["tellico", "whisky"])
         self.assertEqual(self.noted["releases"]["elsewhere"], 1)
+
+    def test_pins_too(self):
+        pins = {"extrakto": pin("0-unstable-2025-07-27")}
+        a, b, c = self.serve("2026-10-09T04:15:39+00:00", pins=pins)
+        with a, b, c:
+            found = releases_digest.load(NOW)
+        self.assertEqual(sorted(found), ["extrakto", "whisky"])
+        self.assertEqual(self.noted["releases"]["pins"], 1)
 
     def test_too_old(self):
         a, b, c = self.serve("2026-10-06T04:15:39+00:00")

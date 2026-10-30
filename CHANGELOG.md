@@ -11,13 +11,26 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Packages pinned to a commit** with an unstable version
+  (0-unstable-2024-05-01) are compared with their GitHub repository, from
+  nixkeeper-versions' digest: the panel says how many commits the default
+  branch has had since ("8 newer commits in laktak/extrakto default
+  branch"), and the package is outdated only once a release is published
+  after the pin (newer than the release its version starts from, if it
+  names one; tags alone don't count, having no date). A commit on another
+  branch than the default one gets nothing. Their repositories are marked
+  archived, moved or gone as the others'. On 2026-10-30: 5,095 such
+  packages, 3,296 at their default branch's newest commit, 1,549 behind
+  (median 9 commits), 143 outdated by a release since (autoenv 0.4.0,
+  broadcast-box 2.0.2, editline 2.1.0).
+
 - **`inferred.pin_check`** for packages pinned to a GitHub commit with an
   unstable version (0-unstable-2024-05-01, 1.2.12-unstable-2026-07-05):
   the commit and its date, to compare with the default branch, and the
   release tags to look for (the release the version starts with, or any
   "v" + numbers). For nixkeeper-versions' digest: 5,111 packages in
   nixpkgs (2026-10-30), 3,998 repository and commit pairs, 1,992 starting
-  from a release. Nothing on the page changes yet.
+  from a release.
 
 - **Worked-out update checks for packages fetched from a commit** whose
   version is a release's (envoy 1.36.10, not 0-unstable-2024-05-01, nor a

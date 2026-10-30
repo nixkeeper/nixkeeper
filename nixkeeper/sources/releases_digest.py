@@ -35,11 +35,18 @@ Packages fetched from a GitLab instance or Codeberg are in the digest's
 "elsewhere" (apart from "packages", which nixkeeper read as GitHub's
 before it knew of others), each with its "forge" ("gitlab", "forgejo")
 and its repository as "host/path": load reads both into one table.
+
+Packages pinned to a GitHub commit with an unstable version
+(0-unstable-2024-05-01) are in its "pins", with their commit compared with
+the repository's default branch: load reads them into the same table, and
+pin_result says what they give. Newer commits are only shown ("behind"):
+a pin is outdated once a release is out since it, not on commits alone
+(most projects commit docs and fixes no one needs packaged).
 """
 
 from datetime import datetime, timedelta
 
-from .. import log
+from .. import inferred, log
 from ..shape import Row
 from ..versions import is_newer
 from . import about, feeds, upstream
@@ -70,18 +77,21 @@ def load(now):
         return None
     packages = found.get("packages") or {}
     elsewhere = found.get("elsewhere") or {}
+    pins = found.get("pins") or {}
     about.note(
         "releases",
         True,
         at=found["fetchedAt"],
         packages=len(packages),
         elsewhere=len(elsewhere) or None,
+        pins=len(pins) or None,
     )
     log.info(
         f"GitHub releases: {len(packages):,} packages"
         + (f", {len(elsewhere):,} on GitLab and Codeberg" if elsewhere else "")
+        + (f", {len(pins):,} pinned to a commit" if pins else "")
     )
-    return {**packages, **elsewhere}
+    return {**packages, **elsewhere, **pins}
 
 
 def pages(entry):
@@ -124,6 +134,79 @@ def result(entry):
     if release and tag and is_newer(tag, release):
         found["tagged"] = tag
     return found
+
+
+def release_since(entry):
+    """Return the release a pinned package's version is behind, or None.
+
+    That's the repository's latest release, published after the pin's date
+    while the pin is behind the default branch (one at the branch's newest
+    commit has every release made from it), and newer than the release
+    the version starts from, when it names one (1.2.12 in
+    1.2.12-unstable-2026-07-05). Tags alone don't count: having no date,
+    they can be older than the pin (racket/ChezScheme's v9.5, Chez Scheme's
+    own from 2017, beside chez-racket 8.3-unstable-2021-12-11).
+
+    Args:
+        entry: A pin's entry in the digest.
+
+    Returns:
+        The version, or None.
+    """
+    m = inferred.UNSTABLE.match(entry.get("version") or "")
+    release = entry.get("release")
+    if not m or not release or (entry.get("branch") or {}).get("status") != "behind":
+        return None
+    start, date = m.groups()
+    if (entry.get("releasedAt") or "") <= date:
+        return None
+    if start and inferred.PLAIN.fullmatch(start) and not is_newer(release, start):
+        return None
+    return release
+
+
+def pin_result(entry, nix):
+    """Return the worked-out check result a pinned package's entry gives, or None.
+
+    A release since the pin (release_since) is a newer version. Otherwise
+    the commits on the default branch since are only shown: "behind", with
+    nixpkgs' version moved to the newest commit's date, not newer.
+
+    Args:
+        entry: A pin's entry in the digest.
+        nix: nixpkgs' version.
+
+    Returns:
+        {"version", "newer", "repo", "label", "url", "inferred", "digest",
+        "checkedAt"?, "behind"?}, or None when the commit isn't on the
+        default branch (another branch's, "ahead" or "diverged") or GitHub
+        couldn't compare it.
+    """
+    branch = entry.get("branch") or {}
+    if branch.get("status") not in ("identical", "behind"):
+        return None
+    repo = entry["repo"]
+    found = {"repo": repo, "inferred": True, "digest": "releases"}
+    if entry.get("read"):
+        found["checkedAt"] = f"{entry['read']}T00:00:00+00:00"
+    if since := release_since(entry):
+        return {
+            **found,
+            "version": since,
+            "newer": True,
+            "label": f"{repo} releases",
+            "url": pages(entry)[0],
+        }
+    last = branch.get("lastCommit")
+    moved = last and upstream.unstable_version(nix, f"{last}T00:00:00Z")
+    return {
+        **found,
+        "version": moved or nix,
+        "newer": False,
+        "behind": branch.get("behind") or 0,
+        "label": f"{repo} default branch",
+        "url": f"https://github.com/{repo}/commits",
+    }
 
 
 def mark_repos(rows: list[Row], digest):
@@ -170,7 +253,8 @@ def apply(rows: list[Row], digest, rules, now):
     or when only nixpkgs packages them (onlyNixpkgs): it's then the one
     thing their version is compared with, else nothing would be (3,320 rows
     on 2026-10-23, such as python313Packages.pbar2). For the other rows it
-    would add nothing.
+    would add nothing, except for pins (pin_result): every one gets its
+    commits since.
 
     Args:
         rows: The rows, changed in place.
@@ -193,7 +277,8 @@ def apply(rows: list[Row], digest, rules, now):
         nix = row.get("nixVersion")
         if not entry or not nix or entry.get("version") != nix:
             continue
-        found = result(entry)
+        pinned = "commit" in entry
+        found = pin_result(entry, nix) if pinned else result(entry)
         if not found or is_newer(nix, found["version"]):
             continue
         listed = bool(row.get("lists"))
@@ -206,7 +291,8 @@ def apply(rows: list[Row], digest, rules, now):
             continue
         newer = is_newer(found["version"], nix)
         if (
-            not listed
+            not pinned
+            and not listed
             and not newer
             and not found.get("tagged")
             and not row.get("onlyNixpkgs")

@@ -635,7 +635,7 @@ export function fillDetail(pkg, el, entries, page) {
                 ? follows
                   ? html` It's ${follows}.`
                   : up.behind
-                    ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits}.`
+                    ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits || 'a release is out since'}.`
                     : said
                       ? html` Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : ''}: the update check decides, being this package's own source.`
                       : !feed && !rule && !fromMaster(pkg) && !nothingElse
@@ -739,7 +739,7 @@ export function fillDetail(pkg, el, entries, page) {
               : said || up?.newer || (up && pkg.onlyNixpkgs && pkg.nixStatus === 'unique')
                 ? [
                     'ours',
-                    up.commit ? 'git-branch' : up.repo ? 'tag' : 'world',
+                    up.commit || up.behind != null ? 'git-branch' : up.repo ? 'tag' : 'world',
                     upLabel,
                     `${checkKind.replace(/^[ay]/, (c) => c.toUpperCase())}: ${upLabel}`,
                     safeUrl(up.url),

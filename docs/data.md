@@ -390,7 +390,7 @@ thunderbird-esr-bin at 153.5.0, which would make it 153.4).
 | `newer` | whether that counts as newer than nixpkgs' (for a branch check, only once `outdatedAfter` says so) |
 | `label`, `url` | where it looked: `wesnoth/wesnoth tags`, `www.barebones.com`, ... |
 | `repo` | the GitHub repository, for GitHub checks |
-| `commit`, `behind`, `outdatedAfter` | branch checks: the newest commit, how many commits since nixpkgs' version, and the limits (`{ "days", "commits" }`) |
+| `commit`, `behind`, `outdatedAfter` | branch checks: the newest commit, how many commits since nixpkgs' version, and the limits (`{ "days", "commits" }`). A package pinned to a GitHub commit with an unstable version gets `behind` alone from the releases digest (its commit against the default branch, `label` `owner/repo default branch`): never outdated on commits, only on a release published since (then `version` is that release's, `newer` true) |
 | `checkedAt` | when it was last checked (left out: at `checkedAt`) |
 | `community` | `true` when the check is a [community rule](community.md) |
 | `inferred` | `true` when the check was worked out from nixpkgs' source (the GitHub tags it fetches from), for a package without a rule |
