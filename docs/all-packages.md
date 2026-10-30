@@ -33,7 +33,9 @@ asked package by package:
 | GitHub | PR and issue counts and update PRs from the bulk listings only |
 
 Packages of **sets updated in bulk** (rPackages, haskellPackages,
-emacsPackages, typstPackages, texlivePackages, sbclPackages: their own
+emacsPackages, typstPackages, texlivePackages, sbclPackages,
+chickenPackages_5 and _6, akkuPackages, gnomeExtensions,
+azure-cli-extensions: their own
 tooling generates them from CRAN, Hackage and so on, and keeps them current
 as a whole, not one PR per package) have Repology's versions, Hydra's
 builds and nixpkgs-update's attempts where it makes any (some TeX Live and
@@ -57,7 +59,12 @@ series' newest snapshot, not Hackage's newest, which Stackage holds back
 until its next series: those at it show a "Stackage LTS" badge instead of
 outdated. R packages are compared with CRAN, or the Bioconductor release
 nixpkgs pins; those on neither any more show "archived" (nixpkgs marks
-most of them broken already; R's card counts those it doesn't).
+most of them broken already; R's card counts those it doesn't). CHICKEN
+eggs, Akku packages, GNOME Shell extensions and Azure CLI extensions are
+compared with the index each set is generated from: CHICKEN's egg index,
+Akku's, extensions.gnome.org (the newest version for the GNOME Shells
+nixpkgs merges into `gnomeExtensions`) and the Azure CLI's extension index
+(the newest version nixpkgs' `azure-cli` runs).
 
 ## The page
 

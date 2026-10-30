@@ -58,6 +58,7 @@ from .sources import (
     nixpkgs_update,
     prs_digest,
     releases_digest,
+    sets_digest,
     stackage_digest,
     typst_digest,
     updates_digest,
@@ -68,9 +69,9 @@ from .sources import (
 from .sources import nixpkgs as nixpkgs_source
 
 # The sources whose packages are compared with them instead of Repology:
-# Typst Universe, the Emacs archives, Stackage LTS, CRAN and Bioconductor
-# (sources/feeds.py).
-FEEDS = (typst_digest, emacs_digest, stackage_digest, cran_digest)
+# Typst Universe, the Emacs archives, Stackage LTS, CRAN and Bioconductor,
+# and the indexes of five more generated sets (sources/feeds.py).
+FEEDS = (typst_digest, emacs_digest, stackage_digest, cran_digest, sets_digest)
 
 
 def ask_hydra(
@@ -371,8 +372,9 @@ def own_sources_and_lists(run, index_rows):
     # since the channel moved.
     if ahead := rows.channel_versions(index_rows, run.nixpkgs):
         log.info(f"nixos-unstable ahead of Repology: {len(ahead):,} packages")
-    # Typst, Emacs, Stackage-pinned Haskell and R packages are compared with
-    # their own sources instead of Repology (FEEDS).
+    # Typst, Emacs, Stackage-pinned Haskell and R packages, and five more
+    # generated sets (CHICKEN, Akku, GNOME and Azure CLI extensions), are
+    # compared with their own sources instead of Repology (FEEDS).
     for feed in FEEDS:
         if any(a.startswith(feed.PREFIX) for a in run.tracked):
             feed.apply(index_rows, run.nixpkgs, feed.load(run.now))

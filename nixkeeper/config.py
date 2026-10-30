@@ -145,11 +145,41 @@ def all_packages():
 # nixpkgs, and a short form for badges.
 NIXPKGS_TREE = "https://github.com/NixOS/nixpkgs/tree/master/"
 SET_PROFILES = {
+    "akkuPackages": {
+        "name": "Akku",
+        "updatedBy": "the Akku index import (update.sh)",
+        "short": "Akku import",
+        "link": NIXPKGS_TREE + "pkgs/tools/package-management/akku",
+    },
+    "azure-cli-extensions": {
+        "name": "Azure CLI extensions",
+        "updatedBy": "the extension index import (extensions-tool.py)",
+        "short": "extensions-tool",
+        "link": NIXPKGS_TREE + "pkgs/by-name/az/azure-cli",
+    },
+    "chickenPackages_5": {
+        "name": "CHICKEN 5",
+        "updatedBy": "the egg import (update.sh 5)",
+        "short": "egg import",
+        "link": NIXPKGS_TREE + "pkgs/development/compilers/chicken/common/update.sh",
+    },
+    "chickenPackages_6": {
+        "name": "CHICKEN 6",
+        "updatedBy": "the egg import (update.sh 6)",
+        "short": "egg import",
+        "link": NIXPKGS_TREE + "pkgs/development/compilers/chicken/common/update.sh",
+    },
     "emacsPackages": {
         "name": "Emacs",
         "updatedBy": "the ELPA, NonGNU ELPA and MELPA update scripts",
         "short": "ELPA/MELPA",
         "link": NIXPKGS_TREE + "pkgs/applications/editors/emacs/elisp-packages",
+    },
+    "gnomeExtensions": {
+        "name": "GNOME Shell extensions",
+        "updatedBy": "the extensions.gnome.org import (update-extensions.py)",
+        "short": "extensions import",
+        "link": NIXPKGS_TREE + "pkgs/desktops/gnome/extensions",
     },
     "haskellPackages": {
         "name": "Haskell",

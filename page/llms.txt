@@ -31,7 +31,7 @@ All under `https://nixkeeper.com/data/`, JSON, public, no key. Fields are docume
 The sources nixkeeper joins, each refreshed on its own, each README describing its format; their data is on each repository's `data` branch (`https://raw.githubusercontent.com/nixkeeper/<repo>/data/data/`):
 
 - [digest-builds](https://github.com/nixkeeper/digest-builds): Hydra's latest evaluation of nixpkgs master, why each failure failed, which dependency blocked a build (hourly)
-- [digest-versions](https://github.com/nixkeeper/digest-versions): Repology's versions, GitHub releases, Typst, Emacs, Stackage, CRAN and Bioconductor indexes (every 12 hours)
+- [digest-versions](https://github.com/nixkeeper/digest-versions): Repology's versions, GitHub releases, Typst, Emacs, Stackage, CRAN, Bioconductor, CHICKEN, Akku, GNOME Shell and Azure CLI extension indexes (every 12 hours)
 - [digest-update-bot](https://github.com/nixkeeper/digest-update-bot): nixpkgs-update's attempts and queue (every 3 hours)
 - [digest-vulnerabilities](https://github.com/nixkeeper/digest-vulnerabilities): the NixOS security tracker's CVEs and OSV's advisories (hourly)
 - [digest-prs](https://github.com/nixkeeper/digest-prs): nixpkgs' open PRs and issues, with checks against Hydra, nixpkgs and the bot's queue (hourly)

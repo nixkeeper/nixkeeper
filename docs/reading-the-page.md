@@ -24,7 +24,7 @@ list. From the top:
 
 - **How many packages** nixpkgs has, how many are **fully checked** and how
   many are in **sets updated in bulk** (R, Haskell, Emacs, TeX Live, Typst,
-  SBCL: kept current by their own tooling, the CRAN import or hackage2nix,
+  SBCL, CHICKEN, Akku, GNOME Shell and Azure CLI extensions: kept current by their own tooling, the CRAN import or hackage2nix,
   say, not one PR per package; counted per set, not in the cards).
 - **Five cards** for the fully checked ones, each opening its list:
 

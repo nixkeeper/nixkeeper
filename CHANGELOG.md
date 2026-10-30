@@ -11,6 +11,17 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Five more generated sets compared with their own index**, instead of
+  Repology (which mostly sees nixpkgs alone there), from nixkeeper-versions'
+  new `sets.json.gz`: CHICKEN 5 and 6 eggs (CHICKEN's egg index), Akku
+  packages (Akku's index), GNOME Shell extensions (extensions.gnome.org:
+  the newest version for the GNOME Shells nixpkgs merges, matched by the
+  extension each attribute's source names, as slugs aren't unique) and
+  Azure CLI extensions (the newest version nixpkgs' `azure-cli` runs). Each
+  is a set updated in bulk, saying what updates it ("updated by the egg
+  import"), counted on its set's line on the overview. On 2026-10-30: about
+  2,900 attributes; 165 GNOME extensions behind extensions.gnome.org.
+
 - **Packages pinned to a commit** with an unstable version
   (0-unstable-2024-05-01) are compared with their GitHub repository, from
   nixkeeper-versions' digest: the panel says how many commits the default

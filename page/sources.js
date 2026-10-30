@@ -91,6 +91,14 @@ const SOURCES = [
     instead: "Repology's versions used",
   },
   {
+    key: 'sets',
+    digest: 'versions',
+    label: "Generated sets' indexes",
+    says: (s) =>
+      `read ${timeAgo(s.at)}: CHICKEN 5 ${s.chickenPackages_5?.toLocaleString()}, CHICKEN 6 ${s.chickenPackages_6?.toLocaleString()}, Akku ${s.akkuPackages?.toLocaleString()}, GNOME ${s.gnomeExtensions?.toLocaleString()}, Azure CLI ${s['azure-cli-extensions']?.toLocaleString()} packages`,
+    instead: "Repology's versions used",
+  },
+  {
     key: 'emacs',
     digest: 'versions',
     label: 'Emacs archives',
