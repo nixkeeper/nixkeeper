@@ -635,7 +635,7 @@ export function fillDetail(pkg, el, entries, page) {
                 ? follows
                   ? html` It's ${follows}.`
                   : up.behind
-                    ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits || 'a release is out since'}.`
+                    ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits || 'a release comes out after it'}.`
                     : said
                       ? html` Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : ''}: the update check decides, being this package's own source.`
                       : !feed && !rule && !fromMaster(pkg) && !nothingElse
@@ -683,6 +683,10 @@ export function fillDetail(pkg, el, entries, page) {
   // the accent's tint, Repology grey, so it shows when Repology isn't the
   // judge.
   const target = targetVersion(pkg);
+  // A package pinned to a commit that Repology doesn't compare (ignored,
+  // as snapshots often are): nixkeeper compared its commit with the default
+  // branch (releases_digest.pin_result), so the head says how far behind.
+  const pinned = st === 'neutral' && up && up.behind != null && !up.newer && !olderVersionKept(pkg);
   const verdict =
     st === 'missing'
       ? ['danger', 'Not in nixpkgs']
@@ -694,7 +698,12 @@ export function fillDetail(pkg, el, entries, page) {
           ? ['ok', 'Up to date']
           : olderVersionKept(pkg)
             ? ['neutral', 'Older version kept']
-            : ['neutral', 'Not compared'];
+            : pinned
+              ? [
+                  'neutral',
+                  up.behind ? `${plural(up.behind, 'commit')} behind` : 'At the newest commit',
+                ]
+              : ['neutral', 'Not compared'];
   const checkKind = communityCheck(pkg)
     ? 'a community update check'
     : up?.inferred
@@ -736,7 +745,7 @@ export function fillDetail(pkg, el, entries, page) {
                   `with ${up.follows}`,
                   `Updated together with ${up.follows} (${communityCheck(pkg) ? 'a community rule' : 'your update checks'}): its newest version counts for this package too`,
                 ]
-              : said || up?.newer || (up && pkg.onlyNixpkgs && pkg.nixStatus === 'unique')
+              : said || up?.newer || pinned || (up && pkg.onlyNixpkgs && pkg.nixStatus === 'unique')
                 ? [
                     'ours',
                     up.commit || up.behind != null ? 'git-branch' : up.repo ? 'tag' : 'world',

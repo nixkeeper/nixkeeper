@@ -15,7 +15,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
   (0-unstable-2024-05-01) are compared with their GitHub repository, from
   nixkeeper-versions' digest: the panel says how many commits the default
   branch has had since ("8 newer commits in laktak/extrakto default
-  branch"), and the package is outdated only once a release is published
+  branch"), its head too where Repology doesn't compare the snapshot
+  ("8 commits behind", "At the newest commit", not "Not compared"), and
+  the package is outdated only once a release is published
   after the pin (newer than the release its version starts from, if it
   names one; tags alone don't count, having no date). A commit on another
   branch than the default one gets nothing. Their repositories are marked
