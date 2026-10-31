@@ -57,6 +57,7 @@ from .sources import (
     hydra_digest,
     nixpkgs_update,
     prs_digest,
+    registries_digest,
     releases_digest,
     sets_digest,
     stackage_digest,
@@ -70,8 +71,16 @@ from .sources import nixpkgs as nixpkgs_source
 
 # The sources whose packages are compared with them instead of Repology:
 # Typst Universe, the Emacs archives, Stackage LTS, CRAN and Bioconductor,
-# and the indexes of five more generated sets (sources/feeds.py).
-FEEDS = (typst_digest, emacs_digest, stackage_digest, cran_digest, sets_digest)
+# the indexes of five more generated sets, and RubyGems and crates.io for the
+# gems and crates nixpkgs fetches from them (sources/feeds.py).
+FEEDS = (
+    typst_digest,
+    emacs_digest,
+    stackage_digest,
+    cran_digest,
+    sets_digest,
+    registries_digest,
+)
 
 
 def ask_hydra(
@@ -373,8 +382,9 @@ def own_sources_and_lists(run, index_rows):
     if ahead := rows.channel_versions(index_rows, run.nixpkgs):
         log.info(f"nixos-unstable ahead of Repology: {len(ahead):,} packages")
     # Typst, Emacs, Stackage-pinned Haskell and R packages, and five more
-    # generated sets (CHICKEN, Akku, GNOME and Azure CLI extensions), are
-    # compared with their own sources instead of Repology (FEEDS).
+    # generated sets (CHICKEN, Akku, GNOME and Azure CLI extensions), and
+    # gems and crates, are compared with their own sources instead of
+    # Repology (FEEDS).
     for feed in FEEDS:
         if any(a.startswith(feed.PREFIX) for a in run.tracked):
             feed.apply(index_rows, run.nixpkgs, feed.load(run.now))

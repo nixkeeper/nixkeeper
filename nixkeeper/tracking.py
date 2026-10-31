@@ -173,9 +173,13 @@ def every_package(nixpkgs, listed):
 def in_set(attrs, names):
     """Return the set from names that every one of attrs belongs to, or None.
 
-    An attribute's set is its first part, such as rPackages.
+    An attribute's set is its first part, such as rPackages, or the set
+    that part is another version of (config.SET_ALIASES).
     """
-    sets = {a.split(".", 1)[0] if "." in a else None for a in attrs}
+    sets = {
+        config.SET_ALIASES.get(first, first)
+        for first in (a.split(".", 1)[0] if "." in a else None for a in attrs)
+    }
     if len(sets) == 1 and (name := sets.pop()) in names:
         return name
     return None

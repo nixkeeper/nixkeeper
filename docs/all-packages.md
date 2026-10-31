@@ -35,7 +35,8 @@ asked package by package:
 Packages of **sets updated in bulk** (rPackages, haskellPackages,
 emacsPackages, typstPackages, texlivePackages, sbclPackages,
 chickenPackages_5 and _6, akkuPackages, gnomeExtensions,
-azure-cli-extensions: their own
+azure-cli-extensions, rubyPackages (with rubyPackages_3_4 and _4_0, the
+same gems for another Ruby): their own
 tooling generates them from CRAN, Hackage and so on, and keeps them current
 as a whole, not one PR per package) have Repology's versions, Hydra's
 builds and nixpkgs-update's attempts where it makes any (some TeX Live and
@@ -64,7 +65,11 @@ eggs, Akku packages, GNOME Shell extensions and Azure CLI extensions are
 compared with the index each set is generated from: CHICKEN's egg index,
 Akku's, extensions.gnome.org (the newest version for the GNOME Shells
 nixpkgs merges into `gnomeExtensions`) and the Azure CLI's extension index
-(the newest version nixpkgs' `azure-cli` runs).
+(the newest version nixpkgs' `azure-cli` runs). Gems and crates, in
+`rubyPackages` or not, are compared with their registry: each gem's newest
+release on RubyGems, each crate's on crates.io (its newest pre-release
+when nixpkgs follows those), matched by the gem or crate the attribute's
+source names.
 
 ## The page
 

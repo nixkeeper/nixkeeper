@@ -11,6 +11,18 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Added
 
+- **Gems and crates compared with their registry**, instead of Repology
+  (which mostly sees nixpkgs alone in `rubyPackages`' projects), from
+  nixkeeper-versions' new `registries.json.gz`: each gem's newest release on
+  RubyGems, each crate's newest on crates.io (its newest pre-release when
+  nixpkgs follows those, as for pijul), for the attributes fetched from
+  them, matched by the gem or crate each one's source names. `rubyPackages`
+  (with `rubyPackages_3_4` and `rubyPackages_4_0`, the same gems for
+  another Ruby) is a set updated in bulk ("updated by the gem set
+  import"), counted on its line on the overview. On 2026-10-31: 428 gems
+  (1,276 attributes, 679 behind RubyGems) and 218 crates (241 attributes,
+  66 behind crates.io).
+
 - **Five more generated sets compared with their own index**, instead of
   Repology (which mostly sees nixpkgs alone there), from nixkeeper-versions'
   new `sets.json.gz`: CHICKEN 5 and 6 eggs (CHICKEN's egg index), Akku

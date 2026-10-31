@@ -69,6 +69,17 @@ class Tracking(unittest.TestCase):
             {"name": "d", "attrs": ["d"], "lists": []},
             # Not versioned software, listed or not: its builds only.
             {"name": "darwin.e", "attrs": ["darwin.e"], "lists": ["x"]},
+            # One gem set, built for each Ruby.
+            {
+                "name": "rubyPackages.f",
+                "attrs": ["rubyPackages.f", "rubyPackages_3_4.f", "rubyPackages_4_0.f"],
+                "lists": [],
+            },
+            {
+                "name": "rubyPackages_4_0.g",
+                "attrs": ["rubyPackages_4_0.g"],
+                "lists": [],
+            },
         ]
         tracking.add_sets(rows)
         self.assertEqual(
@@ -79,6 +90,8 @@ class Tracking(unittest.TestCase):
                 (None, None),
                 (None, None),
                 (None, True),
+                ("rubyPackages", None),
+                ("rubyPackages", None),
             ],
         )
         self.assertNotIn("pending", rows[0])
