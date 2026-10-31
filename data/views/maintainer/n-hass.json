@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["duti"],"builds":[{"status":"ok","system":"aarch64-darwin"}],"devel":true,"lists":[],"maintainers":["n-hass"],"name":"duti","nixStatus":"devel","nixVersion":"1.5.5pre","nixVulnerable":false,"openIssues":0,"openPRs":0,"platforms":{"darwin":true,"linux":false},"project":"duti","refVersion":"1.5.4","searchTerm":"duti","update":null,"updateFailure":false}]}
