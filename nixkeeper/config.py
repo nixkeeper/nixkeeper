@@ -196,6 +196,12 @@ SET_PROFILES = {
         "short": "CRAN import",
         "link": NIXPKGS_TREE + "pkgs/development/r-modules",
     },
+    "rubyPackages": {
+        "name": "Ruby gems",
+        "updatedBy": "the gem set import (update-ruby-packages)",
+        "short": "gem import",
+        "link": NIXPKGS_TREE + "maintainers/scripts/update-ruby-packages",
+    },
     "sbclPackages": {
         "name": "Common Lisp",
         "updatedBy": "the Quicklisp import (ql-import.lisp)",
@@ -215,6 +221,10 @@ SET_PROFILES = {
         "link": NIXPKGS_TREE + "maintainers/scripts/update-typst-packages.py",
     },
 }
+# The same set for another version of its language: the one gem set is
+# built for each Ruby (rubyPackages_3_4.rails is rubyPackages.rails), so a
+# row of either is the set's (tracking.in_set).
+SET_ALIASES = {"rubyPackages_3_4": "rubyPackages", "rubyPackages_4_0": "rubyPackages"}
 # Attribute sets that aren't software with releases to compare (system
 # components: darwin's SDK pieces, FreeBSD's base): their rows say so
 # ("unversioned") instead of a version status; their builds count as any.

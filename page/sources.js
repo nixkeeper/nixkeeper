@@ -99,6 +99,14 @@ const SOURCES = [
     instead: "Repology's versions used",
   },
   {
+    key: 'registries',
+    digest: 'versions',
+    label: 'RubyGems and crates.io',
+    says: (s) =>
+      `read ${timeAgo(s.at)}: ${s.rubygems?.toLocaleString()} gems, ${s['crates.io']?.toLocaleString()} crates`,
+    instead: "Repology's versions used",
+  },
+  {
     key: 'emacs',
     digest: 'versions',
     label: 'Emacs archives',

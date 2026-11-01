@@ -5,7 +5,9 @@ own sources daily, beside its Repology digest
 (https://github.com/nixkeeper/digest-versions): Typst Universe
 (typst_digest.py), the Emacs package archives (emacs_digest.py), Stackage
 LTS (stackage_digest.py), CRAN and Bioconductor (cran_digest.py), and
-the indexes of five more generated sets (sets_digest.py). Each
+the indexes of five more generated sets (sets_digest.py), and RubyGems
+and crates.io for the gems and crates nixpkgs fetches from them
+(registries_digest.py). Each
 is one file next to the digest, loaded the same way (load), and compared
 with its set's rows by its own rules. Each such row then says what it was
 compared with ("feed", set by compare).
