@@ -292,6 +292,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A failed push of the data is tried again, 4 attempts in all, 30 s apart:
+  GitHub sometimes answers one with a 500, which lost the run's data until the
+  next run.
 - The hourly checks decide a package's verdict as the sync does. The PR
   check gave a package that follows another (follows.py) the version its
   PRs bring, which the next sync took away again; the frequent check left
