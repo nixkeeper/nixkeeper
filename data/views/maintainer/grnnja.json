@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["jflap"],"builds":[],"devel":false,"lists":[],"maintainers":["grnnja"],"name":"jflap","nixStatus":"newest","nixVersion":"7.1","nixVulnerable":false,"openIssues":0,"openPRs":0,"platforms":{"darwin":false,"linux":true},"project":"jflap","refVersion":"7.1","searchTerm":"jflap","unfree":true,"update":null,"updateFailure":false}]}
