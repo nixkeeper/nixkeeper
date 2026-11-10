@@ -9,7 +9,8 @@ package.
 
 Each becomes the row's worked-out check result ("upstream", inferred), so
 it adds a newer version Repology hasn't seen, and never takes Repology's
-verdict away (upstream.apply). Measured on 2026-10-09, GitHub and Repology
+verdict away (upstream.apply), except an "outdated" that names no newer
+version (verdict.outdated_unnamed). Measured on 2026-10-09, GitHub and Repology
 agree on 86% of 23,009 packages; where only Repology says outdated, a
 project had moved and its old repository stopped as often as Repology
 matched another project.
@@ -46,7 +47,7 @@ a pin is outdated once a release is out since it, not on commits alone
 
 from datetime import datetime, timedelta
 
-from .. import inferred, log
+from .. import inferred, log, verdict
 from ..shape import Row
 from ..versions import is_newer
 from . import about, feeds, upstream
@@ -252,7 +253,9 @@ def apply(rows: list[Row], digest, rules, now):
     version. Rows not on the lists get it only when it's newer, or tagged,
     or when only nixpkgs packages them (onlyNixpkgs): it's then the one
     thing their version is compared with, else nothing would be (3,320 rows
-    on 2026-10-23, such as python313Packages.pbar2). For the other rows it
+    on 2026-10-23, such as python313Packages.pbar2). So do the rows Repology
+    calls outdated without a newer version (verdict.outdated_unnamed: 29 on
+    2026-11-10, such as reframe), where it decides. For the other rows it
     would add nothing, except for pins (pin_result): every one gets its
     commits since.
 
@@ -296,6 +299,7 @@ def apply(rows: list[Row], digest, rules, now):
             and not newer
             and not found.get("tagged")
             and not row.get("onlyNixpkgs")
+            and not verdict.outdated_unnamed(row)
         ):
             continue
         upstream.apply(row, found)

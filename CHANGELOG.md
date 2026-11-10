@@ -292,6 +292,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A package Repology calls outdated without naming a newer version (its
+  "-unclassified" projects) is up to date when its GitHub, GitLab or Codeberg
+  release is nixpkgs' version: 39 packages on 2026-11-10, such as reframe.
 - The hourly checks decide a package's verdict as the sync does. The PR
   check gave a package that follows another (follows.py) the version its
   PRs bring, which the next sync took away again; the frequent check left
