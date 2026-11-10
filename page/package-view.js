@@ -637,7 +637,7 @@ export function fillDetail(pkg, el, entries, page) {
                   : up.behind
                     ? html` ${ours}: ${behind} ${upLink} (up to <span class="mono">${up.version}</span>), not counted as outdated until ${limits || 'a release comes out after it'}.`
                     : said
-                      ? html` Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : ''}: the update check decides, being this package's own source.`
+                      ? html` Repology counts it <span class="mono">${said.status}</span>${said.newest ? html`, with <span class="mono">${said.newest}</span> as the newest elsewhere` : said.status === 'outdated' ? ' without naming a newer version' : ''}: the update check decides, being this package's own source.`
                       : !feed && !rule && !fromMaster(pkg) && !nothingElse
                         ? html` ${ours} ${st === 'warn' ? 'found nothing newer' : 'agrees'}: the latest version ${upLink} is <span class="mono">${up.version}</span>.`
                         : ''

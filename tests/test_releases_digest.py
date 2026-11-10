@@ -178,6 +178,15 @@ class Apply(unittest.TestCase):
         self.assertEqual(releases_digest.apply(rows, digest, {}, NOW), {"pbar2"})
         self.assertFalse(rows[0]["upstream"]["newer"])
 
+    def test_up_to_date_when_repology_names_nothing(self):
+        """reframe, 2026-11-10: Repology calls it outdated without a newer
+        version (AUR has it too, so it isn't onlyNixpkgs)."""
+        digest = {"reframe": entry("1.21.0", tag="1.21.0", release="1.21.0")}
+        rows = [row("reframe", "1.21.0", "outdated")]
+        self.assertEqual(releases_digest.apply(rows, digest, {}, NOW), {"reframe"})
+        self.assertFalse(is_outdated(rows[0]))
+        self.assertEqual(rows[0]["repologySaid"], {"status": "outdated"})
+
     def test_not_trusted_or_not_its_own(self):
         digest = {
             # Bumped since the digest's evaluation: another tag scheme maybe.

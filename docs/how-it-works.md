@@ -183,7 +183,8 @@ least weekly (daily when Repology calls the package outdated): its latest
 release when the project makes them, else its newest tag. A worked-out
 check only ever adds a newer version Repology hasn't seen; it never makes
 a package Repology calls outdated up to date (a project that moved leaves
-its old repository's tags behind), nor counts a newer release for a
+its old repository's tags behind), unless Repology names no newer version
+(as for its "-unclassified" projects: reframe), nor counts a newer release for a
 version nixpkgs keeps on purpose beside a newer one (Repology's "legacy":
 fuse 2, `llvmPackages_18`). An up-to-date rule naming the wrong version
 (`newest`) silences a worked-out check that finds it too, so one wrong

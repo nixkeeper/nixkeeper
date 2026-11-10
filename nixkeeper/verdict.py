@@ -80,6 +80,17 @@ def decide(row: Row):
     _set(row, "repologyVerdict", base if differs else None)
 
 
+def outdated_unnamed(row: Row):
+    """Return whether Repology calls the row outdated without a newer version.
+
+    Its "-unclassified" projects do (reframe 1.21.0, with every repository
+    "outdated" and no newest version known): nothing then says what to
+    update to, nor that there is anything.
+    """
+    base = row.get("repologyVerdict") or _said(row["nixStatus"], row.get("refVersion"))
+    return base["status"] == "outdated" and not base.get("newest")
+
+
 def _said(status, ref):
     """Return a verdict as the row keeps it: {"status", "newest"?}."""
     return {"status": status, **({"newest": ref} if ref else {})}
@@ -148,12 +159,16 @@ def _update_check(row, verdict):
     already has an even newer one. A rule's check decides where it and the
     verdict disagree on whether nixpkgs is outdated, and what Repology said
     is kept beside it, for the page; a worked-out check, a result kept
-    because the check failed this time, and a kept version don't decide.
+    because the check failed this time, and a kept version don't decide,
+    except a worked-out check where the verdict is outdated without a
+    version (outdated_unnamed): it's the one thing that says what upstream
+    has.
     """
     found = row.get("upstream")
     if not found:
         return
     kept = verdict.status == config.KEPT or bool(row.get("keptBeside"))
+    unnamed = verdict.status == "outdated" and not verdict.ref
     said = _said(verdict.status, verdict.ref)
     newer = found["newer"]
     if newer and not is_newer(verdict.ref or "", found["version"]):
@@ -161,7 +176,7 @@ def _update_check(row, verdict):
     decides = "upstream" not in (row.get("notRefreshed") or {})
     if (
         decides
-        and not found.get("inferred")
+        and (not found.get("inferred") or unnamed)
         and row.get("nixVersion")
         and not kept
         and newer != (verdict.status in config.OUTDATED_STATUSES)
