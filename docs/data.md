@@ -59,7 +59,9 @@ a full sync.
 package lists, as sentences: a maintainer handle no package lists, an extra
 package nixpkgs doesn't have, an update check, ignore or up-to-date rule for
 a package that isn't tracked, or 1,500 packages or more (the cost of a sync).
-The page shows them above the table. `page`, only when the lists set it,
+The page shows them above the table, except with `allPackages`: on the
+community instance they matter only to the lists' keepers, whom the status
+page's issue tells. `page`, only when the lists set it,
 holds the page's settings: `{ "theme": "catppuccin" }` is
 its default palette.
 

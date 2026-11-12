@@ -152,6 +152,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- The community instance's page no longer shows the package lists' problems
+  above the table: they matter only to the lists' keepers, whom the status
+  page's issue already tells. Instances of their own lists still show them.
 - The page capitalizes the start of a sentence (a package's update
   attempt, the line after its verdict) through one helper that escapes
   plain text and keeps the page's own markup, rather than by hand around
