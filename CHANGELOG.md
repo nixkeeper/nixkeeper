@@ -295,6 +295,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A package's Hydra jobs leave out its `meta.badPlatforms`, as Hydra does: a
+  job's last build from before then no longer shows it as failing (mygui's
+  aarch64-darwin 3.4.2, from 2024).
 - A package Repology calls outdated without naming a newer version (its
   "-unclassified" projects) is up to date when its GitHub, GitLab or Codeberg
   release is nixpkgs' version: 39 packages on 2026-11-10, such as reframe.
