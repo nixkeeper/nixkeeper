@@ -1187,7 +1187,6 @@
   "xmoto"
   "xone-dongle-firmware"
   "xonotic"
-  "xonotic-data"
   "xonotic-dedicated"
   "xonotic-dedicated-unwrapped"
   "xonotic-glx"
