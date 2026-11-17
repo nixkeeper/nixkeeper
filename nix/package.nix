@@ -58,7 +58,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
     python3Packages.libversion
   ];
 
-  unittestFlagsArray = [
+  unittestFlags = [
     "-s"
     "tests"
     "-t"
