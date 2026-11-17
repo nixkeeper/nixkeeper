@@ -19,6 +19,10 @@
 # the last known results), so restore only does that when the branch surely
 # doesn't exist: if GitHub can't be asked, it fails instead.
 
+# A failed push is tried again, 4 attempts in all, NIXKEEPER_PUSH_PAUSE seconds
+# apart (30 by default): GitHub sometimes answers a push with a 500, and the
+# whole run's work would wait for the next run.
+
 set -euo pipefail
 
 PUBLISHED=refs/remotes/origin/data
@@ -59,8 +63,30 @@ case "${1:-}" in
       exit 0
     fi
     git commit -q -m "$message"
-    # Only over what this run started from: never over another run's data.
-    git push -q --force-with-lease="data:$previous" origin HEAD:data
+    pause=${NIXKEEPER_PUSH_PAUSE:-30}
+    attempts=4
+    for attempt in $(seq "$attempts"); do
+      # Only over what this run started from: never over another run's data.
+      if git push -q --force-with-lease="data:$previous" origin HEAD:data; then
+        break
+      fi
+      # What's there now, if GitHub answers: this push may have got through
+      # with only its answer lost, or another run may have published.
+      if remote=$(git ls-remote origin refs/heads/data | cut -f1); then
+        if [ "$remote" = "$(git rev-parse HEAD)" ]; then
+          break
+        elif [ "$remote" != "$previous" ]; then
+          echo "::error::Another run published the data ($remote): not replacing it."
+          exit 1
+        fi
+      fi
+      if [ "$attempt" -eq "$attempts" ]; then
+        echo "::error::Pushing the data failed $attempts times."
+        exit 1
+      fi
+      echo "::warning::Pushing the data failed (attempt $attempt of $attempts), trying again in $pause s."
+      sleep "$pause"
+    done
     echo "Published the data as $(git rev-parse --short HEAD), on main."
     ;;
   *)
