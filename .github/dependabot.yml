@@ -1,8 +1,23 @@
-# Proposes updates to the actions the workflows use, which are pinned to
-# commits: a PR each time one of them releases.
+# Proposes updates once a week, one PR for each kind: the flake's inputs
+# (flake.lock: nixpkgs, treefmt-nix, ...) and the actions the workflows use,
+# which are pinned to commits.
 version: 2
 updates:
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "flake.lock:"
+    groups:
+      flake-inputs:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "ci:"
+    groups:
+      actions:
+        patterns: ["*"]
