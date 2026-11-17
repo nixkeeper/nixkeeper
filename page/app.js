@@ -246,6 +246,9 @@ function showThemePanel(open) {
 
 // Mistakes the sync found in the package lists (nixkeeper/listcheck.py): a
 // maintainer handle no package lists tracks nothing, so it's said up front.
+// Not on the community instance: its lists are the teams', whose own
+// problems (a package nixpkgs removed) mean nothing to its visitors, and the
+// status page's issue tells the people who keep them.
 function showListProblems(problems) {
   const el = document.getElementById('listProblems');
   if (!el) return;
@@ -511,7 +514,7 @@ async function loadIndex() {
     // The nixkeeper that made the data, in the footer (older data has none).
     document.getElementById('version').textContent =
       data.version && data.version !== 'unknown' ? ` ${data.version}` : '';
-    showListProblems(data.listProblems || []);
+    showListProblems(data.allPackages ? [] : data.listProblems || []);
     setSitePalette(data.page?.theme || null);
     document.getElementById('search').disabled = false;
     await update({ keepPage: true });

@@ -109,6 +109,34 @@ class Rules(unittest.TestCase):
             ("newest", None, None, None, {"status": "outdated", "newest": "1.5"}),
         )
 
+    def test_worked_out_check_where_repology_names_nothing(self):
+        """reframe, 2026-11-10: Repology's "-unclassified" project calls it
+        outdated with no newer version; GitHub's release is nixpkgs'."""
+        r = row(
+            "outdated",
+            upstream={"version": "1.0", "newer": False, "inferred": True},
+        )
+        decide(r)
+        self.assertEqual(
+            outcome(r), ("newest", None, None, None, {"status": "outdated"})
+        )
+        # Naming a version, Repology's verdict stays.
+        r = row(
+            "outdated",
+            "1.5",
+            upstream={"version": "1.0", "newer": False, "inferred": True},
+        )
+        decide(r)
+        self.assertEqual(outcome(r), ("outdated", "1.5", None, None, None))
+
+    def test_outdated_unnamed(self):
+        self.assertTrue(verdict.outdated_unnamed(row("outdated")))
+        self.assertFalse(verdict.outdated_unnamed(row("outdated", "2.0")))
+        self.assertFalse(verdict.outdated_unnamed(row("newest")))
+        # Repology's own verdict, not the one decided since.
+        decided = row("newest", repologyVerdict={"status": "outdated"})
+        self.assertTrue(verdict.outdated_unnamed(decided))
+
     def test_update_checks_that_dont_decide(self):
         cases = {
             # Worked out: only adds the version.

@@ -150,6 +150,14 @@ class Hydra(unittest.TestCase):
             ),
             ["x86_64-linux", "aarch64-darwin"],
         )
+        # Not where it's a bad platform (mygui's darwin), with or without
+        # meta.platforms; patterns (attribute sets) aside.
+        mygui = pkg("mygui", ["x86_64-linux", "aarch64-linux", "aarch64-darwin"])
+        mygui["meta"]["badPlatforms"] = ["aarch64-darwin", {"kernel": "x"}]
+        self.assertEqual(hydra.systems(mygui), ["x86_64-linux", "aarch64-linux"])
+        anywhere = pkg("x")
+        anywhere["meta"]["badPlatforms"] = ["aarch64-linux"]
+        self.assertNotIn("aarch64-linux", hydra.systems(anywhere))
         no_hydra = pkg("x", ["x86_64-linux"])
         no_hydra["meta"]["hydraPlatforms"] = []
         self.assertEqual(hydra.systems(no_hydra), [])

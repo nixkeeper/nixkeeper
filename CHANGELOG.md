@@ -152,6 +152,9 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Changed
 
+- The community instance's page no longer shows the package lists' problems
+  above the table: they matter only to the lists' keepers, whom the status
+  page's issue already tells. Instances of their own lists still show them.
 - The page capitalizes the start of a sentence (a package's update
   attempt, the line after its verdict) through one helper that escapes
   plain text and keeps the page's own markup, rather than by hand around
@@ -292,6 +295,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A package's Hydra jobs leave out its `meta.badPlatforms`, as Hydra does: a
+  job's last build from before then no longer shows it as failing (mygui's
+  aarch64-darwin 3.4.2, from 2024).
+- A package Repology calls outdated without naming a newer version (its
+  "-unclassified" projects) is up to date when its GitHub, GitLab or Codeberg
+  release is nixpkgs' version: 39 packages on 2026-11-10, such as reframe.
 - A failed push of the data is tried again, 4 attempts in all, 30 s apart:
   GitHub sometimes answers one with a 500, which lost the run's data until the
   next run.

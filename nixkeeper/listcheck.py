@@ -9,7 +9,8 @@ channel's package index it has loaded anyway; the repository's `nix flake
 check` does the same before anything runs (nix/package-lists.nix).
 
 The sync prints them and writes them to the data ("listProblems"), and the
-page shows them above the table.
+page shows them above the table, except on the community instance
+(allPackages), where the status page's issue tells the lists' keepers.
 """
 
 from . import follows, log, scale

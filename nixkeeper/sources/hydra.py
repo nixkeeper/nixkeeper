@@ -139,13 +139,19 @@ def is_unfree(pkg):
 def systems(pkg):
     """Return the Hydra platforms a package claims to build on.
 
-    All of them when it doesn't declare meta.platforms; none when
-    meta.hydraPlatforms is empty.
+    All of them when it doesn't declare meta.platforms, less its
+    meta.badPlatforms, as Hydra's own default (hydraPlatforms) has it: its
+    last build there stays Hydra's latest for the job (mygui's
+    aarch64-darwin 3.4.2, failed, from before darwin was a bad platform),
+    which isn't one of its builds any more. None when meta.hydraPlatforms
+    is empty.
     """
     meta = pkg["meta"]
     wanted = config.HYDRA_SYSTEMS
     if meta.get("platforms"):
         wanted = [s for s in wanted if s in meta["platforms"]]
+    bad = {s for s in meta.get("badPlatforms") or [] if isinstance(s, str)}
+    wanted = [s for s in wanted if s not in bad]
     if meta.get("hydraPlatforms") is not None:
         wanted = [s for s in wanted if s in meta["hydraPlatforms"]]
     return wanted

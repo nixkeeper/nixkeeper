@@ -59,7 +59,9 @@ a full sync.
 package lists, as sentences: a maintainer handle no package lists, an extra
 package nixpkgs doesn't have, an update check, ignore or up-to-date rule for
 a package that isn't tracked, or 1,500 packages or more (the cost of a sync).
-The page shows them above the table. `page`, only when the lists set it,
+The page shows them above the table, except with `allPackages`: on the
+community instance they matter only to the lists' keepers, whom the status
+page's issue tells. `page`, only when the lists set it,
 holds the page's settings: `{ "theme": "catppuccin" }` is
 its default palette.
 
@@ -373,7 +375,7 @@ lists, nixpkgs' own and those of the 8 newest other repositories). Instead:
 | `staleSince` | Repology couldn't be reached for it: the version data is from this time |
 | `repologyCheckedAt` | when its Repology data was read: when nixkeeper-versions' digest read it (every 12 hours for outdated projects, weekly for the rest), or when Repology was asked directly (daily while it's outdated, flagged vulnerable, changed in nixpkgs or new, otherwise every 3 days) |
 | `upstream` | nixkeeper's own update check, when it has one (below): a rule of yours or the community's, or one worked out from nixpkgs |
-| `repologySaid` | a rule's update check (yours, the community's, or one it follows; not a worked-out one) disagreed with Repology on whether `nixVersion` is outdated, and decided: `nixStatus` is the check's (`outdated` or `newest`, then with no `refVersion`), `status` is what Repology said and `newest` the version it showed as newest elsewhere (when there was one) |
+| `repologySaid` | a rule's update check (yours, the community's, or one it follows; a worked-out one only where Repology called it outdated without a newer version) disagreed with Repology on whether `nixVersion` is outdated, and decided: `nixStatus` is the check's (`outdated` or `newest`, then with no `refVersion`), `status` is what Repology said and `newest` the version it showed as newest elsewhere (when there was one) |
 | `repologyVerdict` | Repology's own verdict on the row (`status`, and `newest` when it showed one), when `nixStatus` or `refVersion` differ from it: a version feed, an up-to-date rule, an update check, master or an update PR changed them. Each run works the verdict out again from it (`verdict.py`); without it, the verdict is Repology's |
 | `upToDate` | an [up-to-date rule](community.md#up-to-date-rules-until-something-changes) applies: Repology gets `nixVersion` wrong, so `nixStatus` is `newest` and there's no `refVersion`. `status` is what Repology said, `newest` the version it showed as newest elsewhere (when there was one), `reason` the rule's, `ruleNewest` the rule's own `newest` (a worked-out update check finding that version doesn't count either), and `community` is `true` for a community rule |
 
