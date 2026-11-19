@@ -863,6 +863,7 @@
   "r2modman"
   "racer"
   "rahasher"
+  "raphael-xiv"
   "rare"
   "rat-king-adventure"
   "raylib"
