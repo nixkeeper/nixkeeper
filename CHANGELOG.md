@@ -295,6 +295,11 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A failed update the bot no longer tries again, on a package that isn't
+  outdated, no longer shows as an update failure: it reads as superseded,
+  "a version its sources no longer offer" (extremetuxracer's 1.0.0, tried in
+  February, which Repology has dropped since). Only when the bot's queue was
+  read; an outdated package keeps its failure.
 - A package's Hydra jobs leave out its `meta.badPlatforms`, as Hydra does: a
   job's last build from before then no longer shows it as failing (mygui's
   aarch64-darwin 3.4.2, from 2024).
