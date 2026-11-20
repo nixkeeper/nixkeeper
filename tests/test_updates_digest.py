@@ -256,3 +256,58 @@ class Queue(unittest.TestCase):
         rows = [{"name": "unciv", "attrs": ["unciv"]}]
         nixpkgs_update.add_queue(rows, nixpkgs, None)
         self.assertNotIn("queued", rows[0])
+
+    def test_stale_failure(self):
+        found = self.load(QUEUE)
+        nixpkgs = {"hello": pkg("hello", "2.12"), "unciv": pkg("unciv", "4.22.5")}
+
+        def failed(to):
+            return {"outcome": "failed", "from": "2.12", "to": to, "date": "2026-02-08"}
+
+        rows = [
+            # Not queued, up to date: the bot has stopped trying.
+            {
+                "name": "hello",
+                "attrs": ["hello"],
+                "nixStatus": "newest",
+                "update": failed("3.0"),
+                "updateFailure": True,
+            },
+            # Not queued, but outdated: its update still needs doing.
+            {
+                "name": "hello2",
+                "attrs": ["hello"],
+                "nixStatus": "outdated",
+                "update": failed("3.0"),
+                "updateFailure": True,
+            },
+            # Queued: the bot tries again.
+            {
+                "name": "unciv",
+                "attrs": ["unciv"],
+                "nixStatus": "newest",
+                "update": failed("4.22.7"),
+                "updateFailure": True,
+            },
+        ]
+        nixpkgs_update.add_queue(rows, nixpkgs, found)
+        stale, outdated, queued = rows
+        self.assertFalse(stale["updateFailure"])
+        self.assertEqual(stale["update"]["outcome"], "superseded")
+        self.assertEqual(stale["update"]["supersededOn"], nixpkgs_update.DROPPED)
+        self.assertEqual(stale["update"]["supersededOutcome"], "failed")
+        for row in (outdated, queued):
+            self.assertTrue(row["updateFailure"])
+            self.assertEqual(row["update"]["outcome"], "failed")
+        # Without a queue, nothing changes.
+        rows = [
+            {
+                "name": "hello",
+                "attrs": ["hello"],
+                "nixStatus": "newest",
+                "update": failed("3.0"),
+                "updateFailure": True,
+            }
+        ]
+        nixpkgs_update.add_queue(rows, nixpkgs, None)
+        self.assertTrue(rows[0]["updateFailure"])

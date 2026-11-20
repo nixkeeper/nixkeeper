@@ -365,6 +365,12 @@ COUNTING_CHANGES = [
         "text": "one distribution's snapshot of a release isn't a newer version "
         "(mintotp 0.3.0, SlackBuilds' 0.3.0.20240120)",
     },
+    {
+        # Set to the merge's time when it's merged.
+        "merged": "2026-11-20T12:00:00+00:00",
+        "text": "a failed update the bot no longer tries again, on a package "
+        "that isn't outdated, isn't an update failure",
+    },
 ]
 KEPT = "legacy"
 # Repology's repositories that are a language's own package index, where a

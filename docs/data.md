@@ -531,7 +531,7 @@ Only `failed` counts as a failure.
 | `pr` | the PR it opened or found |
 | `failedBecause` | for `failed`, why, from the log's first line that says: `bot` (the bot's own machine failed: its build users group, its nix daemon; not the package, still an update failure, worth telling nixpkgs-update's maintainers; also worked out from the excerpt of an attempt read before this reason was), `unavailable` (broken, insecure or not for x86_64-linux, the package or a dependency), `patch` (nixpkgs' patches or substitutions don't apply), `dependency` (missing or too old), `hash` (one not updated, or one the bot couldn't work out: vendored dependencies, mostly), `source` (the new version's can't be fetched), `updateScript` (the package's own failed), `tests`, `noLog` (the build failed, and nix kept no log), `build` (any other build error), `request` (the bot's own request failed, to GitHub mostly), or `other` |
 | `excerpt` | why it failed, couldn't update, was skipped or had nothing to update: for a failure, the line that says what went wrong and the next (the last lines of the log when no line says); else the bot's reasons (for a failed request, its host and answer) |
-| `supersededOn` | for `superseded`: `nixos-unstable` or `master` (nixpkgs moved past that version), or `ignored` (a manual rule) |
+| `supersededOn` | for `superseded`: `nixos-unstable` or `master` (nixpkgs moved past that version), `ignored` (a manual rule), or `dropped` (the bot no longer queues the package, which isn't outdated) |
 | `supersededOutcome` | what the attempt was before: `failed` or `cantUpdate` |
 | `reason` | the manual rule's reason, for `ignored` |
 | `community` | `true` when that rule is a [community rule](community.md) |

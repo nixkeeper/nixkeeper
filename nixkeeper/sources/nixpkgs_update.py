@@ -605,6 +605,8 @@ def superseded(attempt, nix_version, master=None):
 # Outcomes that stop mattering once nixpkgs has moved past the version the
 # bot tried.
 SUPERSEDABLE = ("failed", "cantUpdate")
+# supersededOn for a failure the bot no longer tries again (drop_stale_failure).
+DROPPED = "dropped"
 
 
 # BOT_FAILURE, to search an attempt's excerpt with.
@@ -639,7 +641,8 @@ def supersede(attempt, where):
     Args:
         attempt: The attempt, changed in place.
         where: "nixos-unstable" or "master" (where nixpkgs moved past it),
-            or "ignored" (a rule ignores it).
+            or "ignored" (a rule ignores it), or "dropped" (the bot stopped
+            trying: drop_stale_failure).
     """
     attempt.update(
         supersededOutcome=attempt["outcome"], outcome="superseded", supersededOn=where
@@ -838,6 +841,7 @@ def add_queue(rows, nixpkgs, queue):
             if a in nixpkgs and search_term(a) in queue
         ]
         if not found:
+            drop_stale_failure(row, nixpkgs)
             continue
         soonest = min(found, key=lambda e: e["by"])
         candidates = []
@@ -853,6 +857,31 @@ def add_queue(rows, nixpkgs, queue):
         if soonest.get("script"):
             # It also runs the package's updateScript, which decides the version.
             row["queued"]["script"] = True
+
+
+def drop_stale_failure(row: Row, nixpkgs):
+    """Mark a failed attempt superseded when the bot has stopped trying.
+
+    The bot tries a package again while its queue has it. A package that
+    isn't in the queue and isn't outdated has nothing left for it to update
+    to: the version it failed at is one its sources no longer offer
+    (extremetuxracer tried 1.0.0 in February, then Repology dropped it), so
+    the failure would stay on the page for good, though no one can act on it.
+    An outdated one keeps its failure: its update still needs doing.
+
+    Args:
+        row: The row, not in the bot's queue, changed in place.
+        nixpkgs: The package index, by attribute.
+    """
+    attempt = row.get("update")
+    if (
+        attempt
+        and attempt.get("outcome") == "failed"
+        and any(a in nixpkgs for a in row.get("attrs") or [])
+        and not is_outdated(row)
+    ):
+        supersede(attempt, DROPPED)
+        row["updateFailure"] = False
 
 
 def add_attempts(
