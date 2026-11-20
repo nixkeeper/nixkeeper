@@ -35,6 +35,12 @@
     reason = "nixpkgs builds a ValHaris/asc-hq commit it versions 2.6.3.0; the other repositories have the 2.6.1.0 release, and Repology flags 2.6.3.0 as incorrect.";
   };
 
+  fastchess = {
+    version = "1.8.3-alpha";
+    newest = "1.8.3";
+    reason = "Upstream tags every release with -alpha (v1.8.3-alpha is its latest release, not a pre-release); the AUR drops it, and Repology takes 1.8.3 for newer.";
+  };
+
   steamtinkerlaunch = {
     version = "12.12-unstable-2025-07-14";
     newest = "12.12";
