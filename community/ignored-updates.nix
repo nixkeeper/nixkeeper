@@ -29,6 +29,8 @@
   # keep-sorted start newline_separated=yes
   applewin."1.32.1.0" = "Incorrect version: the Windows original's; nixpkgs builds the Linux port.";
 
+  biplanes-revival."1.05" = "An old tag: v1.05 came before v1.1, and sorts after 1.2.1.";
+
   blackvoxel."2.5" = "Temporary: v prefix removal at 2.5 causes update error.";
 
   tetris."7.9.0" = "Incorrect version: package name collision, reported to Repology.";
