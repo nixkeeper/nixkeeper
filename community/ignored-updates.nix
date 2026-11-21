@@ -27,6 +27,8 @@
 # skiplist. A rule here only stops the failure it already made from showing.
 {
   # keep-sorted start newline_separated=yes
+  applewin."1.32.1.0" = "Incorrect version: the Windows original's; nixpkgs builds the Linux port.";
+
   blackvoxel."2.5" = "Temporary: v prefix removal at 2.5 causes update error.";
 
   tetris."7.9.0" = "Incorrect version: package name collision, reported to Repology.";
