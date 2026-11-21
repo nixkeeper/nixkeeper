@@ -29,6 +29,12 @@
 # is a report to Repology; a rule here only stops it from showing meanwhile.
 {
   # keep-sorted start block=yes newline_separated=yes
+  applewin = {
+    version = "1.30.21.0.b";
+    newest = "1.32.1.0";
+    reason = "nixpkgs builds audetto/AppleWin, the Linux port, whose latest release is v1.30.21.0.b; 1.32.1.0 (Scoop) is the Windows original's, AppleWin/AppleWin, which Repology files under the same project.";
+  };
+
   asc = {
     version = "2.6.3.0";
     newest = "2.6.1.0";
