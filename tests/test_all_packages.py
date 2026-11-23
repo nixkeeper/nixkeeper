@@ -1049,6 +1049,9 @@ class Fixed(unittest.TestCase):
         # The bot stopped trying (nixpkgs_update.DROPPED): not a fix.
         dropped = {**failed, "outcome": "superseded", "supersededOn": "dropped"}
         self.assertEqual(self.fixes(before, [row("a", update=dropped)]), [])
+        # Its updateScript found no version (nixpkgs_update.NONE_FOUND): nor that.
+        found_none = {**failed, "outcome": "superseded", "supersededOn": "noVersion"}
+        self.assertEqual(self.fixes(before, [row("a", update=found_none)]), [])
         # Not read this time: nothing known.
         self.assertEqual(
             self.fixes(before, [row("a", update=newer, unread=["update"])]), []

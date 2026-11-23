@@ -295,6 +295,12 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- An update script that finds no version to update to, on a package that
+  isn't outdated, no longer shows as an update failure: it reads as
+  superseded. That's nix-update, which the bot runs for a package without
+  an updateScript of its own, finding no tags or releases it can read
+  (avell-unofficial-control-center 1.0.4, upstream's last commit, and about
+  380 others on 2026-11-21). An outdated package keeps its failure.
 - A failed update the bot no longer tries again, on a package that isn't
   outdated, no longer shows as an update failure: it reads as superseded,
   "a version its sources no longer offer" (extremetuxracer's 1.0.0, tried in
