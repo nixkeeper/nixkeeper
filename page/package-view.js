@@ -195,7 +195,9 @@ export const UPDATE_OUTCOME = {
   // channel, or merged on master and not in the channel yet. Or a rule
   // ignores the version it tried: your own (package-lists/ignored-updates.nix)
   // or a community one (community/ignored-updates.nix). Or the bot has
-  // stopped trying a package that isn't outdated (nixpkgs_update.DROPPED).
+  // stopped trying a package that isn't outdated (nixpkgs_update.DROPPED). Or
+  // its updateScript found no version to update to, on a package that isn't
+  // outdated (nixpkgs_update.NONE_FOUND).
   superseded: {
     dot: 'neutral',
     label: () => 'Superseded',
@@ -206,9 +208,11 @@ export const UPDATE_OUTCOME = {
         ? html`failed trying <span class="mono">${version}</span>, a version ignored by ${u.community ? 'a community rule' : 'a manual rule'}: ${u.reason}`
         : u.supersededOn === 'dropped'
           ? html`failed trying <span class="mono">${version}</span>, a version its sources no longer offer: the bot has stopped trying to update it`
-          : u.supersededOn === 'master'
-            ? html`${what}, but master already has <span class="mono">${onMaster(pkg)}</span> (merged, waiting for nixos-unstable)`
-            : html`${what}, but nixpkgs has moved on to <span class="mono">${pkg.nixVersion}</span> since`;
+          : u.supersededOn === 'noVersion'
+            ? html`failed: its update script found no version to update to (no tags or releases it can read), and <span class="mono">${pkg.nixVersion}</span> is up to date`
+            : u.supersededOn === 'master'
+              ? html`${what}, but master already has <span class="mono">${onMaster(pkg)}</span> (merged, waiting for nixos-unstable)`
+              : html`${what}, but nixpkgs has moved on to <span class="mono">${pkg.nixVersion}</span> since`;
     },
   },
   // Every way the bot has of updating a package declined (the excerpt says

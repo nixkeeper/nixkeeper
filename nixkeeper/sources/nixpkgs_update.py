@@ -607,6 +607,16 @@ def superseded(attempt, nix_version, master=None):
 SUPERSEDABLE = ("failed", "cantUpdate")
 # supersededOn for a failure the bot no longer tries again (drop_stale_failure).
 DROPPED = "dropped"
+# supersededOn for an updateScript failure that found no version to update
+# to, on a package that isn't outdated (found_no_version).
+NONE_FOUND = "noVersion"
+# nix-update's errors when it finds no version to update to: no source it
+# can read one from (no tags, a release it doesn't know), no tag at all, none
+# matching the package's version regex, or only one it takes for unstable.
+NO_VERSION_FOUND = re.compile(
+    r"VersionError: (?:Please specify the version|No git tags found"
+    r"|No version matched the regex|Found an unstable version)"
+)
 
 
 # BOT_FAILURE, to search an attempt's excerpt with.
@@ -642,10 +652,34 @@ def supersede(attempt, where):
         attempt: The attempt, changed in place.
         where: "nixos-unstable" or "master" (where nixpkgs moved past it),
             or "ignored" (a rule ignores it), or "dropped" (the bot stopped
-            trying: drop_stale_failure).
+            trying: drop_stale_failure), or "noVersion" (its updateScript
+            found nothing to update to: found_no_version).
     """
     attempt.update(
         supersededOutcome=attempt["outcome"], outcome="superseded", supersededOn=where
+    )
+
+
+def found_no_version(attempt, row: Row):
+    """Return whether attempt failed for want of a version, on an up-to-date row.
+
+    With no updateScript of its own, the bot runs nix-update, which looks for
+    a newer version in the package's source: a package whose upstream has no
+    tags, or releases somewhere nix-update can't read, fails there every time
+    (avell-unofficial-control-center 1.0.4, upstream's last commit). On a
+    package that isn't outdated there's nothing to update to, so that's not
+    an update failure; an outdated one keeps it, as its update still needs
+    doing.
+
+    Args:
+        attempt: The row's latest attempt.
+        row: The row.
+    """
+    return (
+        attempt.get("outcome") == "failed"
+        and attempt.get("failedBecause") == "updateScript"
+        and bool(NO_VERSION_FOUND.search("\n".join(attempt.get("excerpt") or [])))
+        and not is_outdated(row)
     )
 
 
@@ -1087,9 +1121,10 @@ def judge(row: Row, attempts, rules=None, community=()):
 
     A failed attempt is superseded where nixpkgs has moved past it
     (superseded: "master" comes from Hydra, read before this), or else when
-    one of rules ignores it (ignored). A rule that no longer matches the
-    latest attempt is said in the log, as it can go, unless it's a
-    community rule (community-check lists those).
+    one of rules ignores it (ignored), or else when its updateScript found no
+    version to update to on a row that isn't outdated (found_no_version). A
+    rule that no longer matches the latest attempt is said in the log, as it
+    can go, unless it's a community rule (community-check lists those).
 
     Args:
         row: The row, changed in place: "update" and "updateFailure".
@@ -1119,6 +1154,8 @@ def judge(row: Row, attempts, rules=None, community=()):
         attempt["reason"] = reason
         if any((row["name"], v) in community and at_version(attempt, v) for v in rules):
             attempt["community"] = True
+    elif attempt and found_no_version(attempt, row):
+        supersede(attempt, NONE_FOUND)
     for version in rules:
         # Community rules are listed by the community's own tidy-up
         # (community-check), not here.

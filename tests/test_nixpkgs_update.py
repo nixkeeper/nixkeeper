@@ -898,6 +898,43 @@ class Judge(unittest.TestCase):
         self.assertEqual(row["update"]["supersededOn"], "nixos-unstable")
         self.assertNotIn("reason", row["update"])
 
+    def test_no_version_found_on_an_up_to_date_package(self):
+        # nix-update, run for a package without an updateScript, finds no
+        # version upstream: not a failure while the package is up to date.
+        script = self.failed(
+            to="1",
+            failedBecause="updateScript",
+            excerpt=[
+                "nix_update.errors.VersionError: Please specify the version. "
+                "We can only get the latest version from github projects"
+            ],
+        )
+        script["from"] = "0"
+        row = self.judge([dict(script)], nixStatus="newest")
+        self.assertEqual(row["update"]["supersededOn"], nixpkgs_update.NONE_FOUND)
+        self.assertFalse(row["updateFailure"])
+        for error in (
+            "No git tags found",
+            "No version matched the regex. The following versions were found: 2",
+            "Found an unstable version v1.8.3-alpha, which is being ignored.",
+        ):
+            attempt = {**script, "excerpt": [f"VersionError: {error}"]}
+            row = self.judge([attempt], nixStatus="unique")
+            self.assertFalse(row["updateFailure"], error)
+        # Outdated: its update still needs doing.
+        row = self.judge([dict(script)], nixStatus="outdated")
+        self.assertTrue(row["updateFailure"])
+        row = self.judge([dict(script)], nixStatus="newest", upstream={"newer": True})
+        self.assertTrue(row["updateFailure"])
+        # Another updateScript error, or a build failure: still failures.
+        other = {**script, "excerpt": ["error: hash mismatch"]}
+        self.assertTrue(self.judge([other], nixStatus="newest")["updateFailure"])
+        build = {**script, "failedBecause": "build"}
+        self.assertTrue(self.judge([build], nixStatus="newest")["updateFailure"])
+        # A rule ignoring it counts first, with its reason.
+        row = self.judge([dict(script)], {"2.7.3": "x"}, nixStatus="newest")
+        self.assertEqual(row["update"]["supersededOn"], "ignored")
+
     def test_a_rule_that_no_longer_matches_can_go(self):
         self.judge([self.failed()], {"2.8.0": "Never released."})
         self.assertIn("ignoredUpdates.egoboo", self.stderr.getvalue())

@@ -288,8 +288,9 @@ def fixes(rows, previous, now):
             and "update" not in (row.get("unread") or [])
             and update
             and (update.get("date") != was.get("date") or update.get("supersededOn"))
-            # The bot giving up isn't a fix (nixpkgs_update.DROPPED).
-            and update.get("supersededOn") != "dropped"
+            # The bot giving up, or finding no version, isn't a fix
+            # (nixpkgs_update.DROPPED, NONE_FOUND).
+            and update.get("supersededOn") not in ("dropped", "noVersion")
         ):
             found.append(
                 {
