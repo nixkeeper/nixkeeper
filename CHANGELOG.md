@@ -295,6 +295,10 @@ The version lives in `pyproject.toml`; `flake.nix` reads it from there.
 
 ### Fixed
 
+- A patch named after several CVEs of one year in a run
+  (`plus-cve-2026-131873-131874.patch`) counts for each of them, not only
+  the first.
+
 - An update script that finds no version to update to, on a package that
   isn't outdated, no longer shows as an update failure: it reads as
   superseded. That's nix-update, which the bot runs for a package without
