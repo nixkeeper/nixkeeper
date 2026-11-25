@@ -439,6 +439,7 @@
   "godot_4_7-export-templates-bin"
   "godot_4_7-mono"
   "gogdl"
+  "gogg"
   "gogui"
   "goldberg-emu"
   "gopacked"
