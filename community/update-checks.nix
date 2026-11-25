@@ -41,7 +41,7 @@
   # keep-sorted start block=yes newline_separated=yes
   bbedit = {
     url = "https://www.barebones.com/support/bbedit/updates.html";
-    pattern = "BBEdit ([0-9]+\\.[0-9]+\\.[0-9]+)";
+    pattern = "BBEdit ([0-9]+\\.[0-9]+(?:\\.[0-9]+)?)";
   };
 
   google-chrome = {
