@@ -267,6 +267,21 @@ class Patched(unittest.TestCase):
         self.assertEqual(found["CVE-2026-2"]["verdict"], "patched")  # any case
         self.assertTrue(is_vulnerable(rows[0]))  # GHSA-b (OSV) still counts
 
+    def test_patch_cve_ids(self):
+        self.assertEqual(
+            vd.patch_cve_ids("plus-cve-2026-131873-131874.patch"),
+            {"CVE-2026-131873", "CVE-2026-131874"},
+        )
+        self.assertEqual(
+            vd.patch_cve_ids("CVE-2026-1234-CVE-2025-5678.patch"),
+            {"CVE-2026-1234", "CVE-2025-5678"},
+        )
+        # A short number or one that runs into letters isn't another CVE.
+        self.assertEqual(vd.patch_cve_ids("CVE-2026-1234-1.patch"), {"CVE-2026-1234"})
+        self.assertEqual(
+            vd.patch_cve_ids("https://x/cve-2026-1234-5678abc.patch"), {"CVE-2026-1234"}
+        )
+
     def test_an_osv_advisory_by_its_cve(self):
         rows = [{"name": "aspell", "nixVersion": "1.0"}]
         found = self.add(rows, unstable=["CVE-2026-9.patch"])

@@ -464,6 +464,10 @@ def to_backport(found, newest):
 
 # A CVE id, as patch names write it.
 CVE_ID = re.compile(r"CVE-\d{4}-\d+", re.IGNORECASE)
+# A CVE id in a patch's name, and the numbers of the same year a name may
+# run on with (plus-cve-2026-131873-131874.patch fixes two). CVE numbers
+# have at least 4 digits, so CVE-2026-1234-1.patch names one.
+CVE_RUN = re.compile(r"CVE-(\d{4})-(\d+(?:-\d{4,}\b)*)", re.IGNORECASE)
 
 
 def cve_ids(entry):
@@ -477,6 +481,22 @@ def cve_ids(entry):
         for i in [entry["id"], *(entry.get("cves") or [])]
         if CVE_ID.fullmatch(i)
     ]
+
+
+def patch_cve_ids(text):
+    """Return the CVE ids patch names and URLs are named after.
+
+    Args:
+        text: The names and URLs.
+
+    Returns:
+        The ids, upper case.
+    """
+    return {
+        f"CVE-{year}-{number}"
+        for year, run in CVE_RUN.findall(text)
+        for number in run.split("-")
+    }
 
 
 def patched(rows, revision, wanted, evaluations=None):
@@ -504,7 +524,7 @@ def patched(rows, revision, wanted, evaluations=None):
         text = " ".join(
             t for a in row.get("attrs") or [row["name"]] for t in found.get(a) or []
         )
-        if ids := {i.upper() for i in CVE_ID.findall(text)}:
+        if ids := patch_cve_ids(text):
             out[row["name"]] = ids
     return out
 
