@@ -932,6 +932,7 @@
   "rbdoom-3-bfg"
   "rebels-in-the-sky"
   "recastnavigation"
+  "recomplauncher"
   "redeclipse"
   "redumper"
   "regolith"
