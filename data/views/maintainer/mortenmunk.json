@@ -1,0 +1,1 @@
+{"packages":[{"attrs":["uppaal"],"builds":[],"devel":false,"lists":[],"maintainers":["MortenMunk"],"name":"uppaal","nixStatus":"newest","nixVersion":"5.0","nixVulnerable":false,"openIssues":0,"openPRs":1,"platforms":{"darwin":true,"linux":true},"project":"uppaal","refVersion":"5.0.0","searchTerm":"uppaal","unfree":true,"update":null,"updateFailure":false}]}
